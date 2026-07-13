@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: theme("colors.neutro.50");
+    color: theme("colors.neutro.800");
+    font-family: theme("fontFamily.body");
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: theme("fontFamily.title");
+  }
+}
+
+/* Motion — Como Começar */
+@keyframes gaia-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+@keyframes gaia-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Motion — Badge de vidro (eyebrow reutilizável) */
+@keyframes gaia-badge-sheen {
+  0% {
+    transform: translateX(-140%) skewX(-16deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  40% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(240%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+@keyframes gaia-badge-halo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(138, 105, 216, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(138, 105, 216, 0);
+  }
+}
+
+.gaia-badge-sheen {
+  animation: gaia-badge-sheen 6.5s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation-delay: 1.2s;
+}
+
+.gaia-badge-halo {
+  animation: gaia-badge-halo 3s ease-in-out infinite;
+}
+
+.gaia-float {
+  animation: gaia-float 5s ease-in-out infinite;
+}
+
+.gaia-progress-fill {
+  transform-origin: left center;
+  animation: gaia-progress var(--gaia-dur, 6000ms) linear forwards;
+}
+
+.gaia-progress-fill[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaia-float {
+    animation: none;
+  }
+  .gaia-progress-fill {
+    animation: none;
+    transform: scaleX(1);
+  }
+  .gaia-badge-sheen,
+  .gaia-badge-halo {
+    animation: none;
+  }
+}
+
+/* Lenis smooth scroll */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lenis.lenis-smooth {
+    scroll-behavior: smooth !important;
+  }
+}
