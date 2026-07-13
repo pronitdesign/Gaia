@@ -80,25 +80,82 @@ function Overlay({
         transform: active ? "translateY(0)" : "translateY(16px)",
       }}
     >
-      <p className="mb-3 font-body text-[13px] font-medium uppercase tracking-[0.14em] text-brand">
+      <p className="mb-3 font-body text-[13px] font-medium uppercase tracking-[0.14em] text-roxo-200 drop-shadow-[0_1px_12px_rgba(0,0,0,0.5)]">
         {eyebrow}
       </p>
-      <h3 className="mb-3 text-balance font-title font-medium leading-[1.04] text-neutro-900 text-[2rem] md:text-[3rem]">
+      <h3 className="mb-3 text-balance font-title font-medium leading-[1.04] text-neutro-0 text-[2rem] md:text-[3rem] drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)]">
         {headline}
       </h3>
-      <p className="max-w-[40ch] font-body text-body text-neutro-700/90">
+      <p className="max-w-[40ch] font-body text-body text-neutro-0/90 drop-shadow-[0_1px_14px_rgba(0,0,0,0.5)]">
         {sub}
       </p>
     </div>
   );
 }
 
-const card = "rounded-2xl bg-neutro-0 shadow-soft-lg ring-1 ring-neutro-900/5";
+/* Vidro — MESMA receita do Footer embutido: sem stroke, fill em degradê
+   translúcido, refração de luz interna (linha branca no topo + base sutil),
+   sombra funda, blur + saturate. Conteúdo em branco/translúcido por cima.
+
+   `transform-gpu` + will-change pré-promovem a camada de composição no mount:
+   assim o snapshot borrado do backdrop já existe ANTES da entrada (opacity/
+   float), matando a "trava" de 1 frame que o backdrop-filter causa quando a
+   camada é criada no meio da animação de ativação. */
+const glassSurface =
+  "bg-gradient-to-b from-black/72 to-black/58 shadow-[0_30px_80px_-28px_rgba(0,0,0,0.95),inset_0_1px_0_0_rgba(255,255,255,0.16),inset_0_0_0_1px_rgba(255,255,255,0.07)] backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+
+function GlassCard({
+  className = "",
+  aria = false,
+  children,
+}: {
+  className?: string;
+  aria?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      aria-hidden={aria || undefined}
+      style={{ willChange: "transform" }}
+      className={`relative overflow-hidden rounded-2xl ${glassSurface} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** posição do card principal: mobile topo-centro, desktop topo-direita
     (deixa o canto inferior-esquerdo livre pro título) */
 const mainPos =
   "top-7 left-1/2 -translate-x-1/2 md:left-auto md:right-[7%] md:top-[10%] md:translate-x-0";
+
+/** Foto lifestyle de fundo — mantida viva; scrim escuro só na base/esquerda
+    (onde pousa o texto) garante legibilidade sem apagar a imagem.
+
+    Parallax de galeria (técnica Codrops horizontal-parallax-gallery): a imagem
+    é mais larga que o frame (overflow hidden no banner) e contra-desliza no eixo
+    X conforme o banner cruza o centro — o ComoComecar seta `--parallax` por frame
+    no scroll. Sem var (mobile/reduced) fica centrada e só preenche. */
+function PhotoBg({ src }: { src: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <img
+        data-parallax
+        src={src}
+        alt=""
+        className="absolute left-1/2 top-0 h-full w-[130%] max-w-none object-cover object-center"
+        style={{
+          transform: "translate3d(calc(-50% + var(--parallax, 0%)), 0, 0)",
+          willChange: "transform",
+        }}
+      />
+      {/* base escura pro texto (mobile + desktop) */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+      {/* reforço à esquerda, onde fica o título no desktop */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent" />
+    </div>
+  );
+}
 
 function Glow() {
   return (
@@ -109,16 +166,24 @@ function Glow() {
   );
 }
 
-/* ── Passo 01 · Traga seus pacientes ─────────────────────────── */
+/* Waveform estática (determinística — sem Math.random no render) */
+const WAVE = [
+  7, 12, 20, 30, 22, 14, 26, 34, 24, 16, 10, 18, 28, 36, 26, 18, 12, 22, 32, 24,
+  15, 9, 14, 24, 30, 20, 12,
+];
+
+/* ── Passo 01 · Grave ────────────────────────────────────────── */
 export function Panel1({ active }: PanelProps) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-afluente">
+      {/* foto lifestyle — nutricionista em consulta */}
+      <PhotoBg src="/passo1-migracao.png" />
       <Glow />
       <Overlay
         active={active}
-        eyebrow="Passo 01 · Migração"
-        headline="Migre sem recomeçar do zero."
-        sub="Traga seus pacientes da ferramenta atual. A gente faz a importação junto com você."
+        eyebrow="Passo 01 · Grave"
+        headline="Aperte para gravar."
+        sub="A consulta é transcrita ao vivo, em português, com termos clínicos."
       />
 
       <Float
@@ -128,159 +193,181 @@ export function Panel1({ active }: PanelProps) {
         className={`${mainPos} w-[270px] md:w-[340px]`}
       >
         <div className="relative">
-          <div className={`${card} absolute -right-5 -top-6 h-full w-full opacity-60`} aria-hidden />
-          <div className={`${card} relative p-5`}>
+          <GlassCard aria className="absolute -right-5 -top-6 h-full w-full opacity-50" />
+          <GlassCard className="p-5">
             <div className="mb-4 flex items-center justify-between">
-              <p className="font-body text-small font-semibold text-neutro-800">
-                Importar pacientes
+              <p className="font-body text-small font-semibold text-white">
+                Gravando consulta
               </p>
-              <span className="rounded-full bg-sage-100 px-2 py-0.5 font-body text-[11px] font-medium text-sage-700">
-                312 / 312
+              <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff7a7a]" />
+                <span className="font-body text-[11px] font-medium tabular-nums text-white/80">
+                  12:47
+                </span>
               </span>
             </div>
-            <div className="space-y-3">
-              {["Ana Beatriz", "Carla Menezes", "Marina Alves"].map((name, i) => (
-                <div key={name} className="flex items-center gap-3">
-                  <div className="h-8 w-8 shrink-0 rounded-full bg-azul-200" />
-                  <div className="flex-1">
-                    <div className="mb-1.5 h-2 w-24 rounded-full bg-neutro-200" />
-                    <div className="h-2 w-16 rounded-full bg-neutro-100" />
-                  </div>
-                  <svg
-                    width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke="#6F8354" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ opacity: 0.45 + i * 0.27 }}
-                  >
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </div>
+            {/* waveform ao vivo */}
+            <div className="mb-4 flex h-10 items-center gap-[3px]">
+              {WAVE.map((h, i) => (
+                <span
+                  key={i}
+                  style={{ height: h }}
+                  className="w-[3px] shrink-0 rounded-full bg-white/40"
+                />
               ))}
             </div>
-          </div>
+            {/* transcrição ao vivo */}
+            <div className="space-y-2">
+              <div className="h-2 w-full rounded-full bg-white/15" />
+              <div className="h-2 w-4/5 rounded-full bg-white/15" />
+              <p className="font-body text-[11px] leading-snug text-white/70">
+                “…dorme mal desde que trocou o turno no trabalho.”
+              </p>
+            </div>
+          </GlassCard>
         </div>
       </Float>
     </div>
   );
 }
 
-/* ── Passo 02 · Envie a anamnese ─────────────────────────────── */
+/* ── Passo 02 · Acompanhe ────────────────────────────────────── */
+const TOPICS: Array<[string, boolean]> = [
+  ["Queixa principal", true],
+  ["História da queixa", true],
+  ["Sono e rotina", true],
+  ["Alimentação", false],
+  ["Medicações em uso", false],
+];
+
 export function Panel2({ active }: PanelProps) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-lavanda">
+      {/* foto lifestyle — nutricionista conduzindo a consulta */}
+      <PhotoBg src="/passo2-envio.png" />
       <Glow />
       <Overlay
         active={active}
-        eyebrow="Passo 02 · Envio"
-        headline="Um link. Ela responde no celular."
-        sub="Você envia por WhatsApp. O paciente responde no tempo dele, antes da consulta."
-      />
-
-      {/* Telefone (principal) */}
-      <Float
-        active={active}
-        depth={14}
-        delay={120}
-        className={`${mainPos} w-[176px] md:w-[210px]`}
-      >
-        <div className="overflow-hidden rounded-[30px] border border-neutro-200 bg-neutro-0 p-2.5 shadow-soft-lg">
-          <div className="rounded-[22px] bg-neutro-50 p-3">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="h-6 w-6 rounded-full bg-roxo-200" />
-              <div className="h-2 w-16 rounded-full bg-neutro-200" />
-            </div>
-            <div className="mb-2 max-w-[88%] rounded-2xl rounded-tl-md bg-neutro-0 p-2.5 shadow-soft ring-1 ring-neutro-900/5">
-              <p className="font-body text-[11px] leading-snug text-neutro-700">
-                Oi, Maria! Sua anamnese:{" "}
-                <span className="text-roxo-600">gaia.app/a/9f3</span> 💜
-              </p>
-            </div>
-            <div className="ml-auto max-w-[70%] rounded-2xl rounded-tr-md bg-roxo-500 p-2.5">
-              <div className="mb-1 h-1.5 w-14 rounded-full bg-neutro-0/70" />
-              <div className="h-1.5 w-10 rounded-full bg-neutro-0/50" />
-            </div>
-          </div>
-        </div>
-      </Float>
-
-      {/* Card pergunta — só desktop (sobrepõe o device à la Owner) */}
-      <Float
-        active={active}
-        depth={30}
-        delay={260}
-        className="hidden md:block md:right-[27%] md:top-[46%] md:w-[260px]"
-      >
-        <div className={`${card} p-4`}>
-          <p className="mb-3 font-body text-small font-semibold text-neutro-800">
-            Como tem sido seu sono?
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {["Tranquilo", "Irregular", "Acordo cansada"].map((o, i) => (
-              <span
-                key={o}
-                className={`rounded-full px-3 py-1.5 font-body text-[12px] ${
-                  i === 1 ? "bg-roxo-500 text-neutro-0" : "bg-neutro-100 text-neutro-700"
-                }`}
-              >
-                {o}
-              </span>
-            ))}
-          </div>
-        </div>
-      </Float>
-    </div>
-  );
-}
-
-/* ── Passo 03 · Receba pronta ────────────────────────────────── */
-export function Panel3({ active }: PanelProps) {
-  const rows = [
-    ["Objetivo", "Reeducação alimentar"],
-    ["Restrições", "Intolerância a lactose"],
-    ["Rotina", "Treina 4× por semana"],
-  ];
-  return (
-    <div className="relative h-full w-full overflow-hidden bg-bruma">
-      <Glow />
-      <Overlay
-        active={active}
-        eyebrow="Passo 03 · Pronto"
-        headline="Organizada e adaptada a cada pessoa."
-        sub="Tudo chega estruturado e no contexto de quem respondeu. Você só atende."
+        eyebrow="Passo 02 · Acompanhe"
+        headline="O que você cobriu, o que falta."
+        sub="Um checklist clínico marca os 14 tópicos da anamnese ao vivo, enquanto você conversa."
       />
 
       <Float
         active={active}
         depth={16}
         delay={120}
-        className={`${mainPos} w-[290px] md:w-[350px]`}
+        className={`${mainPos} w-[280px] md:w-[344px]`}
       >
         <div className="relative">
-          <div className={`${card} absolute -right-5 -top-6 h-full w-full opacity-60`} aria-hidden />
-          <div className={`${card} relative p-5`}>
-            <div className="mb-4 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-roxo-200" />
-              <div>
-                <p className="font-body text-small font-semibold text-neutro-800">
-                  Resumo · Maria Silva
-                </p>
-                <p className="font-body text-[11px] text-neutro-500">Anamnese concluída</p>
-              </div>
-              <span className="ml-auto rounded-full bg-roxo-100 px-2.5 py-1 font-body text-[11px] font-medium text-roxo-600">
-                Adaptada
+          <GlassCard aria className="absolute -right-5 -top-6 h-full w-full opacity-50" />
+          <GlassCard className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="font-body text-small font-semibold text-white">
+                Anamnese ao vivo
+              </p>
+              <span className="rounded-full bg-white/10 px-2.5 py-0.5 font-body text-[11px] font-medium tabular-nums text-sage-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+                8 / 14
               </span>
             </div>
-            <div className="space-y-2.5">
-              {rows.map(([k, v]) => (
-                <div
-                  key={k}
-                  className="flex items-center justify-between border-t border-neutro-100 pt-2.5 first:border-t-0 first:pt-0"
-                >
-                  <span className="font-body text-[12px] text-neutro-500">{k}</span>
-                  <span className="font-body text-[12px] font-medium text-neutro-800">{v}</span>
+            {/* barra de progresso */}
+            <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-[57%] rounded-full bg-gradient-to-r from-sage-200 to-white/80" />
+            </div>
+            <div className="space-y-3">
+              {TOPICS.map(([label, done]) => (
+                <div key={label} className="flex items-center gap-3">
+                  {done ? (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]">
+                      <svg
+                        width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="#C4CFB4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span className="h-5 w-5 shrink-0 rounded-full border border-white/25" />
+                  )}
+                  <span
+                    className={`font-body text-[13px] ${
+                      done ? "text-white/85" : "text-white/45"
+                    }`}
+                  >
+                    {label}
+                  </span>
                 </div>
               ))}
             </div>
-          </div>
+          </GlassCard>
+        </div>
+      </Float>
+    </div>
+  );
+}
+
+/* ── Passo 03 · Revise ───────────────────────────────────────── */
+export function Panel3({ active }: PanelProps) {
+  const soap: Array<[string, string, string]> = [
+    ["S", "Subjetivo", "Insônia há 3 meses, piora no turno noite."],
+    ["O", "Objetivo", "PA 120/80 · IMC 24,1 · sem alterações."],
+    ["A", "Avaliação", "Insônia associada a estresse ocupacional."],
+    ["P", "Plano", "Higiene do sono + retorno em 30 dias."],
+  ];
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-bruma">
+      {/* foto lifestyle — nutricionista revisando o resumo pronto */}
+      <PhotoBg src="/passo3-pronto.png" />
+      <Glow />
+      <Overlay
+        active={active}
+        eyebrow="Passo 03 · Revise"
+        headline="A Gaia sugere, você decide."
+        sub="No final, um resumo SOAP editável, pronto pra salvar no prontuário."
+      />
+
+      <Float
+        active={active}
+        depth={16}
+        delay={120}
+        className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[7%] md:top-[7%] md:w-[360px] md:translate-x-0"
+      >
+        <div className="relative">
+          <GlassCard aria className="absolute -right-5 -top-6 h-full w-full opacity-50" />
+          <GlassCard className="p-5">
+            <div className="mb-3.5 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-white/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]" />
+              <div>
+                <p className="font-body text-small font-semibold text-white">
+                  Resumo SOAP · Maria Silva
+                </p>
+                <p className="font-body text-[11px] text-white/50">Gerado pela Gaia</p>
+              </div>
+              <span className="ml-auto rounded-full bg-white/10 px-2.5 py-1 font-body text-[11px] font-medium text-roxo-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+                Editável
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {soap.map(([letter, label, value]) => (
+                <div
+                  key={letter}
+                  className="flex gap-3 border-t border-white/10 pt-2.5 first:border-t-0 first:pt-0"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10 font-body text-[12px] font-semibold text-white/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+                    {letter}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="mb-0.5 font-body text-[11px] uppercase tracking-[0.08em] text-white/45">
+                      {label}
+                    </p>
+                    <p className="font-body text-[12px] leading-snug text-white/90">
+                      {value}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
         </div>
       </Float>
     </div>

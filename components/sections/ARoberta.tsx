@@ -6,6 +6,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Badge } from "@/components/ui/Badge";
 import { FluxoMark } from "@/components/ui/FluxoMark";
+import Aurora from "@/components/ui/Aurora";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -55,12 +56,17 @@ function Portrait() {
 function Afluente() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-[#13161F]">
+      {/* Aurora WebGL — véu de aurora roxo animado, escorrendo de baixo (paleta Gaia) */}
+      <Aurora
+        className="absolute inset-0 h-full w-full opacity-70"
+        colorStops={["#7454AA", "#A2739A", "#A385C0"]}
+        blend={0.36}
+        amplitude={1.0}
+        speed={0.6}
+      />
       {/* marca "Fluxo" — afluentes escorrendo das bordas pro centro (watermark sutil) */}
       <FluxoMark className="absolute right-[-5%] top-1/2 h-[125%] w-auto -translate-y-1/2 text-white opacity-[0.05]" />
       <FluxoMark className="absolute left-[-5%] top-1/2 h-[125%] w-auto -translate-y-1/2 -scale-x-100 text-white opacity-[0.04]" />
-      <div className="gaia-drift-a absolute -left-[12%] top-[4%] h-[60vh] w-[60vw] rounded-full bg-[radial-gradient(circle,rgba(116,84,170,0.30),transparent_66%)] blur-2xl" />
-      <div className="gaia-drift-b absolute -right-[10%] top-[30%] h-[55vh] w-[55vw] rounded-full bg-[radial-gradient(circle,rgba(122,144,174,0.26),transparent_66%)] blur-2xl" />
-      <div className="gaia-drift-c absolute -bottom-[18%] left-[18%] h-[50vh] w-[65vw] rounded-full bg-[radial-gradient(circle,rgba(111,131,84,0.20),transparent_70%)] blur-2xl" />
       {/* streak horizontal — eco do #10 */}
       <div className="gaia-streak absolute inset-x-0 top-[44%] h-[18vh] bg-[linear-gradient(90deg,transparent,rgba(207,197,218,0.12)_38%,rgba(230,219,226,0.07)_62%,transparent)] blur-2xl" />
       {/* vinheta pra profundidade */}

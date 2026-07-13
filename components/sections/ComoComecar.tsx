@@ -11,54 +11,51 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Badge } from "@/components/ui/Badge";
 import { IconClock } from "@/components/ui/icons";
+import { getLenis } from "@/lib/lenis";
 import { Panel1, Panel2, Panel3 } from "./ComoComecarPanels";
 
 gsap.registerPlugin(ScrollTrigger);
 
 const STEPS = [
-  { n: "01", tab: "Traga seus pacientes", Panel: Panel1 },
-  { n: "02", tab: "Envie a anamnese", Panel: Panel2 },
-  { n: "03", tab: "Receba pronta", Panel: Panel3 },
+  { n: "01", tab: "Grave", Panel: Panel1 },
+  { n: "02", tab: "Acompanhe", Panel: Panel2 },
+  { n: "03", tab: "Revise", Panel: Panel3 },
 ] as const;
 
 const GAP = 0; // banners colados — sem gap (tira contínua)
+const PARALLAX_MAX = 10; // % do deslize contra-motivo da foto dentro do frame (img 130%)
 
 // carrossel circular: último banner peeka antes do primeiro, e o primeiro depois do último
 const RENDER = [STEPS.length - 1, ...STEPS.map((_, i) => i), 0];
-const DWELL = 0.24; // fração do scroll parado (centralizado) por passo
-const SLIDE = 0.14; // fração deslizando entre passos
-// DWELL*3 + SLIDE*2 = 1.0
+
+// Pan contínuo (sem plateau/dwell). A tira acompanha o scroll o tempo todo —
+// só DESACELERA perto de cada passo (dá tempo de ler) e nunca congela, então
+// não existe o stop→go que causava trava/bounce ao trocar de banner.
+// EASE_K mistura linear↔smoothstep: 0 = pan linear puro, 1 = congela nos steps.
+const EASE_K = 0.62;
+const FOCUS = 0.3; // |cont - step| < FOCUS → overlay visível (zona lenta do passo)
 
 /**
  * Mapeia o progresso do pin (0..1) para:
- *  - cont: posição contínua do track (0..N-1)
- *  - centered: índice do banner centralizado (mostra conteúdo) ou -1 (deslizando)
- *  - highlight: índice pro estado das abas (fica no último passo durante o slide)
+ *  - cont: posição contínua do track (0..N-1) — staircase suave, velocidade > 0
+ *  - centered: índice do banner na zona lenta (mostra conteúdo) ou -1
+ *  - highlight: índice do passo mais próximo (estado das abas)
  */
 function mapScroll(p: number) {
-  const seq: Array<["dwell" | "slide", number, number, number]> = [];
-  let acc = 0;
-  for (let i = 0; i < STEPS.length; i++) {
-    seq.push(["dwell", acc, acc + DWELL, i]);
-    acc += DWELL;
-    if (i < STEPS.length - 1) {
-      seq.push(["slide", acc, acc + SLIDE, i]);
-      acc += SLIDE;
-    }
-  }
-  for (const [type, a, b, idx] of seq) {
-    if (p <= b + 1e-6) {
-      if (type === "dwell") return { cont: idx, centered: idx, highlight: idx };
-      const t = (p - a) / (b - a);
-      return { cont: idx + t, centered: -1, highlight: idx };
-    }
-  }
-  return { cont: STEPS.length - 1, centered: STEPS.length - 1, highlight: STEPS.length - 1 };
+  const last = STEPS.length - 1;
+  const u = Math.max(0, Math.min(last, p * last)); // 0..N-1 linear
+  const i = Math.min(last - 1, Math.floor(u)); // segmento atual
+  const t = u - i; // 0..1 dentro do segmento
+  const s = t * t * (3 - 2 * t); // smoothstep
+  const cont = i + EASE_K * s + (1 - EASE_K) * t; // desacelera nos steps, sem parar
+  const nearest = Math.round(cont);
+  const centered = Math.abs(cont - nearest) < FOCUS ? nearest : -1;
+  return { cont, centered, highlight: Math.max(0, Math.min(last, nearest)) };
 }
 
-/** progresso-alvo pra centralizar o passo i (meio do dwell) — usado no clique da aba */
-function dwellCenter(i: number) {
-  return i * (DWELL + SLIDE) + DWELL / 2;
+/** progresso do pin que centraliza o passo i — usado no clique da aba */
+function stepProgress(i: number) {
+  return STEPS.length > 1 ? i / (STEPS.length - 1) : 0;
 }
 
 export default function ComoComecar() {
@@ -101,6 +98,26 @@ export default function ComoComecar() {
     track.current.style.transform = `translate3d(${-(cont + 1) * (metrics.current.w + GAP)}px,0,0)`;
   };
 
+  /** Parallax de galeria: cada foto contra-desliza conforme cruza o centro.
+      Fonte = progresso CONTÍNUO do scroll (não o `cont`, que congela nos dwells
+      pra segurar o banner parado). Assim a foto nunca trava — respira mesmo com o
+      banner imóvel, cruzando o neutro no meio de cada dwell. Sem reflow.
+      `contLinear` mapeia o scroll linearmente sobre os passos; RENDER[pos] fica
+      neutro quando pos === contLinear + 1. */
+  const applyParallax = (progress: number) => {
+    if (!track.current) return;
+    const w = metrics.current.w + GAP;
+    const span = window.innerWidth; // divisor generoso → deriva gradual, sem saturar em on/off
+    const contLinear = progress * (STEPS.length - 1);
+    track.current
+      .querySelectorAll<HTMLElement>("[data-parallax]")
+      .forEach((img, pos) => {
+        const offset = (pos - (contLinear + 1)) * w; // px do centro do frame ao centro da viewport
+        const t = Math.max(-1, Math.min(1, offset / span)); // -1..1
+        img.style.setProperty("--parallax", (-t * PARALLAX_MAX).toFixed(2) + "%");
+      });
+  };
+
   useGSAP(
     () => {
       gsap.from("[data-reveal]", {
@@ -115,6 +132,7 @@ export default function ComoComecar() {
       if (mode === "pinned") {
         layout();
         applyTranslate(0);
+        applyParallax(0);
 
         st.current = ScrollTrigger.create({
           trigger: root.current,
@@ -122,13 +140,19 @@ export default function ComoComecar() {
           end: () => "+=" + window.innerHeight * 3,
           pin: pin.current,
           pinSpacing: true,
+          // Sem `snap`: o snap do ScrollTrigger seta o scroll direto e briga com
+          // o Lenis (smooth scroll global) — era isso que travava ao chegar num
+          // step. Os dwells largos + slide com easing já param a foto em cada
+          // passo de forma contínua. Ancoragem exata fica pro clique da aba.
           onRefresh: (self) => {
             layout();
             applyTranslate(mapScroll(self.progress).cont);
+            applyParallax(self.progress);
           },
           onUpdate: (self) => {
             const m = mapScroll(self.progress);
             applyTranslate(m.cont);
+            applyParallax(self.progress);
             setActive((p) => (p === m.centered ? p : m.centered));
             setHighlight((p) => (p === m.highlight ? p : m.highlight));
           },
@@ -152,10 +176,13 @@ export default function ComoComecar() {
   const goTo = (i: number) => {
     if (mode !== "pinned" || !st.current) return;
     const s = st.current;
-    window.scrollTo({
-      top: s.start + dwellCenter(i) * (s.end - s.start),
-      behavior: "smooth",
-    });
+    const top = s.start + stepProgress(i) * (s.end - s.start);
+    const lenis = getLenis();
+    // Lenis desliga o scroll-behavior nativo → usa o próprio scrollTo pra rolar
+    // suave até o centro do step; fallback nativo se o Lenis não estiver ativo
+    // (ex.: prefers-reduced-motion).
+    if (lenis) lenis.scrollTo(top, { duration: 1.1 });
+    else window.scrollTo({ top, behavior: "smooth" });
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -168,10 +195,10 @@ export default function ComoComecar() {
   const Header = (
     <div data-reveal className="mx-auto mb-10 flex max-w-2xl flex-col items-center text-center md:mb-12">
       <Badge icon={<IconClock className="h-3.5 w-3.5" />} className="mb-5">
-        Comece em minutos
+        Como funciona
       </Badge>
       <h2 className="text-balance font-title text-h2 font-medium text-neutro-800 md:text-h1">
-        Três passos até sua primeira anamnese.
+        Da gravação ao prontuário, em três passos.
       </h2>
     </div>
   );
