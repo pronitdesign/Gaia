@@ -5,12 +5,13 @@ import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Badge } from "@/components/ui/Badge";
+import { FluxoMark } from "@/components/ui/FluxoMark";
 
 gsap.registerPlugin(ScrollTrigger);
 
 // Foto da Roberta — soltar o arquivo em /public e trocar aqui.
 // Enquanto não existe, o placeholder (gradiente Bruma + monograma) aparece por baixo.
-const PORTRAIT = "/roberta.png";
+const PORTRAIT = "/roberta.jpg";
 
 // Números da prova — ledger. `to` numérico dispara count-up; `static` fica fixo.
 const STATS = [
@@ -54,6 +55,9 @@ function Portrait() {
 function Afluente() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-[#13161F]">
+      {/* marca "Fluxo" — afluentes escorrendo das bordas pro centro (watermark sutil) */}
+      <FluxoMark className="absolute right-[-5%] top-1/2 h-[125%] w-auto -translate-y-1/2 text-white opacity-[0.05]" />
+      <FluxoMark className="absolute left-[-5%] top-1/2 h-[125%] w-auto -translate-y-1/2 -scale-x-100 text-white opacity-[0.04]" />
       <div className="gaia-drift-a absolute -left-[12%] top-[4%] h-[60vh] w-[60vw] rounded-full bg-[radial-gradient(circle,rgba(116,84,170,0.30),transparent_66%)] blur-2xl" />
       <div className="gaia-drift-b absolute -right-[10%] top-[30%] h-[55vh] w-[55vw] rounded-full bg-[radial-gradient(circle,rgba(122,144,174,0.26),transparent_66%)] blur-2xl" />
       <div className="gaia-drift-c absolute -bottom-[18%] left-[18%] h-[50vh] w-[65vw] rounded-full bg-[radial-gradient(circle,rgba(111,131,84,0.20),transparent_70%)] blur-2xl" />
@@ -312,7 +316,7 @@ export default function ARoberta() {
               data-word-inner
               className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-white/90"
             >
-              CONSTRUIU
+              CONSTRUIU?
             </span>
           </span>
 

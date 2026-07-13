@@ -206,6 +206,48 @@
   }
 }
 
+/* Motion — CTA Final (fechamento: glow que respira + luz aurora fluindo sobre a imagem) */
+@keyframes gaia-cta-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes gaia-aurora-flow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translate3d(6%, -5%, 0) scale(1.18);
+    opacity: 1;
+  }
+}
+
+.gaia-cta-breathe {
+  animation: gaia-cta-breathe 3.4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.gaia-aurora-flow {
+  animation: gaia-aurora-flow 22s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaia-cta-breathe,
+  .gaia-aurora-flow {
+    animation: none;
+  }
+}
+
 /* Lenis smooth scroll */
 html.lenis,
 html.lenis body {
