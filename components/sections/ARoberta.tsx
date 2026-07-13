@@ -41,7 +41,7 @@ function Portrait() {
       <img
         src={PORTRAIT}
         alt="Roberta Carbonari"
-        className="absolute inset-0 h-full w-full object-cover object-[57%_16%]"
+        className="absolute inset-0 h-full w-full object-cover object-[52%_28%]"
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.display = "none";
         }}
@@ -209,11 +209,12 @@ export default function ARoberta() {
         return;
       }
 
-      // A imagem já vive no tamanho/posição final do banner (full-width, 40vh).
-      // O "card" é só uma JANELA (clip-path) que abre — nada é escalado, então
-      // o crescimento é sempre proporcional. p: 0 = card pequeno · 1 = banner cheio.
-      const WC0 = 260; // largura da janela inicial
-      const HC0 = 320; // altura da janela inicial
+      // O box do retrato cresce de um card-retrato (260x320, foto inteira) até o
+      // banner full-width/40vh. A imagem é object-cover DENTRO do box, então em
+      // p=0 vê-se a Roberta enquadrada (não um zoom), e em p=1 vira o banner.
+      // p: 0 = card pequeno · 1 = banner cheio.
+      const WC0 = 260; // largura do card inicial
+      const HC0 = 320; // altura do card inicial
       const state = { p: 0 };
 
       const applyP = (p: number) => {
@@ -221,15 +222,15 @@ export default function ARoberta() {
         if (!el) return;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        const elH = vh * BANNER_VH;
+        const bannerH = vh * BANNER_VH;
         const w = WC0 + p * (vw - WC0);
-        const h = HC0 + p * (elH - HC0);
-        const lr = Math.max(0, (vw - w) / 2);
-        const tb = Math.max(0, (elH - h) / 2);
-        const r = (1 - p) * 26;
-        el.style.clipPath = `inset(${tb}px ${lr}px ${tb}px ${lr}px round ${r}px)`;
-        // desliza do centro da tela (p=0) até o topo (p=1)
-        el.style.transform = `translateY(${(1 - p) * (0.5 - BANNER_VH / 2) * vh}px)`;
+        const h = HC0 + p * (bannerH - HC0);
+        // centrado na horizontal; sobe do centro da tela (p=0) pro topo (p=1)
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
+        el.style.left = `${(vw - w) / 2}px`;
+        el.style.top = `${(1 - p) * (vh - h) / 2}px`;
+        el.style.borderRadius = `${(1 - p) * 26}px`;
         el.style.filter =
           p < 1 ? `drop-shadow(0 22px 45px rgba(58,72,94,${0.18 * (1 - p)}))` : "none";
       };
@@ -326,10 +327,10 @@ export default function ARoberta() {
             </span>
           </span>
 
-          {/* retrato — full-width/40vh; a janela (clip-path) abre e sobe pro topo */}
+          {/* retrato — card-retrato que cresce até o banner full-width/40vh */}
           <div
             ref={portrait}
-            className="absolute inset-x-0 top-0 z-20 h-[40vh] overflow-hidden will-change-[clip-path,transform,filter]"
+            className="absolute z-20 overflow-hidden will-change-[width,height,top,left,filter]"
           >
             <Portrait />
           </div>

@@ -125,6 +125,74 @@
   animation-play-state: paused;
 }
 
+/* ── Micro-interações dos glass cards (mockups vivos) ────────────── */
+
+/* Equalizer — waveform viva do card "Gravando consulta" */
+@keyframes gaia-eq {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.gaia-eq-bar {
+  transform-origin: center;
+  animation: gaia-eq 1.1s ease-in-out infinite;
+}
+
+/* Sheen sutil varrendo o vidro — brilho de luz cruzando o card */
+@keyframes gaia-card-sheen {
+  0% {
+    transform: translateX(-140%) skewX(-14deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  26% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(340%) skewX(-14deg);
+    opacity: 0;
+  }
+}
+.gaia-card-sheen {
+  animation: gaia-card-sheen 7.5s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation-delay: 1.5s;
+}
+
+/* Shimmer correndo dentro da barra de progresso */
+@keyframes gaia-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(240%);
+  }
+}
+.gaia-shimmer {
+  animation: gaia-shimmer 2.6s ease-in-out infinite;
+}
+
+/* Caret piscando — dica de "editável" */
+@keyframes gaia-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.gaia-caret {
+  animation: gaia-blink 1.1s steps(1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gaia-float {
     animation: none;
@@ -135,7 +203,11 @@
   }
   .gaia-badge-sheen,
   .gaia-badge-halo,
-  .gaia-badge-ring {
+  .gaia-badge-ring,
+  .gaia-eq-bar,
+  .gaia-card-sheen,
+  .gaia-shimmer,
+  .gaia-caret {
     animation: none;
   }
 }

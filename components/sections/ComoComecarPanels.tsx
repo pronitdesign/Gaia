@@ -44,11 +44,13 @@ function Float({
           transition: "transform 350ms cubic-bezier(0.16,1,0.3,1)",
         }}
       >
+        {/* Só translateY aqui — opacity NÃO pode viver acima do backdrop-filter
+            (ancestral com opacity<1 desliga o blur → flash de card transparente).
+            O fade fica no próprio GlassCard, no mesmo elemento do filtro. */}
         <div
-          className="transition-all duration-700 ease-gaia"
+          className="transition-transform duration-700 ease-gaia"
           style={{
             transitionDelay: `${delay}ms`,
-            opacity: active ? 1 : 0,
             transform: active ? "translateY(0)" : "translateY(28px)",
           }}
         >
@@ -101,25 +103,59 @@ function Overlay({
    assim o snapshot borrado do backdrop já existe ANTES da entrada (opacity/
    float), matando a "trava" de 1 frame que o backdrop-filter causa quando a
    camada é criada no meio da animação de ativação. */
-const glassSurface =
-  "bg-gradient-to-b from-black/72 to-black/58 shadow-[0_30px_80px_-28px_rgba(0,0,0,0.95),inset_0_1px_0_0_rgba(255,255,255,0.16),inset_0_0_0_1px_rgba(255,255,255,0.07)] backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+const glassBase =
+  "backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+
+/* Escuro: fill preto denso o bastante pra NUNCA lavar sobre foto clara
+   (bug do #18) — refração branca no topo, sombra funda. Texto branco por cima. */
+const glassDark =
+  "bg-gradient-to-b from-black/80 to-black/66 shadow-[0_30px_80px_-28px_rgba(0,0,0,0.95),inset_0_1px_0_0_rgba(255,255,255,0.16),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+
+/* Claro: vidro branco frostado — pede texto escuro no conteúdo. */
+const glassLight =
+  "bg-gradient-to-b from-white/85 to-white/68 shadow-[0_30px_80px_-28px_rgba(0,0,0,0.35),inset_0_1px_0_0_rgba(255,255,255,0.7),inset_0_0_0_1px_rgba(0,0,0,0.06)]";
+
+const glassSurface = { dark: glassDark, light: glassLight } as const;
 
 function GlassCard({
   className = "",
   aria = false,
+  active = true,
+  dim = false,
+  delay = 0,
+  tone = "dark",
+  sheen = false,
   children,
 }: {
   className?: string;
   aria?: boolean;
+  active?: boolean;
+  dim?: boolean;
+  delay?: number;
+  tone?: "dark" | "light";
+  sheen?: boolean;
   children?: ReactNode;
 }) {
   return (
     <div
       aria-hidden={aria || undefined}
-      style={{ willChange: "transform" }}
-      className={`relative overflow-hidden rounded-2xl ${glassSurface} ${className}`}
+      style={{
+        // fade no MESMO elemento do backdrop-filter → o blur renderiza durante
+        // o fade (nada de flash). dim = card-fantasma atrás (meia opacidade).
+        opacity: active ? (dim ? 0.5 : 1) : 0,
+        transition: `opacity 700ms cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+        willChange: "opacity, transform",
+      }}
+      className={`relative overflow-hidden rounded-2xl ${glassBase} ${glassSurface[tone]} ${className}`}
     >
       {children}
+      {/* brilho de luz cruzando o vidro de tempos em tempos */}
+      {sheen && (
+        <span
+          aria-hidden
+          className="gaia-card-sheen pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/12 to-transparent"
+        />
+      )}
     </div>
   );
 }
@@ -143,7 +179,7 @@ function PhotoBg({ src }: { src: string }) {
         data-parallax
         src={src}
         alt=""
-        className="absolute left-1/2 top-0 h-full w-[130%] max-w-none object-cover object-center"
+        className="absolute left-1/2 top-0 h-full w-[150%] max-w-none object-cover object-center"
         style={{
           transform: "translate3d(calc(-50% + var(--parallax, 0%)), 0, 0)",
           willChange: "transform",
@@ -193,8 +229,8 @@ export function Panel1({ active }: PanelProps) {
         className={`${mainPos} w-[270px] md:w-[340px]`}
       >
         <div className="relative">
-          <GlassCard aria className="absolute -right-5 -top-6 h-full w-full opacity-50" />
-          <GlassCard className="p-5">
+          <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
+          <GlassCard active={active} delay={120} sheen className="p-5">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-body text-small font-semibold text-white">
                 Gravando consulta
@@ -206,13 +242,17 @@ export function Panel1({ active }: PanelProps) {
                 </span>
               </span>
             </div>
-            {/* waveform ao vivo */}
+            {/* waveform ao vivo — cada barra pulsa como áudio entrando */}
             <div className="mb-4 flex h-10 items-center gap-[3px]">
               {WAVE.map((h, i) => (
                 <span
                   key={i}
-                  style={{ height: h }}
-                  className="w-[3px] shrink-0 rounded-full bg-white/40"
+                  style={{
+                    height: h,
+                    animationDelay: `${(i % 9) * 90}ms`,
+                    animationDuration: `${1 + (i % 5) * 0.14}s`,
+                  }}
+                  className="gaia-eq-bar w-[3px] shrink-0 rounded-full bg-white/40"
                 />
               ))}
             </div>
@@ -260,8 +300,8 @@ export function Panel2({ active }: PanelProps) {
         className={`${mainPos} w-[280px] md:w-[344px]`}
       >
         <div className="relative">
-          <GlassCard aria className="absolute -right-5 -top-6 h-full w-full opacity-50" />
-          <GlassCard className="p-5">
+          <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
+          <GlassCard active={active} delay={120} sheen className="p-5">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-body text-small font-semibold text-white">
                 Anamnese ao vivo
@@ -270,9 +310,11 @@ export function Panel2({ active }: PanelProps) {
                 8 / 14
               </span>
             </div>
-            {/* barra de progresso */}
+            {/* barra de progresso — luz correndo dentro do preenchido */}
             <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-              <div className="h-full w-[57%] rounded-full bg-gradient-to-r from-sage-200 to-white/80" />
+              <div className="relative h-full w-[57%] overflow-hidden rounded-full bg-gradient-to-r from-sage-200 to-white/80">
+                <span className="gaia-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+              </div>
             </div>
             <div className="space-y-3">
               {TOPICS.map(([label, done]) => (
@@ -333,8 +375,8 @@ export function Panel3({ active }: PanelProps) {
         className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[7%] md:top-[7%] md:w-[360px] md:translate-x-0"
       >
         <div className="relative">
-          <GlassCard aria className="absolute -right-5 -top-6 h-full w-full opacity-50" />
-          <GlassCard className="p-5">
+          <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
+          <GlassCard active={active} delay={120} sheen className="p-5">
             <div className="mb-3.5 flex items-center gap-3">
               <div className="h-9 w-9 rounded-full bg-white/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]" />
               <div>
@@ -362,6 +404,9 @@ export function Panel3({ active }: PanelProps) {
                     </p>
                     <p className="font-body text-[12px] leading-snug text-white/90">
                       {value}
+                      {letter === "P" && (
+                        <span className="gaia-caret ml-0.5 inline-block h-[11px] w-[1.5px] translate-y-[1px] rounded-full bg-roxo-200 align-middle" />
+                      )}
                     </p>
                   </div>
                 </div>

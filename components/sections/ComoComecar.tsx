@@ -23,10 +23,11 @@ const STEPS = [
 ] as const;
 
 const GAP = 0; // banners colados — sem gap (tira contínua)
-const PARALLAX_MAX = 10; // % do deslize contra-motivo da foto dentro do frame (img 130%)
+const PARALLAX_MAX = 15; // % do deslize contra-motivo da foto dentro do frame (img 150%)
+const PARALLAX_SPAN = 0.8; // fração da viewport pra saturar o drift (menor = efeito aparece mais)
 
-// carrossel circular: último banner peeka antes do primeiro, e o primeiro depois do último
-const RENDER = [STEPS.length - 1, ...STEPS.map((_, i) => i), 0];
+// tira fechada: sem clones nas pontas — primeiro e último card não peekam vizinho
+const RENDER = STEPS.map((_, i) => i);
 
 // Pan contínuo (sem plateau/dwell). A tira acompanha o scroll o tempo todo —
 // só DESACELERA perto de cada passo (dá tempo de ler) e nunca congela, então
@@ -88,31 +89,44 @@ export default function ComoComecar() {
     if (!first || !track.current) return;
     const w = first.offsetWidth;
     metrics.current.w = w;
-    track.current.style.paddingLeft =
-      Math.max(24, (window.innerWidth - w) / 2) + "px";
+    // sem padding de centragem: as pontas ancoram nas bordas (ver trackX)
+    track.current.style.paddingLeft = "0px";
+  };
+
+  /** Posição X da tira p/ um `cont` contínuo. Fórmula com pontas ancoradas:
+      passo 0 na borda esquerda, passo N-1 na direita, meio centralizado. Com
+      banner full-bleed (w = viewport) isso vira um slide puro (-cont·w), sem
+      branco em canto nenhum e todos do mesmo tamanho. Linear em cont — o easing
+      já vem embutido no próprio `cont` (mapScroll). */
+  const trackX = (cont: number) => {
+    const w = metrics.current.w + GAP;
+    const last = STEPS.length - 1;
+    if (last <= 0) return 0;
+    return cont * ((window.innerWidth - w) / last - w);
   };
 
   const applyTranslate = (cont: number) => {
     if (!track.current) return;
-    // +1: há um clone (último) prepended, então o passo `cont` vive em RENDER[cont+1]
-    track.current.style.transform = `translate3d(${-(cont + 1) * (metrics.current.w + GAP)}px,0,0)`;
+    track.current.style.transform = `translate3d(${trackX(cont)}px,0,0)`;
   };
 
-  /** Parallax de galeria: cada foto contra-desliza conforme cruza o centro.
-      Fonte = progresso CONTÍNUO do scroll (não o `cont`, que congela nos dwells
-      pra segurar o banner parado). Assim a foto nunca trava — respira mesmo com o
-      banner imóvel, cruzando o neutro no meio de cada dwell. Sem reflow.
-      `contLinear` mapeia o scroll linearmente sobre os passos; RENDER[pos] fica
-      neutro quando pos === contLinear + 1. */
-  const applyParallax = (progress: number) => {
+  /** Parallax de galeria: cada foto contra-desliza em proporção à posição REAL
+      do seu frame na viewport — mesmo `cont` eased do pan, então o parallax é
+      coerente com o movimento do banner: o drift se concentra nas transições
+      (onde mais aparece) e zera exatamente no centro de cada passo. Como o pan é
+      contínuo, a foto nunca congela. Sem reflow. `offset` espelha o applyTranslate
+      (tira sem clones): o frame de RENDER[pos] fica centralizado quando pos === cont. */
+  const applyParallax = (cont: number) => {
     if (!track.current) return;
     const w = metrics.current.w + GAP;
-    const span = window.innerWidth; // divisor generoso → deriva gradual, sem saturar em on/off
-    const contLinear = progress * (STEPS.length - 1);
+    const W = window.innerWidth;
+    const T = trackX(cont); // mesma geometria ancorada do pan
+    const span = W * PARALLAX_SPAN; // menor = drift satura antes → aparece mais
     track.current
       .querySelectorAll<HTMLElement>("[data-parallax]")
       .forEach((img, pos) => {
-        const offset = (pos - (contLinear + 1)) * w; // px do centro do frame ao centro da viewport
+        const center = T + pos * w + w / 2; // centro do frame na viewport
+        const offset = center - W / 2; // px do centro do frame ao centro da viewport
         const t = Math.max(-1, Math.min(1, offset / span)); // -1..1
         img.style.setProperty("--parallax", (-t * PARALLAX_MAX).toFixed(2) + "%");
       });
@@ -135,7 +149,9 @@ export default function ComoComecar() {
         applyParallax(0);
 
         st.current = ScrollTrigger.create({
-          trigger: root.current,
+          // fixa quando o topo do pin (as abas) encosta no topo da viewport —
+          // o título rolou pra fora antes disso
+          trigger: pin.current,
           start: "top top",
           end: () => "+=" + window.innerHeight * 3,
           pin: pin.current,
@@ -146,13 +162,14 @@ export default function ComoComecar() {
           // passo de forma contínua. Ancoragem exata fica pro clique da aba.
           onRefresh: (self) => {
             layout();
-            applyTranslate(mapScroll(self.progress).cont);
-            applyParallax(self.progress);
+            const cont = mapScroll(self.progress).cont;
+            applyTranslate(cont);
+            applyParallax(cont);
           },
           onUpdate: (self) => {
             const m = mapScroll(self.progress);
             applyTranslate(m.cont);
-            applyParallax(self.progress);
+            applyParallax(m.cont);
             setActive((p) => (p === m.centered ? p : m.centered));
             setHighlight((p) => (p === m.highlight ? p : m.highlight));
           },
@@ -242,7 +259,7 @@ export default function ComoComecar() {
         data-panel
         className={
           mode === "pinned"
-            ? "relative h-full w-[74vw] max-w-[1200px] shrink-0 overflow-hidden bg-neutro-0"
+            ? "relative h-full w-[92vw] shrink-0 overflow-hidden bg-neutro-0"
             : "relative h-[78vh] w-full overflow-hidden rounded-card border border-neutro-200/70 bg-neutro-0 shadow-soft-lg"
         }
       >
@@ -259,15 +276,20 @@ export default function ComoComecar() {
       />
 
       {mode === "pinned" ? (
-        <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-14 pb-16">
-          <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
+        <>
+          {/* Título rola normalmente e sai por cima — o pin começa só nas abas */}
+          <div className="mx-auto w-full max-w-6xl px-6 pt-20 md:px-10 lg:px-16">
             {Header}
+          </div>
+          <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-6 pb-14">
+          <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
             {Tabs}
           </div>
-          {/* container clip: full-bleed, respiro no bottom (pb no pin), sem cantos arredondados */}
+          {/* container clip: altura limitada (título e card mais próximos, sem
+              esforço de leitura) e centrado no espaço que sobra do pin */}
           <div
             onPointerMove={onPointerMove}
-            className="relative mt-2 min-h-0 flex-1 overflow-hidden bg-neutro-0"
+            className="relative mt-2 h-[66vh] max-h-[680px] overflow-hidden bg-neutro-0"
           >
             <div
               ref={track}
@@ -275,11 +297,12 @@ export default function ComoComecar() {
               className="flex h-full will-change-transform"
             >
               {RENDER.map((idx, pos) =>
-                Banner(idx, active >= 0 && pos === active + 1, `r-${pos}`),
+                Banner(idx, active >= 0 && pos === active, `r-${pos}`),
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </>
       ) : (
         <div className="mx-auto w-full max-w-6xl px-6 py-20 md:px-10">
           {Header}

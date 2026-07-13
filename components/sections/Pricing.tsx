@@ -91,52 +91,62 @@ export default function Pricing() {
     </div>
   );
 
-  /* coluna direita — preço */
+  /* coluna direita — preço.
+     Card elevado que "flutua acima" do card principal: mais alto que ele
+     (lg:min-h-[560px] vs 500 do container, items-center → ultrapassa topo e
+     base ~30px), sombra maior e hairline claro. z-10: fica sobre o bg do card,
+     abaixo do phone (z-20) que o atravessa como na referência. */
   const ColPreco = (
-    <div className="relative flex flex-col justify-center p-10 md:p-12 lg:min-h-[500px] lg:pl-48">
-      <div className="relative lg:ml-auto lg:max-w-[22rem]">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-neutro-0/70 px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-neutro-500 shadow-soft backdrop-blur">
+    <div className="relative flex flex-col justify-center p-6 md:p-8 lg:min-h-[500px] lg:items-end lg:justify-center lg:p-0 lg:pl-40">
+      <div className="relative z-10 flex w-full flex-col justify-center overflow-hidden rounded-card border border-white/10 bg-ink p-10 shadow-[0_40px_90px_-30px_rgba(0,10,26,0.65)] md:p-12 lg:my-[-4rem] lg:min-h-[620px] lg:max-w-[24rem]">
+        {/* glows internos + inset highlight pro card escuro respirar */}
+        <div className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]" />
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-roxo-500/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-roxo-700/20 blur-3xl" />
+        <div className="relative lg:max-w-[22rem]">
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60 backdrop-blur">
           <span className="h-1.5 w-1.5 rounded-full bg-brand" />
           Plano único
         </span>
 
-        <p className="mt-5 font-title text-h3 font-medium leading-[1.1] text-neutro-800">
+        <p className="mt-5 font-title text-h3 font-medium leading-[1.1] text-white">
           Um preço, sem letra miúda.
         </p>
 
         <div className="mt-7 flex items-start gap-1.5">
-          <span className="mt-2.5 font-title text-h3 font-medium text-neutro-500">R$</span>
-          <span className="font-title text-[4.75rem] font-semibold leading-[0.85] tracking-[-0.02em] text-neutro-800 tabular-nums">
+          <span className="mt-2.5 font-title text-h3 font-medium text-white/50">R$</span>
+          <span className="font-title text-[4.75rem] font-semibold leading-[0.85] tracking-[-0.02em] text-white tabular-nums">
             49,90
           </span>
-          <span className="self-end pb-2.5 font-body text-body-l text-neutro-400">
+          <span className="self-end pb-2.5 font-body text-body-l text-white/40">
             /mês
           </span>
         </div>
 
-        <p className="mt-5 font-body text-body-l text-neutro-600">
+        <p className="mt-5 font-body text-body-l text-white/70">
           Comece com 2 meses grátis.
         </p>
 
-        <div className="my-8 h-px w-full bg-neutro-200/70" />
+        <div className="my-8 h-px w-full bg-white/10" />
 
         <a
           href="#"
-          className={`group/cta flex w-full items-center justify-between gap-3 rounded-full bg-ink py-2 pl-6 pr-2 transition-all duration-500 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-afluente`}
+          className={`group/cta flex w-full items-center justify-between gap-3 rounded-full bg-white py-2 pl-6 pr-2 transition-all duration-500 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-ink`}
         >
-          <span className="font-body text-[15px] font-medium text-white">
+          <span className="font-body text-[15px] font-medium text-ink">
             Migrar e ganhar 2 meses
           </span>
           <span
-            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-transform duration-500 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
+            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform duration-500 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
           >
             <IconArrowUpRight className="h-4 w-4" />
           </span>
         </a>
 
-        <p className="mt-4 text-center font-body text-small text-neutro-400">
+        <p className="mt-4 text-center font-body text-small text-white/40">
           Sem fidelidade. Cancele quando quiser.
         </p>
+        </div>
       </div>
     </div>
   );
