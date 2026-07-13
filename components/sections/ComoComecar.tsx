@@ -232,12 +232,12 @@ export default function ComoComecar() {
       />
 
       {mode === "pinned" ? (
-        <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-14">
+        <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-14 pb-16">
           <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
             {Header}
             {Tabs}
           </div>
-          {/* container clip: full-bleed, encosta no bottom, sem cantos arredondados */}
+          {/* container clip: full-bleed, respiro no bottom (pb no pin), sem cantos arredondados */}
           <div
             onPointerMove={onPointerMove}
             className="relative mt-2 min-h-0 flex-1 overflow-hidden bg-neutro-0"

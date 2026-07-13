@@ -9,3 +9,6 @@ next-env.d.ts
 npm-debug.log*
 .vercel
 *.tsbuildinfo
+
+# Playwright MCP artifacts
+.playwright-mcp/

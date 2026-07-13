@@ -63,11 +63,44 @@
 @keyframes gaia-badge-halo {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(138, 105, 216, 0.45);
+    box-shadow: 0 0 0 0 var(--gaia-halo, rgba(138, 105, 216, 0.45));
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(138, 105, 216, 0);
+    box-shadow: 0 0 0 4px transparent;
   }
+}
+
+/* Anel de luz orbitando a borda — efeito assinatura do badge.
+   Conic mascarado só na borda (content-box XOR border-box). */
+@property --gaia-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes gaia-badge-orbit {
+  to {
+    --gaia-angle: 360deg;
+  }
+}
+
+.gaia-badge-ring {
+  background: conic-gradient(
+    from var(--gaia-angle),
+    transparent 0deg,
+    var(--gaia-ring, rgba(138, 105, 216, 0.9)) 50deg,
+    transparent 115deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: gaia-badge-orbit 5.5s linear infinite;
 }
 
 .gaia-badge-sheen {
@@ -101,7 +134,74 @@
     transform: scaleX(1);
   }
   .gaia-badge-sheen,
-  .gaia-badge-halo {
+  .gaia-badge-halo,
+  .gaia-badge-ring {
+    animation: none;
+  }
+}
+
+/* Motion — A Roberta (fundo afluente: blooms de luz escorrendo no escuro) */
+@keyframes gaia-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(7%, 5%, 0) scale(1.14);
+  }
+}
+@keyframes gaia-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.06);
+  }
+  50% {
+    transform: translate3d(-6%, -4%, 0) scale(1);
+  }
+}
+@keyframes gaia-drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(5%, -6%, 0) scale(1.12);
+  }
+}
+@keyframes gaia-streak {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translateX(-5%);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateX(5%);
+  }
+}
+
+.gaia-drift-a {
+  animation: gaia-drift-a 26s ease-in-out infinite;
+  will-change: transform;
+}
+.gaia-drift-b {
+  animation: gaia-drift-b 32s ease-in-out infinite;
+  will-change: transform;
+}
+.gaia-drift-c {
+  animation: gaia-drift-c 30s ease-in-out infinite;
+  will-change: transform;
+}
+.gaia-streak {
+  animation: gaia-streak 20s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaia-drift-a,
+  .gaia-drift-b,
+  .gaia-drift-c,
+  .gaia-streak {
     animation: none;
   }
 }
