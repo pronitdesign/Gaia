@@ -4,7 +4,7 @@
 IPhone3D — iPhone 15 Pro Max 3D pronto pra plugar em qualquer site React.
 Em Next: carregue via dynamic(..., { ssr: false }) porque usa WebGL/Canvas.
 */
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Html } from "@react-three/drei";
 import IPhoneModel from "./IPhoneModel";
@@ -14,6 +14,8 @@ type IPhone3DProps = {
   glb?: string;
   bodyColor?: string;
   screenImg?: string;
+  /** DOM real (PhoneScreen) dentro da tela — tem prioridade sobre screenImg */
+  screen?: ReactNode;
   height?: string;
   scale?: number;
   /** [x, y, z] em radianos — pose fixa do aparelho */
@@ -28,6 +30,7 @@ export default function IPhone3D({
   glb = "/models/scene.glb",
   bodyColor = "#8F8A81",
   screenImg,
+  screen,
   height = "80vh",
   scale = 17,
   rotation = [0, 0, 0],
@@ -56,6 +59,7 @@ export default function IPhone3D({
             glb={glb}
             bodyColor={bodyColor}
             screenImg={screenImg}
+            screen={screen}
             rotation={rotation}
             scale={[scale, scale, scale]}
           />

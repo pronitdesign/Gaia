@@ -6,6 +6,7 @@ import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { IconCheck, IconArrowUpRight } from "@/components/ui/icons";
+import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -32,6 +33,10 @@ const INCLUDES = [
 
 /* easing háptico (spring-like) para os hovers do CTA */
 const HAPTIC = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+
+/* grão fino (film grain) — textura física, aplicado como overlay estático */
+const NOISE =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 export default function Pricing() {
   const root = useRef<HTMLElement>(null);
@@ -71,12 +76,12 @@ export default function Pricing() {
           {INCLUDES.map((item) => (
             <li
               key={item}
-              className="flex items-center gap-3.5 rounded-2xl border border-white/50 bg-neutro-0/50 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm"
+              className={`group/li flex items-center gap-3.5 rounded-2xl border border-white/50 bg-neutro-0/50 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm transition-all duration-500 ${HAPTIC} hover:-translate-y-0.5 hover:border-white/70 hover:bg-neutro-0/85 hover:shadow-soft`}
             >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-roxo-600 text-white shadow-[0_2px_8px_-2px_rgba(138,105,216,0.55)]">
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-roxo-600 text-white shadow-[0_2px_8px_-2px_rgba(138,105,216,0.55)] transition-transform duration-500 ${HAPTIC} group-hover/li:scale-110`}>
                 <IconCheck className="h-3.5 w-3.5" strokeWidth={2} />
               </span>
-              <span className="font-body text-body font-medium text-neutro-700">
+              <span className="font-body text-body font-medium text-neutro-700 transition-colors duration-500 group-hover/li:text-neutro-800">
                 {item}
               </span>
             </li>
@@ -103,7 +108,12 @@ export default function Pricing() {
         <div className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]" />
         <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-roxo-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-roxo-700/20 blur-3xl" />
-        <div className="relative lg:max-w-[22rem]">
+        {/* sheen — luz diagonal varrendo o card escuro (premium glass) */}
+        <span
+          aria-hidden
+          className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/12 to-transparent"
+        />
+        <div className="relative z-[1] lg:max-w-[22rem]">
         <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60 backdrop-blur">
           <span className="h-1.5 w-1.5 rounded-full bg-brand" />
           Plano único
@@ -157,52 +167,80 @@ export default function Pricing() {
       id="pricing"
       className="relative overflow-hidden bg-neutro-50 py-28 md:py-36"
     >
+      {/* AMBIENTE — luz de aurora escorrendo atrás da seção (profundidade) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-6rem] h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-roxo-200/35 blur-[130px]" />
+        <div className="absolute -left-40 bottom-[-4rem] h-[440px] w-[560px] rounded-full bg-[#DFE9F1]/60 blur-[120px]" />
+        <div className="absolute -right-44 top-1/3 h-[440px] w-[560px] rounded-full bg-roxo-100/45 blur-[130px]" />
+      </div>
+      {/* film grain — overlay estático, mistura suave */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.045] mix-blend-soft-light"
+        style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
+      />
+
       <div className="relative mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
+        {/* framing editorial — eyebrow + linha de tensão */}
+        <div
+          data-reveal
+          className="mb-14 flex flex-col items-center text-center md:mb-16"
+        >
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-neutro-0/70 px-3.5 py-1.5 font-body text-[11px] font-semibold uppercase tracking-[0.22em] text-neutro-500 shadow-soft backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+            Preço
+          </span>
+          <h2 className="mt-6 max-w-[16ch] text-balance font-title text-h2 font-medium leading-[1.05] text-neutro-800 md:text-[3.25rem]">
+            Sem surpresa no{" "}
+            <span className="italic text-neutro-600">fim do mês.</span>
+          </h2>
+        </div>
+
         <div data-reveal className="relative">
-          {/* CARD ÚNICO — o phone flutua no centro, atravessando o card */}
-          <div className="relative">
-            {/* bg do card: arredondado + clipado (glows contidos); fica atrás do
-                phone pra que o aparelho possa ultrapassar as bordas sem cortar */}
-            <div
-              aria-hidden
-              className="absolute inset-0 overflow-hidden rounded-card border border-hairline bg-afluente shadow-soft-lg"
-            >
-              <div className="pointer-events-none absolute inset-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]" />
-              <div className="pointer-events-none absolute -left-24 -top-20 h-72 w-72 rounded-full bg-roxo-200/40 blur-3xl" />
-              <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-roxo-200/40 blur-3xl" />
-            </div>
+          {/* DOUBLE-BEZEL — bandeja externa (hairline + folga) segurando o card
+              como uma placa de vidro numa moldura usinada. curvas concêntricas. */}
+          <div className="rounded-[3rem] border border-white/50 bg-white/40 p-2 shadow-soft-lg md:p-2.5">
+            {/* CARD ÚNICO — o phone flutua no centro, atravessando o card */}
+            <div className="relative">
+              {/* bg do card: arredondado + clipado (glows contidos); fica atrás do
+                  phone pra que o aparelho possa ultrapassar as bordas sem cortar */}
+              <div
+                aria-hidden
+                className="absolute inset-0 overflow-hidden rounded-card border border-hairline bg-afluente shadow-soft"
+              >
+                <div className="pointer-events-none absolute inset-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]" />
+                <div className="pointer-events-none absolute -left-24 -top-20 h-72 w-72 rounded-full bg-roxo-200/40 blur-3xl" />
+                <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-roxo-200/40 blur-3xl" />
+              </div>
 
-            {/* conteúdo em duas colunas dentro do mesmo card */}
-            <div className="relative grid grid-cols-1 lg:grid-cols-2 lg:items-center">
-              {ColInclui}
+              {/* conteúdo em duas colunas dentro do mesmo card */}
+              <div className="relative grid grid-cols-1 lg:grid-cols-2 lg:items-center">
+                {ColInclui}
 
-              {/* iPhone 3D — mobile: em fluxo, entre as colunas */}
-              <div className="lg:hidden">
-                <div className="mx-auto h-[440px] w-[300px] motion-reduce:animate-none animate-[gaia-float_6s_ease-in-out_infinite]">
-                  <IPhone3D
-                    height="100%"
-                    scale={16}
-                    rotation={PHONE_POSE}
-                    screenImg="/phone-screen.png"
-                  />
+                {/* iPhone 3D — mobile: em fluxo, entre as colunas */}
+                <div className="lg:hidden">
+                  <div className="mx-auto h-[440px] w-[300px] motion-reduce:animate-none animate-[gaia-float_6s_ease-in-out_infinite]">
+                    <IPhone3D
+                      height="100%"
+                      scale={16}
+                      rotation={PHONE_POSE}
+                      screen={<PhoneScreen variant="inicio" />}
+                    />
+                  </div>
                 </div>
+
+                {ColPreco}
               </div>
 
-              {ColPreco}
-            </div>
-
-            {/* iPhone 3D — desktop: flutua no centro do card, ultrapassando as bordas.
-                sem data-reveal: o pai já revela tudo junto e o GSAP sobrescreveria
-                o -translate que centraliza o phone. */}
-            <div className="absolute left-1/2 top-1/2 z-20 hidden h-[640px] w-[360px] -translate-x-1/2 -translate-y-1/2 lg:block">
-              <div className="h-full w-full motion-reduce:animate-none animate-[gaia-float_6s_ease-in-out_infinite]">
-                <IPhone3D
-                  height="100%"
-                  scale={16.5}
-                  rotation={PHONE_POSE}
-                  screenImg="/phone-screen.png"
-                />
-              </div>
+              {/* iPhone 3D — desktop: SLOT/âncora de pouso. O aparelho em si é o
+                  ScrollPhone persistente (overlay fixo em app/page.tsx) que viaja
+                  desde o card de Prontuário e pousa exatamente aqui. Este div só
+                  reserva a posição/tamanho (360×640) que o ScrollPhone lê vivo. */}
+              <div
+                data-phone-end
+                aria-hidden
+                className="pointer-events-none absolute left-1/2 top-1/2 z-20 hidden h-[640px] w-[360px] -translate-x-1/2 -translate-y-1/2 lg:block"
+              />
             </div>
           </div>
         </div>

@@ -156,6 +156,13 @@ export default function ComoComecar() {
           end: () => "+=" + window.innerHeight * 3,
           pin: pin.current,
           pinSpacing: true,
+          // Ordem de refresh: este pin injeta ~3x100vh de pinSpacing, e tudo que
+          // vem depois (ARoberta, Manifesto) precisa ser medido DEPOIS dele, ou
+          // mede a página sem esse espaço e cai centenas de px pra cima. O GSAP
+          // só ordena os triggers se algum declarar refreshPriority
+          // (ScrollTrigger.js: `_sort && ScrollTrigger.sort()`), então a ordem
+          // decresce na ordem do documento: aqui 2 → ARoberta 1 → resto 0.
+          refreshPriority: 2,
           // Sem `snap`: o snap do ScrollTrigger seta o scroll direto e briga com
           // o Lenis (smooth scroll global) — era isso que travava ao chegar num
           // step. Os dwells largos + slide com easing já param a foto em cada
@@ -285,11 +292,12 @@ export default function ComoComecar() {
           <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
             {Tabs}
           </div>
-          {/* container clip: altura limitada (título e card mais próximos, sem
-              esforço de leitura) e centrado no espaço que sobra do pin */}
+          {/* container clip: a mídia É o palco — preenche toda a altura fixa
+              que sobra do pin (zero espaço morto embaixo). Título + card vivem
+              agrupados na faixa inferior (ver mainPos), não em cantos opostos. */}
           <div
             onPointerMove={onPointerMove}
-            className="relative mt-2 h-[66vh] max-h-[680px] overflow-hidden bg-neutro-0"
+            className="relative mt-2 min-h-0 flex-1 overflow-hidden bg-neutro-0"
           >
             <div
               ref={track}

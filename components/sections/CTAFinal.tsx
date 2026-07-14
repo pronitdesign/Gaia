@@ -23,9 +23,8 @@ gsap.registerPlugin(ScrollTrigger);
    glow que respira (~3s) · microcopy. O Footer pousa DENTRO, sobre a imagem.
    Tudo respeita prefers-reduced-motion. */
 
-// Imagem de fundo do CTA — soltar a imagem definitiva (Higgsfield) em /public
-// e trocar aqui. (placeholder: retrato da Roberta, até a nova ficar pronta.)
-const CTA_IMAGE = "/roberta.jpg";
+// Imagem de fundo do CTA — pétalas de tulipa caindo (fundo claro, clima leve).
+const CTA_IMAGE = "/cta-tulipas.png";
 
 /** Camadas por cima da imagem: wash de marca + scrims de legibilidade + aurora. */
 function Wash() {

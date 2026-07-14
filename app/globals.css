@@ -193,7 +193,87 @@
   animation: gaia-blink 1.1s steps(1) infinite;
 }
 
+/* Varredura vertical — checklist da anamnese sendo preenchido ao vivo.
+   top em % é relativo ao container → cobre a lista inteira, qualquer altura. */
+@keyframes gaia-scan {
+  0% {
+    top: -12%;
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+.gaia-scan {
+  animation: gaia-scan 3.4s ease-in-out infinite;
+}
+
+/* ── Parallax por cursor + montagem no scroll (Features) ─────────────
+   Uma única transform carrega TUDO por CSS var: profundidade que segue o
+   cursor (--mx/--my × --depth, setados por JS no card), a inclinação de
+   cada peça (--rot) e a entrada no viewport (--enter/--escala). Fica tudo
+   inline no mesmo transform pra nunca colidir com o GSAP nem perder o giro
+   dos satélites. Repouso = fora de vista (deslocado, menor, invisível).   */
+.gaia-parallax {
+  transform: translate3d(
+      calc(var(--mx, 0) * var(--depth, 0) * 1px),
+      calc(var(--my, 0) * var(--depth, 0) * 1px + var(--enter, 16px)),
+      0
+    )
+    rotate(var(--rot, 0deg)) scale(var(--escala, 0.96));
+  opacity: 0;
+  transition:
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.gaia-parallax.is-in {
+  --enter: 0px;
+  --escala: 1;
+  opacity: 1;
+}
+
+/* Pop/fade — conteúdo que troca sozinho (paciente, insight, sugestão).
+   Remonta com key → reanima. */
+@keyframes gaia-pop {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.gaia-pop {
+  animation: gaia-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes gaia-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.gaia-fade {
+  animation: gaia-fade 0.45s ease both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .gaia-parallax {
+    transform: rotate(var(--rot, 0deg));
+    opacity: 1;
+    transition: none;
+    will-change: auto;
+  }
   .gaia-float {
     animation: none;
   }
@@ -207,7 +287,8 @@
   .gaia-eq-bar,
   .gaia-card-sheen,
   .gaia-shimmer,
-  .gaia-caret {
+  .gaia-caret,
+  .gaia-scan {
     animation: none;
   }
 }

@@ -76,19 +76,19 @@ function Overlay({
 }) {
   return (
     <div
-      className="absolute bottom-0 left-0 z-10 flex w-full flex-col px-7 pb-10 text-left transition-all duration-500 ease-gaia md:w-[58%] md:px-12 md:pb-16"
+      className="absolute bottom-0 left-0 z-10 flex w-full flex-col px-7 pb-12 text-left transition-all duration-500 ease-gaia md:w-[58%] md:px-16 md:pb-20 lg:px-20 lg:pb-24"
       style={{
         opacity: active ? 1 : 0,
         transform: active ? "translateY(0)" : "translateY(16px)",
       }}
     >
-      <p className="mb-3 font-body text-[13px] font-medium uppercase tracking-[0.14em] text-roxo-200 drop-shadow-[0_1px_12px_rgba(0,0,0,0.5)]">
+      <p className="mb-4 font-body text-[13px] font-medium uppercase tracking-[0.14em] text-roxo-200 drop-shadow-[0_1px_12px_rgba(0,0,0,0.5)] md:text-[14px]">
         {eyebrow}
       </p>
-      <h3 className="mb-3 text-balance font-title font-medium leading-[1.04] text-neutro-0 text-[2rem] md:text-[3rem] drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)]">
+      <h3 className="mb-4 text-balance font-title font-medium leading-[1.02] text-neutro-0 text-[2.4rem] md:text-[3.75rem] drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)]">
         {headline}
       </h3>
-      <p className="max-w-[40ch] font-body text-body text-neutro-0/90 drop-shadow-[0_1px_14px_rgba(0,0,0,0.5)]">
+      <p className="max-w-[42ch] font-body text-body-l text-neutro-0/90 drop-shadow-[0_1px_14px_rgba(0,0,0,0.5)]">
         {sub}
       </p>
     </div>
@@ -160,10 +160,11 @@ function GlassCard({
   );
 }
 
-/** posição do card principal: mobile topo-centro, desktop topo-direita
-    (deixa o canto inferior-esquerdo livre pro título) */
+/** posição do card principal: mobile topo-centro; desktop ancora na FAIXA
+    INFERIOR-direita, na mesma linha de visão do título (cluster de HUD) —
+    a foto respira na metade de cima, a informação se agrupa embaixo */
 const mainPos =
-  "top-7 left-1/2 -translate-x-1/2 md:left-auto md:right-[7%] md:top-[10%] md:translate-x-0";
+  "top-7 left-1/2 -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[13%] md:top-auto md:translate-x-0 lg:right-[9%] lg:bottom-[15%]";
 
 /** Foto lifestyle de fundo — mantida viva; scrim escuro só na base/esquerda
     (onde pousa o texto) garante legibilidade sem apagar a imagem.
@@ -230,7 +231,7 @@ export function Panel1({ active }: PanelProps) {
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
-          <GlassCard active={active} delay={120} sheen className="p-5">
+          <GlassCard active={active} delay={120} sheen className="p-6">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-body text-small font-semibold text-white">
                 Gravando consulta
@@ -301,9 +302,14 @@ export function Panel2({ active }: PanelProps) {
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
-          <GlassCard active={active} delay={120} sheen className="p-5">
+          <GlassCard active={active} delay={120} sheen className="p-6">
             <div className="mb-4 flex items-center justify-between">
-              <p className="font-body text-small font-semibold text-white">
+              <p className="flex items-center gap-2 font-body text-small font-semibold text-white">
+                {/* pulso "ao vivo" — anamnese em andamento */}
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sage-200 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sage-200" />
+                </span>
                 Anamnese ao vivo
               </p>
               <span className="rounded-full bg-white/10 px-2.5 py-0.5 font-body text-[11px] font-medium tabular-nums text-sage-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
@@ -316,7 +322,12 @@ export function Panel2({ active }: PanelProps) {
                 <span className="gaia-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
               </div>
             </div>
-            <div className="space-y-3">
+            <div className="relative space-y-3 overflow-hidden">
+              {/* varredura de luz descendo — checklist sendo preenchido ao vivo */}
+              <span
+                aria-hidden
+                className="gaia-scan pointer-events-none absolute inset-x-0 z-10 h-6 opacity-0 bg-gradient-to-b from-transparent via-white/12 to-transparent"
+              />
               {TOPICS.map(([label, done]) => (
                 <div key={label} className="flex items-center gap-3">
                   {done ? (
@@ -372,13 +383,22 @@ export function Panel3({ active }: PanelProps) {
         active={active}
         depth={16}
         delay={120}
-        className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[7%] md:top-[7%] md:w-[360px] md:translate-x-0"
+        className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[13%] md:top-auto md:w-[360px] md:translate-x-0 lg:right-[9%] lg:bottom-[15%]"
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
-          <GlassCard active={active} delay={120} sheen className="p-5">
+          <GlassCard active={active} delay={120} sheen className="p-6">
             <div className="mb-3.5 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-white/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]" />
+              {/* avatar da Gaia com anel girando — "gerando o resumo" */}
+              <div className="relative h-9 w-9 shrink-0">
+                <span
+                  aria-hidden
+                  className="absolute -inset-[2px] animate-spin rounded-full [animation-duration:2.6s] bg-[conic-gradient(from_0deg,transparent_0deg,rgba(167,139,224,0.9)_70deg,transparent_150deg)]"
+                />
+                <span className="absolute inset-0 grid place-items-center rounded-full bg-[#141018] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-roxo-200" />
+                </span>
+              </div>
               <div>
                 <p className="font-body text-small font-semibold text-white">
                   Resumo SOAP · Maria Silva

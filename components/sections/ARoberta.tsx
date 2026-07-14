@@ -5,10 +5,22 @@ import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Badge } from "@/components/ui/Badge";
-import { FluxoMark } from "@/components/ui/FluxoMark";
-import Aurora from "@/components/ui/Aurora";
 
 gsap.registerPlugin(ScrollTrigger);
+
+// Fundo da section — gradiente Bruma.
+const BACKDROP = "/roberta-bg.webp";
+
+// Emenda com o off-white do #como-comecar (neutro-50): o gradiente entra desmaiado.
+const TOP_FADE = "linear-gradient(to bottom, transparent 0, #000 13%)";
+
+// Véu de neutro-50 sobre o gradiente. O pixel mais escuro do webp é rgb(138,72,124)
+// (o miolo magenta): sobre ele, texto neutro-700 só bate 4.5:1 com α ≥ 0.642. Como o
+// object-cover reposiciona o blob a cada viewport, o véu tem que estar ≥0.68 em TODA
+// faixa onde o editorial pode cair (a partir de 40vh) — não dá pra contar com sorte
+// de crop. Acima disso o banner cobre, então fica leve e o gradiente respira.
+const LEGIBILITY_VEIL =
+  "linear-gradient(to bottom, rgba(250,249,245,0.28) 0%, rgba(250,249,245,0.45) 30%, rgba(250,249,245,0.68) 41%, rgba(250,249,245,0.70) 100%)";
 
 // Foto da Roberta — soltar o arquivo em /public e trocar aqui.
 // Enquanto não existe, o placeholder (gradiente Bruma + monograma) aparece por baixo.
@@ -33,7 +45,7 @@ function Portrait() {
   return (
     <div className="relative h-full w-full overflow-hidden bg-bruma">
       <div className="absolute inset-0 grid place-items-center">
-        <span className="font-title text-[clamp(2.5rem,7vw,5rem)] font-medium text-neutro-0/70">
+        <span className="font-title text-[clamp(2.5rem,7vw,5rem)] font-medium text-azul-800/60">
           RC
         </span>
       </div>
@@ -52,25 +64,20 @@ function Portrait() {
   );
 }
 
-/** Fundo afluente — blooms de luz (lavanda/azul/sage) escorrendo no escuro + streak horizontal. */
+/** Fundo — gradiente Bruma full-bleed, desmaiando no topo pro off-white do #como-comecar. */
 function Afluente() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-[#13161F]">
-      {/* Aurora WebGL — véu de aurora roxo animado, escorrendo de baixo (paleta Gaia) */}
-      <Aurora
-        className="absolute inset-0 h-full w-full opacity-70"
-        colorStops={["#7454AA", "#A2739A", "#A385C0"]}
-        blend={0.36}
-        amplitude={1.0}
-        speed={0.6}
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={BACKDROP}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ WebkitMaskImage: TOP_FADE, maskImage: TOP_FADE }}
       />
-      {/* marca "Fluxo" — afluentes escorrendo das bordas pro centro (watermark sutil) */}
-      <FluxoMark className="absolute right-[-5%] top-1/2 h-[125%] w-auto -translate-y-1/2 text-white opacity-[0.05]" />
-      <FluxoMark className="absolute left-[-5%] top-1/2 h-[125%] w-auto -translate-y-1/2 -scale-x-100 text-white opacity-[0.04]" />
-      {/* streak horizontal — eco do #10 */}
-      <div className="gaia-streak absolute inset-x-0 top-[44%] h-[18vh] bg-[linear-gradient(90deg,transparent,rgba(207,197,218,0.12)_38%,rgba(230,219,226,0.07)_62%,transparent)] blur-2xl" />
-      {/* vinheta pra profundidade */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_85%_at_50%_18%,transparent,rgba(6,8,20,0.6))]" />
+      {/* Véu de legibilidade: os blobs magenta do gradiente chegam perto de #A0508F,
+          escuro demais pra texto ink sem isso. Firme onde o editorial pousa. */}
+      <div className="absolute inset-0" style={{ background: LEGIBILITY_VEIL }} />
     </div>
   );
 }
@@ -78,14 +85,14 @@ function Afluente() {
 /** Ledger de números — valor à esquerda, label à direita, 4 linhas distribuídas. */
 function Stats() {
   return (
-    <div className="flex flex-col divide-y divide-white/10">
+    <div className="flex flex-col divide-y divide-neutro-800/15">
       {STATS.map((s, i) => (
         <div
           key={i}
           data-reveal
           className="flex items-baseline justify-between gap-6 py-4 first:pt-0 last:pb-0"
         >
-          <span className="font-title text-[clamp(2.25rem,3.4vw,3rem)] font-medium leading-none tabular-nums text-white">
+          <span className="font-title text-[clamp(2.25rem,3.4vw,3rem)] font-medium leading-none tabular-nums text-neutro-800">
             {"static" in s ? (
               s.static
             ) : (
@@ -96,7 +103,7 @@ function Stats() {
               </span>
             )}
           </span>
-          <span className="font-body text-body text-neutro-400">{s.label}</span>
+          <span className="font-body text-body text-neutro-700">{s.label}</span>
         </div>
       ))}
     </div>
@@ -109,25 +116,25 @@ function Editorial() {
     <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-x-16 gap-y-12 px-6 md:grid-cols-[1.25fr_0.9fr] md:px-10 lg:px-16">
       <div>
         <div data-reveal className="mb-6">
-          <Badge tone="dark">Quem construiu</Badge>
+          <Badge tone="light">Quem construiu</Badge>
         </div>
         <h2
           data-reveal
-          className="text-balance font-title text-h3 font-medium leading-[1.1] text-white md:text-h2"
+          className="text-balance font-title text-h3 font-medium leading-[1.1] text-neutro-800 md:text-h2"
         >
           Feita por quem atende{" "}
-          <span className="italic text-roxo-300">de verdade.</span>
+          <span className="italic text-roxo-600">de verdade.</span>
         </h2>
-        <p data-reveal className="mt-6 max-w-xl font-body text-body text-neutro-300">
+        <p data-reveal className="mt-6 max-w-xl font-body text-body text-neutro-700">
           {BIO}
         </p>
         <div data-reveal className="mt-7 flex items-center gap-4">
-          <div className="h-11 w-11 shrink-0 rounded-full bg-lavanda ring-1 ring-white/15" />
+          <div className="h-11 w-11 shrink-0 rounded-full bg-lavanda ring-1 ring-neutro-800/10" />
           <div>
-            <p className="font-title text-body-l font-medium leading-tight text-white">
+            <p className="font-title text-body-l font-medium leading-tight text-neutro-800">
               Roberta Carbonari
             </p>
-            <p className="mt-0.5 font-body text-small text-neutro-400">
+            <p className="mt-0.5 font-body text-small text-neutro-700">
               Nutricionista (CRN3 54892) · fundadora da Gaia
             </p>
           </div>
@@ -267,6 +274,11 @@ export default function ARoberta() {
           pin: pin.current,
           pinSpacing: true,
           scrub: 0.5,
+          // Este pin nasce tarde (mode: stacked → pinned num segundo render), então
+          // os triggers do Manifesto já existem quando ele injeta o pinSpacing.
+          // refreshPriority reordena o refresh pela ordem do documento — ver a nota
+          // em ComoComecar (2). Sem isso o Manifesto mede-se 3960px acima do real.
+          refreshPriority: 1,
           onRefresh: () => applyP(state.p),
         },
       });
@@ -296,7 +308,7 @@ export default function ARoberta() {
   );
 
   return (
-    <section ref={root} id="a-roberta" className="relative overflow-hidden bg-[#13161F]">
+    <section ref={root} id="a-roberta" className="relative overflow-hidden bg-neutro-50">
       {mode === "pinned" ? (
         <div ref={pin} className="relative h-screen overflow-hidden">
           <Afluente />
@@ -309,7 +321,7 @@ export default function ARoberta() {
           >
             <span
               data-word-inner
-              className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-white/90"
+              className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-neutro-800/90"
             >
               QUEM
             </span>
@@ -321,7 +333,7 @@ export default function ARoberta() {
           >
             <span
               data-word-inner
-              className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-white/90"
+              className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-neutro-800/90"
             >
               CONSTRUIU?
             </span>
