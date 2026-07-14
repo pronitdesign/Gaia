@@ -59,6 +59,18 @@ const CUTOUT = "/roberta-recorte.webp";
 const TICKER_NAME = "Roberta Carbonari";
 const TICKER_REPEAT = 4;
 
+// Lírio vinho (cutout transparente, node 195-531 do Figma) — cluster floral no canto
+// inferior-esquerdo, sob os cards de prova. Fiel ao Figma: a massa da flor mora no
+// baixo-esquerda do PNG, então ancorar bottom-left põe o corpo no canto e as pétalas
+// abrindo pro centro, exatamente como na composição.
+const LIRIO = "/lirio-roberta.png";
+
+// Cards de prova em vidro fosco que flutuam sobre a foto full-bleed. Vidro claro
+// translúcido (mesma família do GLASS_FROST do Features) — legível sobre a pétala
+// escura: tinta branca a 8%, aro de luz interno no topo e sombra funda.
+const PROOF_CARD =
+  "rounded-2xl border border-white/15 bg-white/[0.08] px-5 py-4 backdrop-blur-xl backdrop-saturate-150 shadow-[0_30px_70px_-24px_rgba(0,0,0,0.78),inset_0_1px_0_0_rgba(255,255,255,0.28),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+
 // Números da prova — ledger. `to` numérico dispara count-up; `static` fica fixo.
 const STATS = [
   { prefix: "", to: 3, suffix: "", label: "clínicas" },
@@ -248,107 +260,41 @@ function Stats({ onDark = false }: { onDark?: boolean }) {
   );
 }
 
-// Perfil real da Roberta — o card social linka direto pro Instagram.
-const IG_URL = "https://www.instagram.com/robertacarbonari/";
-
-/** Selo verificado azul (mesma leitura do check do Instagram). */
-function VerifiedBadge() {
+/** Card de prova em vidro fosco — uma credencial ou número curto flutuando sobre a
+ *  foto. Marca ✦ roxa opcional, título/número grande, legenda micro embaixo. */
+function ProofCard({
+  mark,
+  big,
+  sub,
+  className = "",
+}: {
+  mark?: boolean;
+  big: string;
+  sub: string;
+  className?: string;
+}) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className="h-[1.05em] w-[1.05em] shrink-0">
-      <circle cx="12" cy="12" r="11" fill="#3B9EFF" />
-      <path
-        d="M7 12.4l3.1 3.1L17 8.4"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/** Glyph do Instagram — contorno. */
-function InstagramGlyph({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
-      <rect x="2.5" y="2.5" width="19" height="19" rx="5.6" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="17.7" cy="6.3" r="1.3" fill="currentColor" />
-    </svg>
-  );
-}
-
-/** Card social em glass — avatar + nome verificado + 1M seguidores + CTA, linkando
- *  pro perfil real. Substitui a assinatura chapada por prova social clicável. */
-function InstagramCard({ onDark = false }: { onDark?: boolean }) {
-  const shell = onDark ? SHELL_DARK : SHELL_LIGHT;
-  const core = onDark ? CORE_DARK : CORE_LIGHT;
-  const name = onDark ? "text-neutro-0" : "text-neutro-800";
-  const sub = onDark ? "text-neutro-100/60" : "text-neutro-600";
-  const strong = onDark ? "text-neutro-0" : "text-neutro-800";
-  const btn = onDark
-    ? "bg-white/[0.08] text-neutro-0 ring-1 ring-white/12"
-    : "bg-neutro-800 text-neutro-0 ring-1 ring-black/5";
-  const iconWrap = onDark ? "bg-white/12" : "bg-white/20";
-  return (
-    <a
-      href={IG_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Perfil de Roberta Carbonari no Instagram — 1 milhão de seguidores"
-      className={`group block w-fit max-w-full ${shell} transition duration-700 ${EASE} hover:-translate-y-1 active:scale-[0.99]`}
-    >
-      <div className={`flex items-center gap-4 py-3 pl-3 pr-3 ${core}`}>
-        <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={CUTOUT}
-            alt="Roberta Carbonari"
-            className="h-full w-full object-cover"
-            style={{ objectPosition: "53% 11%" }}
-          />
-        </span>
-        <span className="min-w-0">
-          <span className="flex items-center gap-1.5">
-            <span className={`font-title text-body-l font-medium leading-tight ${name}`}>
-              Roberta Carbonari
-            </span>
-            <VerifiedBadge />
-          </span>
-          <span className={`mt-1 flex items-center gap-1.5 font-body text-small ${sub}`}>
-            <span>@robertacarbonari</span>
-            <span className="inline-block h-[3px] w-[3px] rounded-full bg-current opacity-50" />
-            <span>
-              <span className={`font-semibold ${strong}`}>1M</span> seguidores
-            </span>
-          </span>
-        </span>
-        {/* button-in-button: rótulo + glyph num círculo próprio, com física magnética */}
-        <span
-          className={`ml-2 inline-flex shrink-0 items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 font-body text-small font-semibold ${btn} transition duration-500 ${EASE}`}
-        >
-          Seguir
-          <span
-            className={`flex h-7 w-7 items-center justify-center rounded-full ${iconWrap} transition-transform duration-500 ${EASE} group-hover:translate-x-[1px] group-hover:-translate-y-[1px] group-hover:scale-105`}
-          >
-            <InstagramGlyph className="h-4 w-4" />
-          </span>
-        </span>
+    <div data-proof className={`${PROOF_CARD} ${className}`}>
+      {mark && (
+        <span className="mb-2 block font-title text-[1.05rem] leading-none text-roxo-300">✦</span>
+      )}
+      <div className="font-title text-[1.9rem] font-medium leading-none tracking-[-0.02em] text-neutro-0">
+        {big}
       </div>
-    </a>
+      <div className="mt-2 font-body text-[12.5px] leading-snug text-white/60">{sub}</div>
+    </div>
   );
 }
 
-/** Bloco editorial: eyebrow + headline + bio + card social à esquerda, ledger à direita.
+/** Bloco editorial: eyebrow + headline + bio, empurrado pra metade direita da section.
  *  `onDark` inverte as cores do texto pro scrim escuro do modo pinned. */
 function Editorial({ onDark = false }: { onDark?: boolean }) {
   const head = onDark ? "text-neutro-0" : "text-neutro-800";
   const accent = onDark ? "text-roxo-300" : "text-roxo-600";
   const body = onDark ? "text-neutro-100/85" : "text-neutro-700";
   return (
-    <div className="grid w-full grid-cols-1 items-center gap-x-12 gap-y-10 px-6 md:grid-cols-[1fr_auto] md:px-12 lg:px-20">
-      <div className="max-w-2xl">
+    <div className="grid w-full grid-cols-1 px-6 md:grid-cols-2 md:px-12 lg:px-20">
+      <div className="max-w-2xl md:col-start-2 md:justify-self-end">
         <div data-reveal className="mb-6">
           <Badge tone={onDark ? "dark" : "light"}>Quem construiu</Badge>
         </div>
@@ -362,12 +308,7 @@ function Editorial({ onDark = false }: { onDark?: boolean }) {
         <p data-reveal className={`mt-6 max-w-xl font-body text-body-l leading-relaxed ${body}`}>
           {BIO}
         </p>
-        <div data-reveal className="mt-8">
-          <InstagramCard onDark={onDark} />
-        </div>
       </div>
-
-      <Stats onDark={onDark} />
     </div>
   );
 }
@@ -415,6 +356,7 @@ export default function ARoberta() {
   const tickerWrap = useRef<HTMLDivElement>(null);
   const ticker = useRef<HTMLDivElement>(null);
   const cutout = useRef<HTMLDivElement>(null);
+  const proof = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<"pinned" | "stacked">("stacked");
 
@@ -496,6 +438,13 @@ export default function ARoberta() {
       // o reveal mora no scrub, na posição 1.0 (ver timeline abaixo).
       gsap.set([tickerWrap.current, cutout.current], { autoAlpha: 0 });
 
+      // Cluster floral + cards de prova: mesmo tempo do ticker/recorte — só fazem
+      // sentido sobre a foto cheia. Wrapper apaga tudo; lírio entra com scale-in
+      // ancorado no canto (0% 100%), cards sobem com stagger.
+      gsap.set(proof.current, { autoAlpha: 0 });
+      gsap.set("[data-lily]", { autoAlpha: 0, scale: 1.06, transformOrigin: "0% 100%" });
+      gsap.set("[data-proof]", { autoAlpha: 0, y: 28 });
+
       // Entrada — cada palavra sobe com blur-to-sharp (stagger); o card surge junto.
       gsap.from("[data-word-inner]", {
         yPercent: 120,
@@ -552,6 +501,14 @@ export default function ARoberta() {
           [tickerWrap.current, cutout.current],
           { autoAlpha: 1, ease: "power2.out", duration: 0.22 },
           1.0,
+        )
+        // Beat 3 (cont.) — lírio e cards de prova materializam no canto inferior-esquerdo.
+        .to(proof.current, { autoAlpha: 1, ease: "none", duration: 0.15 }, 0.98)
+        .to("[data-lily]", { autoAlpha: 1, scale: 1, ease: "power2.out", duration: 0.6 }, 0.98)
+        .to(
+          "[data-proof]",
+          { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.55, stagger: 0.12 },
+          1.04,
         )
         .call(
           () => {
@@ -676,6 +633,33 @@ export default function ARoberta() {
             style={{ background: PORTRAIT_SCRIM_DARK }}
           />
 
+          {/* Cluster floral + prova — canto inferior-esquerdo, sobre a foto full-bleed.
+              Nasce no beat final (foto já cheia). Wrapper z-[28]: acima do scrim (z-27)
+              e do recorte (z-26), abaixo do editorial (z-30, que fica na direita). */}
+          <div ref={proof} aria-hidden className="pointer-events-none absolute inset-0 z-[28]">
+            {/* lírio vinho sangrando no canto — corpo no baixo-esquerda, pétalas pro centro */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              data-lily
+              src={LIRIO}
+              alt=""
+              className="absolute bottom-[-5%] left-[-3%] w-[clamp(300px,32vw,540px)] select-none drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+            />
+            {/* card 1 — credencial (superior-esquerda) */}
+            <ProofCard
+              mark
+              big="Mestre"
+              sub="em Nutrição"
+              className="absolute left-[6%] top-[39%] z-[29] w-[190px]"
+            />
+            {/* card 2 — número (inferior-esquerda, avançando pro centro) */}
+            <ProofCard
+              big="+20"
+              sub="profissionais formados"
+              className="absolute left-[20%] top-[62%] z-[29] w-[200px]"
+            />
+          </div>
+
           {/* editorial — ancorado na base, sobre o scrim escuro (texto claro) */}
           <div
             ref={editorial}
@@ -711,6 +695,19 @@ export default function ARoberta() {
               className="pointer-events-none absolute inset-x-0 bottom-0 z-[16] h-1/2"
               style={{ background: PORTRAIT_SCRIM_LIGHT }}
             />
+            {/* lírio vinho no canto — mesmo cutout do desktop */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={LIRIO}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute bottom-[-4%] left-[-6%] z-[17] w-[clamp(190px,52vw,300px)] select-none drop-shadow-[0_24px_50px_rgba(0,0,0,0.45)]"
+            />
+            {/* cards de prova, empilhados no alto-esquerda da foto */}
+            <div className="pointer-events-none absolute left-4 top-[26%] z-[18] flex flex-col gap-3">
+              <ProofCard mark big="Mestre" sub="em Nutrição" className="w-[158px]" />
+              <ProofCard big="+20" sub="profissionais formados" className="w-[166px]" />
+            </div>
           </div>
           <div ref={editorial} className="relative z-10">
             <Editorial />

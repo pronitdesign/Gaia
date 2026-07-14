@@ -127,7 +127,7 @@ export default function Manifesto() {
     <section
       ref={root}
       aria-label="Você cuida da pessoa. A Gaia cuida do resto."
-      className="relative flex min-h-[130vh] flex-col justify-between overflow-hidden py-[22vh] md:min-h-[160vh] md:py-[26vh]"
+      className="relative flex min-h-[130vh] flex-col justify-between overflow-hidden py-[32vh] md:min-h-[160vh] md:py-[42vh]"
       style={{ background: SKY }}
     >
       {/* halo de aurora no crossover — mesma família do Pricing, costura a luz */}

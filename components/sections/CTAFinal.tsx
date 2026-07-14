@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { IconArrowUpRight } from "@/components/ui/icons";
+import { IconArrowUpRight, IconCheck } from "@/components/ui/icons";
 import Footer from "@/components/sections/Footer";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -63,9 +63,9 @@ const CTA_POSTER = "/video/cta-tablet-poster.webp";
 // Último frame (cena aberta) — o que reduced-motion recebe: sem vídeo baixado,
 // o usuário vê direto o destino da câmera em vez do ponto de partida.
 const CTA_STILL = "/video/cta-tablet-still.webp";
-// Orquídeas bordô com alpha — a peça que costura a cena no footer. Fica na
+// Buquê bordô/lavanda com alpha — a peça que costura a cena no footer. Fica na
 // dissolvência, montada na emenda: o que era um degrau vira uma intenção.
-const CTA_FLOWER = "/video/cta-orquideas.webp";
+const CTA_FLOWER = "/video/cta-floral.webp";
 // A CAIXA DA CENA. O vídeo e o recorte compartilham ESTA string, palavra por
 // palavra. Qualquer divergência de geometria entre os dois (transform, scale,
 // object-position, aspecto do container) desalinha o recorte do frame e a tela
@@ -155,17 +155,24 @@ function primeForSeek(e: SyntheticEvent<HTMLVideoElement>) {
     .catch(() => {});
 }
 
-/* Vidro escuro do card "300 pacientes" — mesmo vocabulário do GLASS_MOBILE
-   do Pricing (fundo denso e uniforme, alpha alto, sem gradiente) e do GLASS
-   do PhoneScreen (borda branca de baixa opacidade, radius grande). Aqui,
+/* Vidro escuro dos cards da cena — mesmo vocabulário do GLASS_MOBILE do
+   Pricing (fundo denso e uniforme, alpha alto, sem gradiente) e do GLASS do
+   PhoneScreen (borda branca de baixa opacidade, radius grande). Aqui,
    diferente do GLASS do PhoneScreen, backdrop-blur ENTRA: aquele evita
    backdrop-filter só porque vive dentro de um <Html transform> do drei (bug
    de renderização em contexto 3D-transformado) — este card é DOM plano sobre
    vídeo/foto, então o blur é o que sustenta a legibilidade contra o fundo em
    movimento. `rgba(0,10,26,...)` é o token `ink` (#000A1A) em rgb — mesmo
    literal que o GLASS_MOBILE usa, ver tailwind.config.ts. */
-const PATIENT_CARD_GLASS =
+const CARD_GLASS =
   "border border-white/15 bg-[rgba(0,10,26,0.55)] backdrop-blur-[20px] backdrop-saturate-[1.4]";
+
+/* Highlight de 1px na quina de cima — camada própria, não empilhada dentro da
+   sombra externa (mesma separação que o card fumê do Pricing usa). */
+const CARD_SHEEN =
+  "pointer-events-none absolute inset-0 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16)]";
+
+const CARD_SHADOW = "shadow-[0_20px_50px_-20px_rgba(0,10,26,0.7)]";
 
 /** Camadas por cima da imagem: wash de marca + scrims de legibilidade + aurora. */
 function Wash() {
@@ -193,10 +200,11 @@ export default function CTAFinal() {
   // viaja de cima do corpo dela até a faixa do topo. Animar a camada moveria a
   // caixa de layout inteira e o `y` não teria significado nenhum.
   const ctaBlock = useRef<HTMLDivElement>(null);
-  // Card de vidro "300 pacientes", canto inferior esquerdo — contrapeso do
-  // CTA, que hoje vive sozinho na coluna direita. Ref própria: entra na
-  // timeline com um tween independente, deslocado do CTA (ver useGSAP).
-  const patientCard = useRef<HTMLDivElement>(null);
+  // A PILHA de cards de vidro na cunha esquerda — contrapeso do CTA, que
+  // sozinho na coluna direita deixa a cena torta. A ref é da COLUNA, mas quem
+  // entra na timeline são os filhos dela, um a um (ver useGSAP): é o que
+  // permite o stagger sem uma ref por card.
+  const cardStack = useRef<HTMLDivElement>(null);
 
   // null = indeciso: o matchMedia só resolve depois do primeiro paint, e nesse
   // vão não renderizamos nem vídeo nem still — a base cobre. Sem isso o still de
@@ -290,18 +298,31 @@ export default function CTAFinal() {
         0.64,
       );
 
-      // ── CARD 0.70 → 0.88 ─────────────────────────────────────────────────
-      // O card "300 pacientes", canto inferior esquerdo. Entra DEPOIS do CTA
-      // (offset 0.70 vs 0.64) e sobe bem menos (160px vs 520px): ele é o
-      // detalhe que equilibra a composição, não o protagonista — entrar
-      // junto e no mesmo curso deixaria a dupla mecânica. Os dois terminam
-      // juntos em 0.88, quando a pausa segura a cena. `fromTo` pelo mesmo
-      // motivo do CTA: precisa nascer invisível desde o mount (immediateRender),
-      // senão fica de fantasma sobre o corpo dela durante o scrub do vídeo.
+      // ── CARDS 0.70 → 0.88 ────────────────────────────────────────────────
+      // A pilha da esquerda. Entra DEPOIS do CTA (offset 0.70 vs 0.64) e sobe
+      // bem menos (160px vs 520px): ela é o detalhe que equilibra a composição,
+      // não a protagonista — entrar junto e no mesmo curso deixaria a dupla
+      // mecânica. Termina em 0.88 com o CTA, quando a pausa segura a cena.
+      // `fromTo` pelo mesmo motivo do CTA: precisa nascer invisível desde o
+      // mount (immediateRender), senão fica de fantasma sobre o corpo dela
+      // durante o scrub do vídeo.
+      //
+      // Alvo são os FILHOS, não a coluna: animar a coluna moveria os três cards
+      // como uma placa só. Um por um, o stagger deixa a leitura assentar em
+      // cascata. Ordem do DOM = de cima pra baixo.
+      const cards = cardStack.current
+        ? (Array.from(cardStack.current.children) as HTMLElement[])
+        : [];
       tl.fromTo(
-        patientCard.current,
+        cards,
         { y: 160, autoAlpha: 0 },
-        { y: 0, autoAlpha: 1, duration: 0.18, ease: "power3.out" },
+        {
+          y: 0,
+          autoAlpha: 1,
+          duration: 0.18,
+          ease: "power3.out",
+          stagger: 0.05,
+        },
         0.7,
       );
 
@@ -484,57 +505,147 @@ export default function CTAFinal() {
               </p>
             </div>
 
-            {/* Card "300 pacientes" — contrapeso do CTA na coluna direita.
-              MESMA camada z-20: é de propósito que o cabelo/ombro dela (z-30)
-              passe por cima dele, o mesmo gesto de profundidade que faz o CTA
-              passar por trás dela. `absolute` pra sair do fluxo do flex
-              (`justify-end`) que centra o bloco do CTA — sem isso ele entraria
-              como mais um item da linha em vez de ficar plantado no canto. */}
+            {/* A PILHA — contrapeso do CTA, que sozinho na coluna direita deixa
+              a cena torta. MESMA camada z-20 do CTA: a Roberta é z-30, então
+              ela passa POR CIMA dos cards, igualzinho ao que faz com o texto.
+              `absolute` pra sair do fluxo do flex (`justify-end`) que centra o
+              bloco do CTA — sem isso os cards entrariam como mais um item da
+              linha em vez de ficar plantados no canto.
+
+              A OCLUSÃO É O GESTO, não um efeito colateral. A pilha vivia
+              espremida na boca da cunha (topo esquerdo), no único bolsão onde
+              nada dela encostava nos cards — e o preço era uma composição em
+              que os dois planos nunca se tocavam: cards de um lado, Roberta do
+              outro, sem profundidade nenhuma. Descendo pra cá eles atravessam
+              o cabelo e o braço dela, e é justamente esse cruzamento que planta
+              a cena em camadas. Cada card entrega ~30% da borda direita pra
+              ela; o conteúdo todo mora no terço esquerdo, que é a faixa que o
+              recorte nunca alcança.
+
+              A ESCADA (`ml` por card) segue a silhueta. O braço dela avança
+              conforme desce, então a pilha recua na mesma medida: 6vw no chip
+              (que nasce mais perto do centro, onde só o cabelo passa), 1vw no
+              card de escala, 0 no card de rotina — o mais baixo e o mais fundo
+              atrás do braço. Alinhada à esquerda, a coluna encostaria no braço
+              lá embaixo e ficaria com um vão inútil em cima.
+
+              Tudo ALINHADO À ESQUERDA dentro do card: o conteúdo se agarra na
+              borda livre em vez de flutuar pro meio, que é justo por onde ela
+              entra. */}
+            {/* O GATE É PROPORÇÃO, NÃO LARGURA — e a diferença é o bug.
+              A silhueta dela é a BORDA DO CORTE, não uma coluna do layout: a
+              foto é 1.79:1 e o `object-cover` ancorado à direita (ver MEDIA)
+              come o lado ESQUERDO quando a viewport é mais estreita que ela. O
+              lado direito (a coluna do CTA) é estável em qualquer viewport; o
+              esquerdo abre e fecha com o ASPECTO. Por isso `md:`/`lg:` não
+              servem: 1280×854 e 1512×982 têm largura parecida e vazios
+              completamente diferentes.
+
+              38/25 = 1.52 foi medido pra pilha ANTIGA, no topo. Aqui embaixo o
+              corte é mais fundo por definição, e o gate deixa de ser "quanto
+              texto sobrevive" pra ser "sobra terço esquerdo?". Mantido como
+              piso: abaixo de 1.52 o recorte avança tanto que o braço come o
+              conteúdo, não só a moldura — aí a pilha some inteira em vez de
+              virar sopa. Vale remedir se a foto ou o MEDIA mudarem. */}
+            {/* `items-start` + `w-[248px]` NO CARD, não na coluna — e isso é
+              pré-requisito da escada, não estilo. Com a largura na coluna, o
+              stretch padrão do flex faz o `ml` de cada card DESCONTAR da caixa
+              em vez de empurrá-la: o chip virava 248−6vw ≈ 162px e o nome da
+              Marina truncava em "Marina A...". Com a largura no filho, o `ml`
+              só desloca. (`translate-x` resolveria o layout também, mas a
+              timeline escreve transform nesses mesmos nós — ver CARDS.) */}
             <div
-              ref={patientCard}
-              className="absolute bottom-[26vh] left-[3vw] w-[272px]"
+              ref={cardStack}
+              className="absolute left-[3.5vw] top-[30vh] hidden flex-col items-start gap-10 [@media(min-aspect-ratio:38/25)]:flex"
             >
+              {/* MOMENTO — o produto agindo, não um número sobre ele. Mesmo
+                vocabulário da tela "início" do iPhone 3D (ver PhoneScreen:
+                InicioScreen), de propósito: quem rolou a página inteira já viu
+                essa anamnese ficar pronta no telefone. Aqui ela reaparece do
+                lado de fora, como se o workspace tivesse vazado do tablet.
+                `rounded-lg` (24px) e não `rounded-card` (40px): num bloco de
+                ~72px de altura, 40px de raio vira pílula. */}
               <div
-                className={`relative overflow-hidden rounded-card p-7 text-center shadow-[0_20px_50px_-20px_rgba(0,10,26,0.7)] ${PATIENT_CARD_GLASS}`}
+                className={`relative ml-[6vw] flex w-[248px] items-center gap-3 overflow-hidden rounded-lg p-4 ${CARD_SHADOW} ${CARD_GLASS}`}
               >
-                {/* inset highlight na quina de cima — camada própria, não
-                  empilhada dentro da sombra externa (mesma separação que o
-                  card fumê do Pricing usa). */}
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16)]"
-                />
+                <div aria-hidden className={`${CARD_SHEEN} rounded-lg`} />
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-azul-100 font-title text-[12px] font-semibold text-azul-800">
+                  MA
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-title text-[14px] font-medium leading-tight text-white">
+                    Marina Alves
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 font-body text-[12px] leading-none text-white/60">
+                    <IconCheck className="h-3 w-3 shrink-0 text-sage-300" />
+                    Anamnese pronta
+                  </p>
+                </div>
+              </div>
 
-                {/* arco — moldura/ornamento, não gauge: uma contagem de
-                  pacientes não tem teto, então uma escala 0–100 ao redor
-                  mediria algo que não existe. Sem rótulos de escala; o
-                  marcador é só um ponto de leitura sobre o arco. */}
-                <svg
-                  aria-hidden
-                  focusable="false"
-                  viewBox="0 0 100 44"
-                  className="mx-auto h-11 w-28"
-                >
-                  <path
-                    d="M16,38 A34,34 0 0 1 84,38"
-                    fill="none"
-                    className="stroke-white/20"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="62" cy="7" r="7" className="fill-white/25 blur-[2px]" />
-                  <circle cx="62" cy="7" r="3.5" className="fill-white" />
-                </svg>
-
-                <p className="mt-3 font-title text-[2.75rem] font-medium leading-none tracking-[-0.02em] text-white">
+              {/* ESCALA — o cenário onde o momento acontece. Sem o arco que
+                havia aqui: era ornamento assumido (uma contagem de pacientes
+                não tem teto, então não há escala pra desenhar), custava ~60px
+                de altura e um arco centrado sobre conteúdo alinhado à esquerda
+                não tem onde se apoiar. */}
+              <div
+                className={`relative ml-[1vw] w-[248px] overflow-hidden rounded-card p-6 ${CARD_SHADOW} ${CARD_GLASS}`}
+              >
+                <div aria-hidden className={`${CARD_SHEEN} rounded-card`} />
+                <p className="font-title text-[2.75rem] font-medium leading-none tracking-[-0.02em] text-white">
                   300
                 </p>
                 <p className="mt-2 font-body text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
                   Pacientes
                 </p>
-                <p className="mt-3 font-body text-[13px] leading-relaxed text-white/55">
+                {/* `max-w` não é capricho de rag: sem ele a linha usa os 200px
+                  internos do card e a ponta direita cai debaixo do cabelo. */}
+                <p className="mt-3 max-w-[150px] font-body text-[13px] leading-relaxed text-white/55">
                   Todos com histórico completo.
                 </p>
+              </div>
+
+              {/* ROTINA — o arco inteiro do produto num dia, e o fecho da
+                escada: momento (uma anamnese) → escala (300 pacientes) → o
+                caminho que cada um percorre. Sem nome de paciente de propósito:
+                o chip lá em cima já é a Marina, repetir aqui encolheria os 300
+                de volta pra uma pessoa só. Os horários são o argumento — 09:12
+                → 14:40 é a consulta inteira resolvida no mesmo dia.
+                É o card mais baixo e o mais coberto: nada aqui passa dos ~150px
+                da esquerda, então o braço dela leva só moldura. */}
+              <div
+                className={`relative w-[248px] overflow-hidden rounded-card p-6 ${CARD_SHADOW} ${CARD_GLASS}`}
+              >
+                <div aria-hidden className={`${CARD_SHEEN} rounded-card`} />
+                <p className="font-body text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
+                  Hoje
+                </p>
+                {/* HORÁRIO PRIMEIRO, e rótulo curto — as duas decisões saem da
+                  mesma régua. `ml-auto` no horário (o reflexo) o encostaria na
+                  borda direita do card, que é justo o que o braço dela cobre:
+                  as três linhas perderiam o número, que é o argumento inteiro.
+                  Com a coluna de tempo à esquerda e o rótulo em uma palavra, a
+                  linha mais longa fecha em ~145px — o texto todo cabe no terço
+                  livre e o rag fica ragged-right dentro dele. O "respondida /
+                  realizada" que os rótulos perderam quem diz é o check. */}
+                <ul className="mt-5 space-y-4">
+                  {[
+                    ["09:12", "Anamnese"],
+                    ["14:00", "Consulta"],
+                    ["14:40", "Plano enviado"],
+                  ].map(([time, label]) => (
+                    <li
+                      key={label}
+                      className="flex items-center gap-2 font-body text-[13px] leading-none"
+                    >
+                      <IconCheck className="h-3.5 w-3.5 shrink-0 text-sage-300" />
+                      <span className="w-[38px] shrink-0 tabular-nums text-white/45">
+                        {time}
+                      </span>
+                      <span className="text-white/80">{label}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
