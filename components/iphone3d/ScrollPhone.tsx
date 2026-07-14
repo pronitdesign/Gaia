@@ -24,19 +24,21 @@ import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 
 const TWO_PI = Math.PI * 2;
-// Yaw nas duas pontas: Features reto de frente (Math.PI), Pricing em 3/4.
-// O giro completo (eS·2π) some por cima, então p=0 e p=1 caem nessas poses.
+// Yaw nas duas pontas: Features reto de frente (Math.PI), Pricing em 3/4 mais
+// inclinado. O giro completo (eS·2π) some por cima, então p=0 e p=1 caem
+// nessas poses.
 const START_YAW = Math.PI; // reto de frente, dentro do Features
-const END_YAW = Math.PI - 0.28; // 3/4 = PHONE_POSE do Pricing
+const END_YAW = Math.PI - 0.34; // 3/4 mais tortinho = PHONE_POSE do Pricing
 const START_TILT: [number, number] = [0, 0]; // reto, sem inclinação
-const END_TILT: [number, number] = [0.08, -0.1]; // [x, z] = PHONE_POSE do Pricing
+const END_TILT: [number, number] = [0.1, -0.19]; // [x, z] = PHONE_POSE do Pricing
 // Tamanho pela ESCALA DO GRUPO 3D (não por CSS: o R3F mede o container já
-// transformado e dobraria a escala). Canvas fixo 506×900 (mesma proporção do
-// slot 360×640) grande o bastante pro aparelho grande do Features não cortar.
-// END_G = 640/900 → no Pricing o phone tem o MESMO tamanho de antes (pouso 1:1).
-// START_G maior → grande no card de Prontuário.
+// transformado e dobraria a escala). Canvas fixo 506×900 grande o bastante
+// pro aparelho grande do Features não cortar. END_G = 820/900 → casa o slot
+// do Pricing (461×820, razão ~0.5625 — o phone flutua por cima do asset
+// iridescente no canto direito, sem submergir em nenhum vidro). START_G
+// maior → grande no card de Prontuário.
 const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário
-const END_G = 0.71; // 640/900 → casa o slot do Pricing
+const END_G = 820 / 900; // 0.911… → casa o slot 461×820 do Pricing
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /* posição/escala: acelera saindo do card, desacelera pousando no preço */
@@ -114,9 +116,12 @@ export default function ScrollPhone() {
       const b = end.getBoundingClientRect();
       const startC = a.top + a.height / 2;
       const endC = b.top + b.height / 2;
-      const vpc = window.innerHeight / 2;
+      // Pouso (p=1) quando o centro do slot cruza 72% do viewport — não 50%
+      // (centro), pra dar tempo do phone assentar visualmente no slot antes
+      // que a seção termine de entrar no viewport.
+      const target = window.innerHeight * 0.72;
       const dist = endC - startC; // ~constante (distância entre os âncoras)
-      const p = dist === 0 ? 0 : Math.min(1, Math.max(0, (vpc - startC) / dist));
+      const p = dist === 0 ? 0 : Math.min(1, Math.max(0, (target - startC) / dist));
       place(p);
     };
 

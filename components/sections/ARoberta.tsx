@@ -8,39 +8,56 @@ import { Badge } from "@/components/ui/Badge";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Fundo da section — gradiente malva/lilás exportado do Figma (node 152-475).
-const BACKDROP = "/roberta-bg.webp";
+// Fundo da section — orquídea vinho cinematográfica sobre selva escura (foto completa,
+// não mais a chapa gradiente+multiply). Por ser foto escura, a camada de flor multiply
+// saiu: ela só fazia sentido com orquídea-sobre-branco sobre o gradiente claro.
+const BACKDROP = "/quem-construiu-bg-3.webp";
 
-// Emenda com o off-white do #como-comecar (neutro-50): o gradiente entra desmaiado.
-const TOP_FADE = "linear-gradient(to bottom, transparent 0, #000 13%)";
-
-// Véu de neutro-50 sobre o fundo. O pixel mais escuro do gradiente é rgb(181,131,169):
-// sobre ele, texto neutro-700 só bate 4.5:1 com α ≥ 0.45. Como o object-cover
-// reposiciona o gradiente a cada viewport, o véu tem que segurar esse pior caso em TODA
-// faixa onde o editorial pode cair (a partir de 40vh) — não dá pra contar com sorte de
-// crop. Fica em 0.58: cobre o gradiente com folga e ainda apaga o resto de pétala que a
-// máscara da orquídea deixa passar. Acima de 40vh só vivem as palavras gigantes (texto
-// grande: 3:1 basta) e o banner, que cobre — lá o véu quase some e o fundo do Figma
-// aparece na força cheia.
+// Véu de neutro-50 sobre o fundo — SÓ no modo stacked, onde o editorial pousa direto
+// no gradiente. O pixel mais escuro do gradiente é rgb(181,131,169): sobre ele, texto
+// neutro-700 só bate 4.5:1 com α ≥ 0.45. Como o object-cover reposiciona o gradiente a
+// cada viewport, o véu segura esse pior caso em toda a faixa do editorial — não dá pra
+// contar com sorte de crop. No modo pinned o editorial sobe sobre o retrato full-bleed
+// (que tem scrim próprio), então lá o véu não entra e o fundo do Figma aparece cheio.
 const LEGIBILITY_VEIL =
   "linear-gradient(to bottom, rgba(250,249,245,0.04) 0%, rgba(250,249,245,0.08) 30%, rgba(250,249,245,0.18) 38%, rgba(250,249,245,0.58) 46%, rgba(250,249,245,0.62) 100%)";
 
 // A orquídea é foto sobre branco puro (255,255,255) — é assim que ela vem do Figma, e
 // lá o layer está em multiply. `mix-blend-mode: multiply` reproduz isso exato: branco
 // × gradiente = gradiente, então o fundo da foto some sem precisar de canal alpha.
-// A máscara corta a metade de baixo: as pétalas são vinho (~rgb(120,40,70)) e nenhum
-// véu razoável salvaria o editorial por cima delas — então a flor vive só na faixa
-// alta, atrás do card e das palavras.
-const FLOWER_FADE = "linear-gradient(to bottom, #000 0%, #000 42%, transparent 68%)";
+
+// Força/cor da orquídea = FIEL ao Figma (node 152-474): lá o layer da flor é multiply
+// a 100%, sem ajuste de cor. A orquídea (node 152-472) é a MESMA chapa; multiply cheio
+// sobre o gradiente (node 152-475) reproduz a composição exata — vinho borgonha, não o
+// magenta que a saturação puxava, nem o fantasma pálido de opacidade baixa.
+const FLOWER_STRENGTH = 1;
+// Sem filtro: qualquer saturate/contrast desvia do vinho do Figma (e brightness escuro
+// vira neon no multiply). Cor crua = cor do Figma.
+const FLOWER_FILTER = "none";
 
 // Foto da Roberta — soltar o arquivo em /public e trocar aqui.
-// Enquanto não existe, o placeholder (gradiente Bruma + monograma) aparece por baixo.
-const PORTRAIT = "/roberta.jpg";
+// Se falhar, o placeholder (gradiente Bruma + monograma) aparece por baixo.
+const PORTRAIT = "/roberta.webp";
+
+// A foto é landscape (2560×1429) e a Roberta está no meio-esquerda; o card do p=0 é
+// retrato (260×320), então o object-cover corta ~55% da largura fora. Sem reposicionar,
+// o card pega ombro e abajur em vez do rosto. 55% centra a cabeça dela no recorte alto
+// e continua bem enquadrada quando o box abre pro full-bleed.
+const PORTRAIT_POS = "55% 45%";
 
 // Orquídea cymbidium vinho, exportada do Figma (node 152-472) na mesma moldura do
 // gradiente. Fica no centro da section, atrás do card e das palavras; some quando o
 // retrato cresce pro full-bleed.
 const FLOWER = "/orquidea-roberta.webp";
+
+// ── Camadas NOVAS (sobre tudo o que já existia) ──────────────────────────────
+// Recorte da Roberta (RGBA transparente) — vai NA FRENTE do ticker, então o nome
+// gigante passa por trás da cabeça dela. Layering puro: o alpha faz a oclusão.
+const CUTOUT = "/roberta-recorte.webp";
+// Ticker: o nome repetido numa faixa. A trilha tem duas faixas idênticas → xPercent
+// -50 desloca exatamente uma faixa e o loop é sem emenda.
+const TICKER_NAME = "Roberta Carbonari";
+const TICKER_REPEAT = 4;
 
 // Números da prova — ledger. `to` numérico dispara count-up; `static` fica fixo.
 const STATS = [
@@ -54,15 +71,36 @@ const STATS = [
 const BIO =
   "Roberta Carbonari é Mestre em Nutrição e especialista em Comportamento Alimentar. Gere três clínicas, forma nutricionistas Brasil afora e tem agenda com lista de espera. A anamnese sempre foi o ponto mais travado da rotina dela — Gaia é a ferramenta que ela queria ter tido, construída de dentro do consultório.";
 
-// Retrato agora ocupa a section inteira (full-bleed). Um scrim claro na base
-// segura a legibilidade do editorial em texto escuro sobre a foto.
-const PORTRAIT_SCRIM =
+// Retrato ocupa a section inteira (full-bleed) no fim do scrub. Um scrim na base
+// segura a legibilidade do editorial sobre a foto. Ele acompanha o `p` do retrato
+// (ver applyP): em p=0 o retrato ainda é um card e o scrim só lavaria o fundo do
+// Figma à toa, então ele entra junto com a foto crescendo.
+// Pinned: escuro (ink) — a foto dissolve num fundo cinematográfico, texto claro por cima.
+const PORTRAIT_SCRIM_DARK =
+  "linear-gradient(to top, #05080F 0%, rgba(5,8,15,0.94) 24%, rgba(7,11,22,0.55) 52%, transparent 100%)";
+// Stacked (mobile): claro — a foto emenda no off-white do editorial embaixo.
+const PORTRAIT_SCRIM_LIGHT =
   "linear-gradient(to top, #FAF9F5 0%, rgba(250,249,245,0.94) 26%, rgba(250,249,245,0.58) 54%, transparent 100%)";
 
-// Vidro claro frostado — mesmo sistema do #como-comecar (glassLight). Pede
-// texto escuro por cima.
-const GLASS_CARD =
-  "backdrop-blur-2xl backdrop-saturate-150 transform-gpu bg-gradient-to-b from-white/85 to-white/64 shadow-[0_30px_80px_-28px_rgba(58,72,94,0.4),inset_0_1px_0_0_rgba(255,255,255,0.75),inset_0_0_0_1px_rgba(58,72,94,0.08)]";
+// ── Double-bezel (Doppelrand) ────────────────────────────────────────────────
+// Casca externa (bandeja) + núcleo interno (placa) com raios concêntricos: p-1.5
+// (0.375rem) → raio interno = 2rem − 0.375rem = 1.625rem. Dá o ar de hardware usinado
+// em vez de retângulo chapado. Dois tons: escuro (pinned) e claro (stacked/mobile).
+const SHELL_DARK =
+  "rounded-[2rem] p-1.5 bg-white/[0.045] ring-1 ring-white/10 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_44px_120px_-34px_rgba(0,0,0,0.82)]";
+const CORE_DARK =
+  "rounded-[1.625rem] bg-gradient-to-b from-white/[0.09] to-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_0_0_1px_rgba(255,255,255,0.05)]";
+const SHELL_LIGHT =
+  "rounded-[2rem] p-1.5 bg-white/55 ring-1 ring-black/[0.05] backdrop-blur-2xl backdrop-saturate-150 shadow-[0_44px_110px_-34px_rgba(58,72,94,0.42)]";
+const CORE_LIGHT =
+  "rounded-[1.625rem] bg-gradient-to-b from-white/92 to-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]";
+
+// Curva de mola padrão (Linear/Vercel) — toda transição usa esta, nunca ease padrão.
+const EASE = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+
+// Grão de filme — feTurbulence inline, tile de 180px. Overlay fixo/pointer-events-none.
+const NOISE_BG =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 /** Retrato: placeholder (gradiente Bruma + monograma) com a foto real por cima quando existir. */
 function Portrait() {
@@ -77,7 +115,8 @@ function Portrait() {
       <img
         src={PORTRAIT}
         alt="Roberta Carbonari"
-        className="absolute inset-0 h-full w-full object-cover object-[52%_28%]"
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ objectPosition: PORTRAIT_POS }}
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.display = "none";
         }}
@@ -94,7 +133,13 @@ function Portrait() {
  * decorativo: position+z-index cria stacking context, e é ele que confina o multiply
  * da flor a este bloco — sem isso o blend vazaria pro resto da página.
  */
-function Afluente({ flowerRef }: { flowerRef?: RefObject<HTMLDivElement> }) {
+function Afluente({
+  flowerRef,
+  veil = true,
+}: {
+  flowerRef?: RefObject<HTMLDivElement>;
+  veil?: boolean;
+}) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -102,86 +147,227 @@ function Afluente({ flowerRef }: { flowerRef?: RefObject<HTMLDivElement> }) {
         src={BACKDROP}
         alt=""
         className="absolute inset-0 h-full w-full object-cover"
-        style={{ WebkitMaskImage: TOP_FADE, maskImage: TOP_FADE }}
       />
 
+      {/* Full-bleed com o mesmo object-cover do gradiente: no Figma a orquídea é uma
+          chapa do tamanho do frame e as pétalas das pontas saem cortadas na borda. Se
+          a flor for mais estreita que a viewport esses cortes viram duas linhas retas
+          no meio da tela — em full-bleed eles caem fora da vista, como no Figma. */}
       {flowerRef && (
+        // SEM will-change aqui de propósito: promover a div a uma camada de
+        // composição própria isola o elemento e quebra o mix-blend-multiply
+        // (o blend passa a acontecer contra o vazio, não contra o gradiente
+        // atrás) — a orquídea some. GSAP anima opacity/scale sem isso.
         <div
           ref={flowerRef}
-          className="absolute left-1/2 top-1/2 w-[min(1180px,94vw)] -translate-x-1/2 -translate-y-1/2 mix-blend-multiply will-change-[opacity,transform]"
-          style={{ WebkitMaskImage: FLOWER_FADE, maskImage: FLOWER_FADE }}
+          className="absolute inset-0 mix-blend-multiply"
         >
+          {/* A opacidade mora no <img>, não no wrapper: o GSAP anima autoAlpha do
+              wrapper (entra em 0→1, sai em →0) e sobrescreveria qualquer valor posto
+              lá. Aqui ela fica constante e o multiply entra mais fraco — a orquídea
+              vira chapa de fundo em vez de brigar com o display type por cima. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={FLOWER} alt="" className="h-auto w-full select-none" />
+          <img
+            src={FLOWER}
+            alt=""
+            className="absolute inset-0 h-full w-full select-none object-cover"
+            style={{ opacity: FLOWER_STRENGTH, filter: FLOWER_FILTER }}
+          />
         </div>
       )}
 
-      {/* Véu de legibilidade — acima da flor, então lava as duas camadas de uma vez. */}
-      <div className="absolute inset-0" style={{ background: LEGIBILITY_VEIL }} />
+      {veil && <div className="absolute inset-0" style={{ background: LEGIBILITY_VEIL }} />}
     </div>
   );
 }
 
-/** Ledger de números — glass card frostado, valor à esquerda, label à direita. */
-function Stats() {
+/** Uma faixa do ticker: o nome repetido com um losango entre cada ocorrência. */
+function TickerGroup() {
   return (
-    <div className={`flex flex-col divide-y divide-neutro-800/12 rounded-3xl px-7 py-5 md:px-8 md:py-6 ${GLASS_CARD}`}>
-      {STATS.map((s, i) => (
-        <div
-          key={i}
-          data-reveal
-          className="flex items-baseline justify-between gap-6 py-4 first:pt-0 last:pb-0"
-        >
-          <span className="font-title text-[clamp(2.25rem,3.4vw,3rem)] font-medium leading-none tabular-nums text-neutro-800">
-            {"static" in s ? (
-              s.static
-            ) : (
-              <span data-count data-to={s.to} data-prefix={s.prefix} data-suffix={s.suffix}>
-                {s.prefix}
-                {s.to}
-                {s.suffix}
-              </span>
-            )}
+    <div className="flex shrink-0 items-center" aria-hidden>
+      {Array.from({ length: TICKER_REPEAT }).map((_, i) => (
+        <span key={i} className="flex items-center">
+          <span className="whitespace-nowrap px-[0.12em] font-title text-[clamp(3.5rem,11vw,10rem)] font-medium italic leading-none text-white/[0.22]">
+            {TICKER_NAME}
           </span>
-          <span className="font-body text-body text-neutro-700">{s.label}</span>
-        </div>
+          <span className="px-[0.18em] text-[clamp(2rem,5vw,5rem)] leading-none text-roxo-300/40">
+            ✦
+          </span>
+        </span>
       ))}
     </div>
   );
 }
 
-/** Bloco editorial: eyebrow + headline + bio + assinatura à esquerda, ledger à direita. */
-function Editorial() {
+/** Ledger de números — card double-bezel, número à esquerda, label micro-caps à direita.
+ *  Dividers em gradiente (desmaiam nas pontas) e hover sutil por linha. */
+function Stats({ onDark = false }: { onDark?: boolean }) {
+  const shell = onDark ? SHELL_DARK : SHELL_LIGHT;
+  const core = onDark ? CORE_DARK : CORE_LIGHT;
+  const value = onDark ? "text-neutro-0" : "text-neutro-800";
+  const label = onDark ? "text-neutro-100/55" : "text-neutro-500";
+  const rule = onDark
+    ? "from-transparent via-white/12 to-transparent"
+    : "from-transparent via-neutro-800/12 to-transparent";
+  const hover = onDark ? "hover:bg-white/[0.045]" : "hover:bg-neutro-800/[0.035]";
   return (
-    <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-x-16 gap-y-12 px-6 md:grid-cols-[1.25fr_0.9fr] md:px-10 lg:px-16">
-      <div>
+    <div className={shell}>
+      <div className={core}>
+        <div className="px-4 py-3 md:px-5 md:py-4">
+          {STATS.map((s, i) => (
+            <div key={i}>
+              {i > 0 && <div className={`mx-3 h-px bg-gradient-to-r ${rule}`} />}
+              <div
+                data-reveal
+                className={`group/row flex items-baseline justify-between gap-6 rounded-2xl px-3 py-3.5 transition-colors duration-500 ${EASE} ${hover}`}
+              >
+                <span
+                  className={`font-title text-[clamp(2.4rem,3.6vw,3.25rem)] font-medium leading-none tracking-[-0.02em] tabular-nums ${value}`}
+                >
+                  {"static" in s ? (
+                    s.static
+                  ) : (
+                    <span data-count data-to={s.to} data-prefix={s.prefix} data-suffix={s.suffix}>
+                      {s.prefix}
+                      {s.to}
+                      {s.suffix}
+                    </span>
+                  )}
+                </span>
+                <span
+                  className={`font-body text-[11px] font-medium uppercase tracking-[0.16em] ${label}`}
+                >
+                  {s.label}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Perfil real da Roberta — o card social linka direto pro Instagram.
+const IG_URL = "https://www.instagram.com/robertacarbonari/";
+
+/** Selo verificado azul (mesma leitura do check do Instagram). */
+function VerifiedBadge() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="h-[1.05em] w-[1.05em] shrink-0">
+      <circle cx="12" cy="12" r="11" fill="#3B9EFF" />
+      <path
+        d="M7 12.4l3.1 3.1L17 8.4"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Glyph do Instagram — contorno. */
+function InstagramGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <rect x="2.5" y="2.5" width="19" height="19" rx="5.6" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="17.7" cy="6.3" r="1.3" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Card social em glass — avatar + nome verificado + 1M seguidores + CTA, linkando
+ *  pro perfil real. Substitui a assinatura chapada por prova social clicável. */
+function InstagramCard({ onDark = false }: { onDark?: boolean }) {
+  const shell = onDark ? SHELL_DARK : SHELL_LIGHT;
+  const core = onDark ? CORE_DARK : CORE_LIGHT;
+  const name = onDark ? "text-neutro-0" : "text-neutro-800";
+  const sub = onDark ? "text-neutro-100/60" : "text-neutro-600";
+  const strong = onDark ? "text-neutro-0" : "text-neutro-800";
+  const btn = onDark
+    ? "bg-white/[0.08] text-neutro-0 ring-1 ring-white/12"
+    : "bg-neutro-800 text-neutro-0 ring-1 ring-black/5";
+  const iconWrap = onDark ? "bg-white/12" : "bg-white/20";
+  return (
+    <a
+      href={IG_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Perfil de Roberta Carbonari no Instagram — 1 milhão de seguidores"
+      className={`group block w-fit max-w-full ${shell} transition duration-700 ${EASE} hover:-translate-y-1 active:scale-[0.99]`}
+    >
+      <div className={`flex items-center gap-4 py-3 pl-3 pr-3 ${core}`}>
+        <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={CUTOUT}
+            alt="Roberta Carbonari"
+            className="h-full w-full object-cover"
+            style={{ objectPosition: "53% 11%" }}
+          />
+        </span>
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5">
+            <span className={`font-title text-body-l font-medium leading-tight ${name}`}>
+              Roberta Carbonari
+            </span>
+            <VerifiedBadge />
+          </span>
+          <span className={`mt-1 flex items-center gap-1.5 font-body text-small ${sub}`}>
+            <span>@robertacarbonari</span>
+            <span className="inline-block h-[3px] w-[3px] rounded-full bg-current opacity-50" />
+            <span>
+              <span className={`font-semibold ${strong}`}>1M</span> seguidores
+            </span>
+          </span>
+        </span>
+        {/* button-in-button: rótulo + glyph num círculo próprio, com física magnética */}
+        <span
+          className={`ml-2 inline-flex shrink-0 items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 font-body text-small font-semibold ${btn} transition duration-500 ${EASE}`}
+        >
+          Seguir
+          <span
+            className={`flex h-7 w-7 items-center justify-center rounded-full ${iconWrap} transition-transform duration-500 ${EASE} group-hover:translate-x-[1px] group-hover:-translate-y-[1px] group-hover:scale-105`}
+          >
+            <InstagramGlyph className="h-4 w-4" />
+          </span>
+        </span>
+      </div>
+    </a>
+  );
+}
+
+/** Bloco editorial: eyebrow + headline + bio + card social à esquerda, ledger à direita.
+ *  `onDark` inverte as cores do texto pro scrim escuro do modo pinned. */
+function Editorial({ onDark = false }: { onDark?: boolean }) {
+  const head = onDark ? "text-neutro-0" : "text-neutro-800";
+  const accent = onDark ? "text-roxo-300" : "text-roxo-600";
+  const body = onDark ? "text-neutro-100/85" : "text-neutro-700";
+  return (
+    <div className="grid w-full grid-cols-1 items-center gap-x-12 gap-y-10 px-6 md:grid-cols-[1fr_auto] md:px-12 lg:px-20">
+      <div className="max-w-2xl">
         <div data-reveal className="mb-6">
-          <Badge tone="light">Quem construiu</Badge>
+          <Badge tone={onDark ? "dark" : "light"}>Quem construiu</Badge>
         </div>
         <h2
           data-reveal
-          className="text-balance font-title text-h3 font-medium leading-[1.1] text-neutro-800 md:text-h2"
+          className={`text-balance font-title text-[2.5rem] font-medium leading-[1.02] tracking-[-0.02em] md:text-h1 lg:text-[4rem] ${head}`}
         >
           Feita por quem atende{" "}
-          <span className="italic text-roxo-600">de verdade.</span>
+          <span className={`italic ${accent}`}>de verdade.</span>
         </h2>
-        <p data-reveal className="mt-6 max-w-xl font-body text-body text-neutro-700">
+        <p data-reveal className={`mt-6 max-w-xl font-body text-body-l leading-relaxed ${body}`}>
           {BIO}
         </p>
-        <div data-reveal className="mt-7 flex items-center gap-4">
-          <div className="h-11 w-11 shrink-0 rounded-full bg-lavanda ring-1 ring-neutro-800/10" />
-          <div>
-            <p className="font-title text-body-l font-medium leading-tight text-neutro-800">
-              Roberta Carbonari
-            </p>
-            <p className="mt-0.5 font-body text-small text-neutro-700">
-              Nutricionista (CRN3 54892) · fundadora da Gaia
-            </p>
-          </div>
+        <div data-reveal className="mt-8">
+          <InstagramCard onDark={onDark} />
         </div>
       </div>
 
-      <Stats />
+      <Stats onDark={onDark} />
     </div>
   );
 }
@@ -221,10 +407,14 @@ export default function ARoberta() {
   const root = useRef<HTMLElement>(null);
   const pin = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
-  const flower = useRef<HTMLDivElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
   const wordL = useRef<HTMLSpanElement>(null);
   const wordR = useRef<HTMLSpanElement>(null);
   const editorial = useRef<HTMLDivElement>(null);
+  // Camadas novas
+  const tickerWrap = useRef<HTMLDivElement>(null);
+  const ticker = useRef<HTMLDivElement>(null);
+  const cutout = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<"pinned" | "stacked">("stacked");
 
@@ -269,14 +459,18 @@ export default function ARoberta() {
       const applyP = (p: number) => {
         const el = portrait.current;
         if (!el) return;
+        // O scrim serve à foto, não ao fundo: só existe na medida em que ela cresce.
+        // Sobe rápido (p*1.6) pra já estar firme quando o editorial começa a subir.
+        if (scrim.current) scrim.current.style.opacity = String(Math.min(1, p * 1.6));
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         const w = WC0 + p * (vw - WC0);
         const h = HC0 + p * (vh - HC0);
-        // centrado na horizontal; sobe do centro da tela (p=0) pro topo (p=1)
+        // Ancorado em 38% da largura (não no centro): a headline gigante flanqueia
+        // esse ponto, e a 50% o "CONSTRUIU?" cortava na direita. Em p=1 vira 0 (full-bleed).
         el.style.width = `${w}px`;
         el.style.height = `${h}px`;
-        el.style.left = `${(vw - w) / 2}px`;
+        el.style.left = `${(vw - w) * 0.38}px`;
         el.style.top = `${(1 - p) * (vh - h) / 2}px`;
         el.style.borderRadius = `${(1 - p) * 26}px`;
         el.style.filter =
@@ -287,6 +481,20 @@ export default function ARoberta() {
       gsap.set([wordL.current, wordR.current], { autoAlpha: 1, x: 0, yPercent: -50 });
       gsap.set("[data-word-inner]", { filter: "blur(0px)" });
       applyP(0);
+
+      // ── Camadas novas: ticker + recorte ────────────────────────────────────
+      // Marquee contínuo: a trilha tem duas faixas idênticas, então -50% = uma faixa
+      // e o loop é sem emenda. Independente do scroll — corre sempre.
+      const marquee = gsap.to(ticker.current, {
+        xPercent: -50,
+        duration: 34,
+        ease: "none",
+        repeat: -1,
+      });
+      // Ticker + recorte SÓ aparecem DEPOIS que a máscara abriu por completo (retrato
+      // vira full-bleed, p=1) — não durante a entrada com as flores. Nascem invisíveis;
+      // o reveal mora no scrub, na posição 1.0 (ver timeline abaixo).
+      gsap.set([tickerWrap.current, cutout.current], { autoAlpha: 0 });
 
       // Entrada — cada palavra sobe com blur-to-sharp (stagger); o card surge junto.
       gsap.from("[data-word-inner]", {
@@ -304,14 +512,10 @@ export default function ARoberta() {
         ease: "power2.out",
         scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
       });
-      // A orquídea abre no centro, um pouco antes das palavras assentarem.
-      gsap.from(flower.current, {
-        autoAlpha: 0,
-        scale: 0.9,
-        duration: 1.5,
-        ease: "power2.out",
-        scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
-      });
+      // A entrada da flor NÃO é um tween separado de propósito: dois tweens
+      // disputando o autoAlpha dela (entrada 0→1 + scrub →0) era a corrida que a
+      // fazia sumir. Agora ela já entra visível pelo gsap.set acima e o único
+      // controle é o scrub (fromTo abaixo, com from explícito).
 
       let counted = false;
 
@@ -340,10 +544,15 @@ export default function ARoberta() {
       )
         .to(wordL.current, { xPercent: -45, autoAlpha: 0, ease: "none", duration: 0.4 }, 0)
         .to(wordR.current, { xPercent: 45, autoAlpha: 0, ease: "none", duration: 0.4 }, 0)
-        // A flor dissolve conforme o retrato cresce — no zoom ela já não aparece.
-        .to(flower.current, { autoAlpha: 0, scale: 1.08, ease: "power1.in", duration: 0.35 }, 0)
         // Beat 2 — editorial sobe nos 60vh de baixo; números contam.
         .to(editorial.current, { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.5 }, 0.62)
+        // Beat 3 — a máscara terminou de abrir (p=1 em t=1.0): AGORA o ticker e o
+        // recorte da Roberta materializam sobre a foto full-bleed. Não antes.
+        .to(
+          [tickerWrap.current, cutout.current],
+          { autoAlpha: 1, ease: "power2.out", duration: 0.22 },
+          1.0,
+        )
         .call(
           () => {
             if (!counted) {
@@ -354,6 +563,10 @@ export default function ARoberta() {
           [],
           0.85,
         );
+
+      return () => {
+        marquee.kill();
+      };
     },
     { scope: root, dependencies: [mode] },
   );
@@ -362,17 +575,72 @@ export default function ARoberta() {
     <section ref={root} id="a-roberta" className="relative overflow-hidden bg-neutro-50">
       {mode === "pinned" ? (
         <div ref={pin} className="relative h-screen overflow-hidden">
-          <Afluente flowerRef={flower} />
+          <Afluente veil={false} />
+
+          {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo
+              do ticker/recorte/editorial): vinheta funda nas bordas + grão de filme. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[21]"
+            style={{
+              background:
+                "radial-gradient(120% 100% at 50% 36%, transparent 44%, rgba(0,0,0,0.5) 100%)",
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[21] opacity-[0.055] mix-blend-overlay"
+            style={{ backgroundImage: NOISE_BG, backgroundSize: "180px 180px" }}
+          />
+
+          {/* Transição da section escura de cima (ComoComecar fecha em neutro-800):
+              começa nessa mesma cor no topo e desmaia no rosa da orquídea — costura o
+              seam entre o escuro e o rosa sem corte seco. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-[22] h-44"
+            style={{
+              background:
+                "linear-gradient(to bottom, #2B2E3A 0%, rgba(43,46,58,0.55) 42%, transparent 100%)",
+            }}
+          />
+
+          {/* TICKER — nome gigante correndo SOBRE a imagem de fundo, atrás da cabeça
+              dela. z-[24] fica acima da imagem/retrato (z-20) e abaixo do recorte. */}
+          <div
+            ref={tickerWrap}
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-[20%] z-[24] overflow-hidden"
+          >
+            <div ref={ticker} className="flex w-max will-change-transform">
+              <TickerGroup />
+              <TickerGroup />
+            </div>
+          </div>
+
+          {/* RECORTE da Roberta — NA FRENTE do ticker (z-[26]). Enquadrado EXATAMENTE
+              como a imagem de fundo: mesmo object-cover full-bleed e mesma
+              object-position do retrato, então a Roberta recortada assenta em cima
+              do fundo e o ticker passa por trás da cabeça dela. */}
+          <div ref={cutout} className="pointer-events-none absolute inset-0 z-[26]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={CUTOUT}
+              alt="Roberta Carbonari"
+              className="absolute inset-0 h-full w-full select-none object-cover"
+              style={{ objectPosition: PORTRAIT_POS }}
+            />
+          </div>
 
           {/* palavras da headline gigante, flanqueando o centro (inner = mask reveal) */}
           <span
             ref={wordL}
             className="absolute top-1/2 z-30 whitespace-nowrap"
-            style={{ right: "calc(50% + 155px)" }}
+            style={{ right: "calc(62% + 155px)" }}
           >
             <span
               data-word-inner
-              className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-neutro-800/90"
+              className="inline-block font-title text-[clamp(3.25rem,8vw,8rem)] font-medium leading-none text-neutro-800 [text-shadow:0_2px_28px_rgba(255,255,255,0.9),0_1px_4px_rgba(255,255,255,0.75)]"
             >
               QUEM
             </span>
@@ -380,11 +648,11 @@ export default function ARoberta() {
           <span
             ref={wordR}
             className="absolute top-1/2 z-30 whitespace-nowrap"
-            style={{ left: "calc(50% + 155px)" }}
+            style={{ left: "calc(38% + 155px)" }}
           >
             <span
               data-word-inner
-              className="inline-block font-title text-[clamp(2.5rem,5.5vw,5.25rem)] font-medium leading-none text-neutro-800/90"
+              className="inline-block font-title text-[clamp(3.25rem,8vw,8rem)] font-medium leading-none text-neutro-800 [text-shadow:0_2px_28px_rgba(255,255,255,0.9),0_1px_4px_rgba(255,255,255,0.75)]"
             >
               CONSTRUIU?
             </span>
@@ -398,20 +666,22 @@ export default function ARoberta() {
             <Portrait />
           </div>
 
-          {/* scrim claro na base da foto full-bleed — segura o editorial em
-              texto escuro sobre a metade inferior do retrato. */}
+          {/* scrim escuro na base da foto full-bleed — a foto dissolve num fundo
+              ink, texto claro por cima. Opacidade dirigida por applyP: 0 enquanto
+              o retrato ainda é card. */}
           <div
+            ref={scrim}
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-[22] h-[66%]"
-            style={{ background: PORTRAIT_SCRIM }}
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[27] h-[72%] opacity-0"
+            style={{ background: PORTRAIT_SCRIM_DARK }}
           />
 
-          {/* editorial — ancorado na base, sobre o scrim */}
+          {/* editorial — ancorado na base, sobre o scrim escuro (texto claro) */}
           <div
             ref={editorial}
             className="absolute inset-x-0 bottom-0 z-30 pb-10 md:pb-14"
           >
-            <Editorial />
+            <Editorial onDark />
           </div>
         </div>
       ) : (
@@ -421,10 +691,25 @@ export default function ARoberta() {
           {/* foto full-bleed, ocupando o topo inteiro da section */}
           <div className="relative z-10 mb-12 h-[70vh] max-h-[560px] w-full overflow-hidden">
             <Portrait />
+            {/* ticker + recorte também no mobile */}
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[16%] z-[12] overflow-hidden">
+              <div className="flex w-max -translate-x-[8%]">
+                <TickerGroup />
+              </div>
+            </div>
+            <div className="pointer-events-none absolute inset-0 z-[14]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={CUTOUT}
+                alt="Roberta Carbonari"
+                className="absolute inset-0 h-full w-full select-none object-cover"
+                style={{ objectPosition: PORTRAIT_POS }}
+              />
+            </div>
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2"
-              style={{ background: PORTRAIT_SCRIM }}
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-[16] h-1/2"
+              style={{ background: PORTRAIT_SCRIM_LIGHT }}
             />
           </div>
           <div ref={editorial} className="relative z-10">

@@ -289,6 +289,9 @@ export default function ComoComecar() {
             {Header}
           </div>
           <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-6 pb-14">
+          {/* faixa escura sob a mídia — fecha o palco em vez de devolver o creme
+              da section entre o banner e a borda inferior da viewport */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-neutro-800" />
           <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
             {Tabs}
           </div>

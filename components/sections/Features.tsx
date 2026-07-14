@@ -8,6 +8,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   IconSparkles,
   IconCheck,
+  IconClock,
   IconArrowUpRight,
 } from "@/components/ui/icons";
 
@@ -43,16 +44,6 @@ const GLASS_FROST =
   `relative overflow-hidden ${GLASS_BLUR} ` +
   "bg-gradient-to-b from-white/[0.13] to-white/[0.05] " +
   "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.32),inset_0_0_0_1px_rgba(255,255,255,0.12)]";
-
-// card-fantasma atrás — meia opacidade, offset, mesmo vidro (profundidade)
-function Ghost({ radius = "rounded-[18px]" }: { radius?: string }) {
-  return (
-    <div
-      aria-hidden
-      className={`absolute -right-4 -top-5 h-full w-full opacity-40 ${radius} ${GLASS_BLUR} ${GLASS_DARK}`}
-    />
-  );
-}
 
 const FLOAT = "shadow-[0_34px_70px_-22px_rgba(0,0,0,0.7)]";
 
@@ -116,28 +107,195 @@ function Glow({ className = "", color = "rgba(138,105,216,0.28)" }: { className?
 }
 
 /* ═══════════════ PLANO ALIMENTAR ═══════════════ */
+/* Foto real de cada prato — os mesmos arquivos de 160×160 que a aba "Plano"
+   da tela do iPhone usa (ver MEALS em PhoneScreen). Uma refeição por foto:
+   dá pra reconhecer o prato antes de ler a linha, que é o ponto do baralho. */
+/* Duas descrições por refeição, e não é redundância: `food` é a longa, que a
+   carta do baralho mostra em duas linhas (line-clamp-2); `short` é a que a
+   LISTA do painel usa, onde a linha é única e truncada. Com a longa na lista
+   o truncate cortaria em "Ovos mexidos com aveia em flocos, mamão papa…" e
+   comeria o dado no lugar do enfeite. Mesma razão pela qual o PhoneScreen tem
+   `detail` próprio: superfície diferente, orçamento de linha diferente.
+   `c` é a espinha colorida da linha — só a lista usa (no baralho quem
+   identifica o prato é a foto). */
+const PLANO_MEALS = [
+  { img: "/plano-cafe.webp", t: "07:30", n: "Café da manhã", food: "Ovos mexidos com aveia em flocos, mamão papaia e café sem açúcar", short: "Ovos mexidos, aveia e mamão", kcal: 410, prot: 24, c: "#A385C0" },
+  { img: "/plano-almoco.webp", t: "12:30", n: "Almoço", food: "Frango grelhado, arroz integral e salada de folhas com azeite", short: "Frango grelhado, arroz e salada", kcal: 620, prot: 46, c: "#95A9C4" },
+  { img: "/plano-jantar.webp", t: "20:00", n: "Jantar", food: "Salmão assado com legumes no vapor e purê de abóbora", short: "Salmão assado e legumes", kcal: 480, prot: 42, c: "#8B9E6F" },
+];
+
+/* Sugestões da Gaia — uma por refeição, no MESMO índice do baralho. O card
+   satélite e o prato da frente trocam no mesmo beat, então a sugestão é
+   sempre sobre o prato que está sendo mostrado (whey → aveia do café, arroz
+   → almoço, refri → jantar). Um ciclo só no card inteiro: dois ritmos
+   independentes competindo pelo olho fazem o card parecer inquieto. */
+const PLANO_SUGESTOES = [
+  { t: "Incluir 20 g de whey na aveia", d: "+18 g prot" },
+  { t: "Trocar arroz por batata-doce", d: "−80 kcal" },
+  { t: "Trocar refri por água com gás", d: "−140 kcal" },
+];
+
+/* Baralho de refeições — a refeição da vez fica na frente; as outras espiam
+   por cima do ombro dela e vão pro fim da fila quando a vez passa. `rank`
+   (0 = frente) é a distância na fila a partir do índice ativo, e é ele — não
+   o índice do array — que decide posição, escala, opacidade e z-index. Assim
+   cada nó só transiciona de um rank pro outro e o React nunca remonta nada:
+   a pilha inteira desliza numa transform só.
+
+   A pilha é DIAGONAL (sobe e vai pra direita), não só vertical: com offset em
+   Y puro as cartas de trás só mostram uma faixa fina no topo e a pilha lê
+   como sombra da carta da frente. Com o passo em X junto, a beirada direita
+   também aparece e as fotos formam escadinha — a carta de trás vira objeto,
+   não borrão.
+
+   Âncora em bottom-0 + origin "center bottom": a escala encolhe a carta em
+   direção à base, que fica cravada, então o translate negativo em Y é o que
+   sobra de espiada visível no topo. Sem isso a escala comeria justamente a
+   beirada que faz a pilha ser lida como pilha — e ela ainda come parte: a
+   espiada real é `DECK_DY - altura×0,028` por rank, e em X é
+   `DECK_DX - largura×0,028/2` (origin é o centro, então o lado direito só
+   perde METADE do que a escala tira). Por isso a escala é suave e os passos
+   são generosos: com 5% a espiada caía pra ~9px.
+
+   Carta opaca, e é a única peça do card que não é vidro: precisa OCLUIR quem
+   está atrás, senão as três fotos se somam num borrão e a pilha vira sopa.
+   Vidro aqui também empilharia três backdrop-blur num ponto só — caro e
+   turvo. É o mesmo que a referência faz: as cartas do baralho são chapadas,
+   o resto da cena é que é translúcido. */
+/* DY é medido, não escolhido por gosto: a espiada tem que passar da linha de
+   base do título da carta de trás (py-3.5 = 14px + ~18px de linha = 32px),
+   senão o corte cai no meio das letras e a pilha lê como texto quebrado em
+   vez de carta atrás. 38 - altura×0,028 (~3,6px) ≈ 34px de espiada real:
+   título inteiro, e só ele. */
+const DECK_DX = 14;
+const DECK_DY = 38;
+
+/* Botão "+" da carta da frente — adicionar refeição ao plano. Decorativo
+   (a cena inteira é mock), então <span>, não <button>: nada aqui recebe
+   foco nem responde a clique. */
+function IconPlus({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 12 12" className={className} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M6 2.5v7M2.5 6h7" />
+    </svg>
+  );
+}
+
+function MealDeck({ front }: { front: number }) {
+  const n = PLANO_MEALS.length;
+  return (
+    // Altura fixa: o palco do baralho é quem dimensiona o card-herói, e ele
+    // não pode respirar junto com o texto. DECK_DY × (n-1) = 76px de headroom
+    // pras cartas de trás + a carta da frente (~130px com a foto sangrando
+    // 12px pra cima). Os -mr/-ml não existem: quem sangra pra fora é a foto e
+    // o "+", e eles cabem no px-7/px-9 do MockPlano.
+    <div className="relative h-[212px]">
+      {PLANO_MEALS.map((m, i) => {
+        const rank = (i - front + n) % n;
+        const isFront = rank === 0;
+        return (
+          <div
+            key={m.n}
+            // O recuo à direita é a folga que a pilha precisa pra crescer: a
+            // carta do fundo anda DECK_DX × (n-1) = 28px pra direita, e o
+            // card-herói é overflow-hidden — sem recuo a foto dela levaria um
+            // corte reto na borda. Medido em 390px (o pior caso): sobram 26px
+            // entre a foto mais à direita e a borda do herói.
+            className="absolute bottom-0 left-0 right-[18px] transition-transform duration-[700ms] ease-gaia"
+            style={{
+              transform: `translate(${rank * DECK_DX}px, ${rank * -DECK_DY}px) scale(${1 - rank * 0.028})`,
+              transformOrigin: "center bottom",
+              zIndex: n - rank,
+            }}
+          >
+            {/* corpo — pr abre a calha da foto, que é absoluta e mora fora
+                deste nó (o corpo tem overflow-hidden pro véu respeitar o raio;
+                a foto e o "+" precisam sangrar, então vivem no wrapper). */}
+            <div className="relative overflow-hidden rounded-[16px] bg-[#14181f] py-3.5 pl-4 pr-[104px] shadow-[0_18px_40px_-14px_rgba(0,0,0,0.9),inset_0_1px_0_0_rgba(255,255,255,0.10),inset_0_0_0_1px_rgba(255,255,255,0.07)] md:pr-[116px]">
+              <p className="truncate font-title text-[15px] font-medium leading-tight text-white">{m.n}</p>
+              {/* min-h de duas linhas: a carta é bottom-anchored, então texto
+                  de altura variável faz ela crescer PRA CIMA e bater no
+                  cabeçalho da Marina. Travar em 2 linhas mantém a geometria
+                  igual em 390px (onde a linha quebra) e em desktop. */}
+              <p className="mt-1.5 line-clamp-2 min-h-[34px] font-body text-[12px] leading-[1.42] text-white/50">{m.food}</p>
+              <div className="mt-3 flex items-center gap-3">
+                <span className="font-title text-[15px] font-medium tabular-nums text-white">{m.kcal} kcal</span>
+                <span className="flex items-center gap-1.5 font-body text-[11.5px] tabular-nums text-white/45">
+                  <IconClock className="h-3.5 w-3.5" />
+                  {m.t}
+                </span>
+              </div>
+              {/* Véu — é ELE que recolhe a carta pro fundo, não a opacidade da
+                  carta. Parece a mesma coisa parado e não é em movimento: com
+                  `opacity` no card, durante os 700ms do embaralhamento as três
+                  cartas ficam translúcidas AO MESMO TEMPO, e a que entra (ainda
+                  em ~0,7) deixa ler o texto da que está saindo por baixo dela.
+                  O véu mantém toda carta 100% opaca sempre — só escurece. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-[#0A0C11] transition-opacity duration-[700ms] ease-gaia"
+                style={{ opacity: rank * 0.36 }}
+              />
+            </div>
+
+            {/* foto — mais alta que o corpo e colada na direita: sangra 12px
+                pra cima e passa da beirada. É o que faz a carta parecer um
+                objeto montado em vez de uma linha de lista com thumbnail.
+                Decorativa: o nome da refeição ao lado já diz o que ela é.
+                Véu próprio, com o mesmo rank — o do corpo não alcança aqui. */}
+            <span className="absolute -top-3 bottom-0 right-0 w-[92px] overflow-hidden rounded-[14px] shadow-[0_14px_30px_-12px_rgba(0,0,0,0.9),inset_0_0_0_1px_rgba(255,255,255,0.12)] md:w-[104px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={m.img} alt="" aria-hidden className="h-full w-full object-cover" />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-[#0A0C11] transition-opacity duration-[700ms] ease-gaia"
+                style={{ opacity: rank * 0.36 }}
+              />
+            </span>
+
+            {/* etiqueta de proteína — monta na quina da foto, meio dentro do
+                corpo. Só a carta da frente mostra ela e o "+": nas de trás o
+                véu deixaria os dois num limbo cinza, sem virar fundo de vez. */}
+            <span
+              className="pointer-events-none absolute -top-1.5 right-[76px] z-10 inline-flex items-center gap-1.5 rounded-full bg-[#1b2029] px-2.5 py-1 font-body text-[11px] font-medium tabular-nums text-sage-200 shadow-[0_8px_18px_-6px_rgba(0,0,0,0.9),inset_0_0_0_1px_rgba(255,255,255,0.10)] transition-opacity duration-[700ms] ease-gaia md:right-[88px]"
+              style={{ opacity: isFront ? 1 : 0 }}
+            >
+              {m.prot} g prot
+            </span>
+
+            <span
+              className="pointer-events-none absolute -bottom-2 -right-2 z-10 grid h-8 w-8 place-items-center rounded-[11px] bg-white text-[#14181f] shadow-[0_10px_22px_-6px_rgba(0,0,0,0.85)] transition-opacity duration-[700ms] ease-gaia"
+              style={{ opacity: isFront ? 1 : 0 }}
+            >
+              <IconPlus className="h-3.5 w-3.5" />
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MockPlano() {
-  const meals = [
-    { t: "07:30", n: "Café da manhã", food: "Ovos mexidos, aveia e mamão", kcal: 410, c: "#A385C0" },
-    { t: "12:30", n: "Almoço", food: "Frango grelhado, arroz e salada", kcal: 620, c: "#95A9C4" },
-    { t: "20:00", n: "Jantar", food: "Salmão assado e legumes", kcal: 480, c: "#8B9E6F" },
-  ];
   const macros = [
     { k: "Prot", g: 112, pct: 30, c: "bg-brand" },
     { k: "Carbo", g: 168, pct: 48, c: "bg-azul-400" },
     { k: "Gord", g: 47, pct: 22, c: "bg-sage-400" },
   ];
-  // Micro-interação: a sugestão da Gaia troca sozinha a cada ~3,6s (fade).
-  const sugestoes = [
-    { t: "Trocar arroz por batata-doce", d: "−80 kcal" },
-    { t: "Incluir 20 g de whey no lanche", d: "+18 g prot" },
-    { t: "Trocar refri por água com gás", d: "−140 kcal" },
-  ];
-  const [sug, ref] = useAutoCycle(sugestoes.length, 3600);
-  const s = sugestoes[sug];
+  // Um ciclo só (~3,6s) move o baralho E a sugestão — ver PLANO_SUGESTOES.
+  const [i, ref] = useAutoCycle(PLANO_MEALS.length, 3600);
+  const s = PLANO_SUGESTOES[i];
   return (
-    <div ref={ref} className="relative mt-8 flex-1 px-7 md:px-9">
-      {/* back card — adesão, peeking topo esquerdo */}
+    // pb: o baralho agora mora no rodapé, e o "+" da carta da frente sangra
+    // 8px abaixo do palco. Peça absoluta que sangra não entra na altura do
+    // container, então sem padding o card fechava em 993px com 1011px de
+    // conteúdo e o overflow-hidden do CARD_HERO decepava o "+" (medido: 18px
+    // fora da borda em 1440px). Alinha com o pb-7/pb-8 dos outros mocks.
+    <div ref={ref} className="relative mt-8 flex-1 px-7 pb-8 md:px-9 md:pb-9">
+      {/* back card — adesão, espiando por trás da quina do painel. z-0 + o
+          painel ser o primeiro nó do fluxo (sem margem no topo) são o par que
+          faz o tuck: este chip precisa de OUTRA peça na frente pra continuar
+          sendo algo que espia em vez de um card órfão. */}
       <div style={px(1.35, -7)} className={"gaia-parallax absolute -left-2 -top-3 z-0 w-[142px] rounded-[13px] p-3 " + GLASS + " " + FLOAT}>
         <p className="font-body text-[10.5px] text-white/50">Adesão</p>
         <div className="flex items-baseline gap-1.5">
@@ -146,35 +304,39 @@ function MockPlano() {
         </div>
       </div>
 
-      {/* painel principal */}
-      <div style={px(0.4, 1)} className="gaia-parallax relative">
-        <Ghost />
-        <div className={"relative z-10 rounded-[18px] p-4 " + GLASS}>
+      {/* CENTRO — a ficha da Marina num painel só: quem, as três refeições e
+          os macros do dia. É a leitura de dados do plano, densa e parada.
+          O baralho NÃO mora aqui: ele é a mesma informação com foto, e as
+          duas coisas juntas no meio brigavam. Aqui a lista; embaixo, solto,
+          o baralho. */}
+      <div className="relative">
+        <div style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS + " " + FLOAT}>
           <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
             <Avatar init="MA" className="h-9 w-9 text-[13px]" />
             <div className="min-w-0 flex-1">
               <p className="font-title text-[15px] font-medium text-white">Plano · Marina</p>
               <p className="font-body text-[11.5px] text-white/50">Seg a sex · 3 refeições</p>
             </div>
-            <Pill className="tabular-nums text-sage-200">1.510 kcal</Pill>
+            <Pill className="shrink-0 tabular-nums text-sage-200">1.510 kcal</Pill>
           </div>
-        <div className="divide-y divide-white/[0.08]">
-          {meals.map((m) => (
-            <div key={m.n} className="flex items-center gap-3 py-2.5">
-              <span className="h-8 w-[3px] shrink-0 rounded-full" style={{ background: m.c }} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-body text-[11px] tabular-nums text-white/40">{m.t}</span>
-                  <span className="font-body text-[12.5px] font-medium text-white/90">{m.n}</span>
+
+          <div className="divide-y divide-white/[0.08]">
+            {PLANO_MEALS.map((m) => (
+              <div key={m.n} className="flex items-center gap-3 py-2.5">
+                <span className="h-8 w-[3px] shrink-0 rounded-full" style={{ background: m.c }} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-body text-[11px] tabular-nums text-white/40">{m.t}</span>
+                    <span className="font-body text-[12.5px] font-medium text-white/90">{m.n}</span>
+                  </div>
+                  <p className="truncate font-body text-[12px] text-white/50">{m.short}</p>
                 </div>
-                <p className="truncate font-body text-[12px] text-white/50">{m.food}</p>
+                <span className="shrink-0 font-body text-[12px] tabular-nums text-white/70">{m.kcal}</span>
               </div>
-              <span className="shrink-0 font-body text-[12px] tabular-nums text-white/70">{m.kcal}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center justify-between rounded-[12px] bg-white/[0.06] p-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-          <div className="min-w-0 flex-1">
+            ))}
+          </div>
+
+          <div className="mt-3 rounded-[12px] bg-white/[0.06] p-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
             <div className="mb-2 flex items-baseline justify-between">
               <span className="font-body text-[11px] font-medium text-white/70">Macros do dia</span>
               <span className="font-body text-[11px] tabular-nums text-white/40">327 g</span>
@@ -194,26 +356,40 @@ function MockPlano() {
               ))}
             </div>
           </div>
-        </div>
+
           <div className="mt-3 flex items-center justify-between">
             <GaiaTag>somou pela TACO</GaiaTag>
             <Pill className="text-white/60">importado por PDF</Pill>
           </div>
         </div>
-      </div>
 
-      {/* satélite front — sugestão da Gaia (troca sozinha) */}
-      <div style={px(1.65, 5)} className={"gaia-parallax absolute -bottom-3 -right-3 z-20 w-[186px] rounded-[14px] p-3 " + GLASS + " " + FLOAT}>
-        <GaiaTag>sugestão</GaiaTag>
-        <div key={sug} className="gaia-fade">
-          <p className="mt-1.5 font-body text-[12.5px] font-medium text-white/90">{s.t}</p>
-          <div className="mt-2 flex items-center justify-between">
-            <Pill className="text-sage-200">{s.d}</Pill>
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)]">
-              <IconCheck className="h-3.5 w-3.5" />
-            </span>
+        {/* Sugestão — ancorada NO PAINEL, não no container. Antes ela morava
+            no rodapé do container; com o baralho ocupando esse rodapé agora,
+            ela cairia em cima do "+" e da foto da carta da frente. Presa na
+            quina do painel ela fica na junção painel/baralho, perto do prato
+            de que está falando. */}
+        <div style={px(1.65, 5)} className={"gaia-parallax absolute -bottom-5 -right-3 z-20 w-[186px] rounded-[14px] p-3 " + GLASS + " " + FLOAT}>
+          <GaiaTag>sugestão</GaiaTag>
+          <div key={i} className="gaia-fade">
+            <p className="mt-1.5 font-body text-[12.5px] font-medium text-white/90">{s.t}</p>
+            <div className="mt-2 flex items-center justify-between">
+              <Pill className="text-sage-200">{s.d}</Pill>
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)]">
+                <IconCheck className="h-3.5 w-3.5" />
+              </span>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* RODAPÉ — o baralho. Solto, sem painel em volta: é a mesma refeição da
+          lista acima vista de perto, com a foto do prato. Sem rotação no
+          conjunto: as cartas sangram foto e "+" pra fora do próprio nó, e
+          inclinar tudo faria a quina do "+" cair torta. O diagonal da pilha já
+          dá o desalinho. O mt-10 é a folga que a sugestão precisa — ela desce
+          20px abaixo da quina do painel. */}
+      <div style={px(0.45)} className="gaia-parallax relative z-[11] mt-10">
+        <MealDeck front={i} />
       </div>
     </div>
   );
@@ -241,8 +417,9 @@ function MockQuestionarios() {
   const ins = insights[i];
   return (
     <div ref={ref} className="relative mt-8 flex-1 px-7 pb-7 md:px-8">
-      {/* lista de instrumentos — de fundo */}
-      <div className={"rounded-[18px] p-4 " + GLASS}>
+      {/* lista de instrumentos — de fundo. Único mock sem gaia-parallax até
+          aqui; recebe a mesma receita de entrada do MockExames/MockAntropometria. */}
+      <div style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
         <div className="mb-1 flex items-baseline justify-between">
           <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
           <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
@@ -264,101 +441,224 @@ function MockQuestionarios() {
         </div>
       </div>
 
-      {/* card de Insight — flutua por cima e troca sozinho */}
-      <div key={i} className={"gaia-pop absolute bottom-5 left-5 z-20 w-[250px] rounded-[16px] p-4 md:left-8 " + GLASS + " " + FLOAT}>
-        <div className="flex items-center justify-between">
-          <GaiaTag>Insight · {ins.k}</GaiaTag>
-          <span className={"grid h-6 w-6 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning" : "bg-brand/20 text-roxo-200")}>
-            <IconArrowUpRight className="h-3.5 w-3.5" />
-          </span>
+      {/* card de Insight — flutua por cima e troca sozinho. Wrapper externo
+          carrega a entrada (gaia-parallax escreve transform); o miolo carrega
+          a troca de conteúdo (key+gaia-pop também escreve transform) — as duas
+          classes NUNCA no mesmo nó, senão uma pisa na transform da outra. */}
+      <div style={px(1.5, 4)} className="gaia-parallax absolute bottom-5 left-5 z-20 w-[250px] md:left-8">
+        <div key={i} className={"gaia-pop rounded-[16px] p-4 " + GLASS + " " + FLOAT}>
+          <div className="flex items-center justify-between">
+            <GaiaTag>Insight · {ins.k}</GaiaTag>
+            <span className={"grid h-6 w-6 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning" : "bg-brand/20 text-roxo-200")}>
+              <IconArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-end gap-1.5">
+            <span className={"font-title text-[2.1rem] font-medium leading-none tabular-nums " + (ins.warn ? "text-warning" : "text-white")}>{ins.n}</span>
+            <span className="mb-1 font-body text-[11px] text-white/45">{ins.of}</span>
+          </div>
+          <p className="mt-2 font-body text-[12px] leading-snug text-white/70">{ins.msg}</p>
         </div>
-        <div className="mt-2 flex items-end gap-1.5">
-          <span className={"font-title text-[2.1rem] font-medium leading-none tabular-nums " + (ins.warn ? "text-warning" : "text-white")}>{ins.n}</span>
-          <span className="mb-1 font-body text-[11px] text-white/45">{ins.of}</span>
-        </div>
-        <p className="mt-2 font-body text-[12px] leading-snug text-white/70">{ins.msg}</p>
       </div>
     </div>
   );
 }
 
 /* ═══════════════ ANTROPOMETRIA (hero óleo) ═══════════════ */
-function MockAntropometria() {
-  const pts = [78, 76.4, 75.1, 74.2, 73.5, 72.8];
-  const labels = ["mar", "abr", "mai", "jun", "jul", "ago"];
+/* Régua única de X pros pontos E pros meses — o desalinhamento antigo vinha
+   de o eixo viver fora do SVG, com padding próprio. O inset também impede
+   que o primeiro/último ponto encoste na borda do painel. Fica em escopo de
+   módulo porque as 3 séries abaixo compartilham a mesma régua. */
+const ANTHRO_X0 = 8;
+const ANTHRO_X1 = 92;
+
+// Normalização É POR SÉRIE — Peso e % Gordura não podem dividir a mesma
+// escala (min/max global), senão uma delas vira quase uma reta enquanto a
+// outra ocupa o gráfico inteiro. Cada série calcula seu próprio min/max.
+function anthroCoords(pts: number[]) {
   const min = Math.min(...pts) - 0.5;
   const max = Math.max(...pts) + 0.5;
-  const coords = pts.map((p, i) => {
-    const x = (i / (pts.length - 1)) * 100;
-    const y = 5 + (1 - (p - min) / (max - min)) * 30;
+  return pts.map((p, i) => {
+    const x = ANTHRO_X0 + (i / (pts.length - 1)) * (ANTHRO_X1 - ANTHRO_X0);
+    const y = 4 + (1 - (p - min) / (max - min)) * 26; // 26, não 30: sobra rodapé pros meses
     return [x, y] as const;
   });
-  const line = coords.map(([x, y]) => `${x},${y}`).join(" ");
-  const area = `0,40 ${line} 100,40`;
-  const [lastX, lastY] = coords[coords.length - 1];
+}
+
+type AnthroSeries = {
+  tab: string;
+  unit: string;
+  pts: number[];
+  headline: string;
+  deltaBold: string; // delta some com " desde março" fixo no JSX
+  top: string; // rótulo de topo do eixo Y
+  bottom: string; // rótulo de base do eixo Y
+};
+
+const ANTHRO_SERIES: AnthroSeries[] = [
+  { tab: "Peso", unit: "kg", pts: [78, 76.4, 75.1, 74.2, 73.5, 72.8], headline: "72,8", deltaBold: "−5,2 kg", top: "78,0", bottom: "72,5" },
+  { tab: "IMC", unit: "", pts: [26.4, 25.9, 25.4, 24.9, 24.5, 24.1], headline: "24,1", deltaBold: "−2,3", top: "26,4", bottom: "23,8" },
+  { tab: "% Gordura", unit: "%", pts: [26.4, 25.9, 25.5, 25.1, 24.7, 24.3], headline: "24,3", deltaBold: "−2,1 pts", top: "26,4", bottom: "24,0" },
+];
+
+// Coordenadas/strings pré-computadas por série — puras (dependem só dos pts
+// fixos acima), então vivem fora do componente: nunca precisam recalcular
+// nem entram em dependência de efeito.
+const ANTHRO_COORDS = ANTHRO_SERIES.map((s) => anthroCoords(s.pts));
+const ANTHRO_LINES = ANTHRO_COORDS.map((coords) => coords.map(([x, y]) => `${x},${y}`).join(" "));
+// A área sangra até as bordas do painel em y constante. Fechá-la em X0/X1
+// criava uma parede vertical no MAR que lia como barra, não como curva.
+const ANTHRO_AREAS = ANTHRO_COORDS.map((coords, si) => {
+  const [, y0] = coords[0];
+  const [, yLast] = coords[coords.length - 1];
+  return `0,40 0,${y0} ${ANTHRO_LINES[si]} 100,${yLast} 100,40`;
+});
+
+const ANTHRO_LABELS = ["mar", "abr", "mai", "jun", "jul", "ago"];
+
+function MockAntropometria() {
   const measures = [
     { k: "IMC", v: "24,1", d: "−1,7", up: false },
     { k: "Massa magra", v: "58,1 kg", d: "+1,4", up: true },
     { k: "% Gordura", v: "24,3 %", d: "−2,1", up: false },
   ];
+
+  // Loop ÚNICO do card: as 3 abas do cabeçalho (hoje decorativas) ciclam
+  // sozinhas — o beat mais lento do bento (3,8s), porque é o card mais denso
+  // de ler. Enquanto os outros mocks trocam CONTEÚDO (paciente, insight,
+  // linha), aqui o GRÁFICO INTEIRO morfa de uma série pra outra — gramática
+  // nova, nenhum outro card repete.
+  const [tab, ref] = useAutoCycle(ANTHRO_SERIES.length, 3800);
+  const s = ANTHRO_SERIES[tab];
+  const coords = ANTHRO_COORDS[tab];
+  const [lastX, lastY] = coords[coords.length - 1];
+
+  const polylineRef = useRef<SVGPolylineElement>(null);
+  const polygonRef = useRef<SVGPolygonElement>(null);
+  const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
+
+  // `points` (polyline/polygon) e cx/cy (circle) não são animáveis por CSS —
+  // GSAP tween aqui funciona como "poor man's morph": como as 3 séries têm a
+  // MESMA contagem de pontos e a MESMA régua X, o GSAP interpola cada número
+  // da string em paralelo com o seu par na string de destino.
+  //
+  // Por isso as tags abaixo NUNCA amarram esses atributos a `tab`/`coords`
+  // no JSX — ficam presas ao valor inicial (série 0). Se ligássemos a `s`,
+  // o React reescreveria o atributo no commit ANTES deste efeito rodar, e o
+  // tween nasceria já no destino (nada sobra pra interpolar). Depois do
+  // mount, o GSAP é o único dono desses atributos.
+  useEffect(() => {
+    gsap.to(polylineRef.current, { attr: { points: ANTHRO_LINES[tab] }, duration: 0.8, ease: "power3.inOut" });
+    gsap.to(polygonRef.current, { attr: { points: ANTHRO_AREAS[tab] }, duration: 0.8, ease: "power3.inOut" });
+    ANTHRO_COORDS[tab].forEach(([x, y], i) => {
+      const el = circleRefs.current[i];
+      if (el) gsap.to(el, { attr: { cx: x, cy: y }, duration: 0.8, ease: "power3.inOut" });
+    });
+  }, [tab]);
+
   return (
-    <div className="mt-8 flex-1 px-7 pb-7 md:px-8 md:pb-8">
+    <div ref={ref} className="mt-8 flex-1 px-7 pb-7 md:px-8 md:pb-8">
       <div style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
-            <Avatar init="MA" className="h-9 w-9 text-[13px]" />
-            <div className="min-w-0 flex-1">
-              <p className="font-title text-[15px] font-medium text-white">Peso · Marina</p>
-              <p className="font-body text-[11.5px] text-white/50">6 consultas · mar–ago</p>
-            </div>
-            <Pill className="tabular-nums text-sage-200">−5,2 kg</Pill>
+          <Avatar init="MA" className="h-8 w-8 text-[12px]" />
+          <div className="min-w-0 flex-1">
+            <p className="font-title text-[13px] font-medium text-white/85">{s.tab} · Marina</p>
+            <p className="font-body text-[9.5px] uppercase tracking-[0.08em] text-white/40">6 consultas · mar–ago</p>
           </div>
-          <div className="mt-3 inline-flex gap-0.5 rounded-full bg-white/10 p-0.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
-            {["Peso", "IMC", "% Gordura"].map((t, i) => (
-              <span key={t} className={"rounded-full px-2.5 py-1 font-body text-[11px] font-medium " + (i === 0 ? "bg-white/20 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]" : "text-white/50")}>
-                {t}
+          <div className="inline-flex shrink-0 gap-0.5 rounded-full bg-white/[0.07] p-0.5">
+            {ANTHRO_SERIES.map((serie, i) => (
+              <span
+                key={serie.tab}
+                className={
+                  "rounded-full px-2 py-0.5 font-body text-[10px] font-medium transition-colors duration-500 ease-gaia " +
+                  (i === tab ? "bg-white/15 text-white" : "text-white/40")
+                }
+              >
+                {serie.tab}
               </span>
             ))}
           </div>
-          <div className="relative mt-3 h-28">
-            <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-full w-full">
-              <defs>
-                <linearGradient id="anthroFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#C1A9D3" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#C1A9D3" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              {[10, 20, 30].map((y) => (
-                <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
-              ))}
-              <polygon points={area} fill="url(#anthroFill)" />
-              <polyline points={line} fill="none" stroke="#C1A9D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-              {coords.map(([x, y], i) => (
-                <circle key={i} cx={x} cy={y} r="1.5" fill="#0A0C11" stroke="#C1A9D3" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-              ))}
-            </svg>
-            <span className="absolute -translate-x-full -translate-y-full whitespace-nowrap rounded-md bg-white/15 px-1.5 py-0.5 font-body text-[10px] font-medium tabular-nums text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]" style={{ left: `${lastX}%`, top: `${(lastY / 40) * 100}%` }}>
-              72,8 kg
-            </span>
-            {/* ponto mais recente pulsando — a última medição fica "viva" */}
-            <span aria-hidden className="pointer-events-none absolute" style={{ left: `${lastX}%`, top: `${(lastY / 40) * 100}%`, transform: "translate(-50%,-50%)" }}>
-              <span className="relative flex h-2.5 w-2.5 items-center justify-center">
-                <span className="absolute h-2.5 w-2.5 rounded-full bg-[#C1A9D3]/60 motion-safe:animate-ping" />
-                <span className="h-2 w-2 rounded-full bg-[#C1A9D3] ring-2 ring-[#0A0C11]" />
-              </span>
-            </span>
-          </div>
-        <div className="mt-1.5 flex justify-between px-0.5">
-          {labels.map((l) => (
-            <span key={l} className="font-body text-[10px] uppercase tracking-wide text-white/40">{l}</span>
-          ))}
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {measures.map((m) => (
-            <div key={m.k} className="rounded-[10px] bg-white/[0.06] p-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-              <p className="truncate font-body text-[10.5px] text-white/50">{m.k}</p>
+
+        {/* O número lidera: o gráfico é prova, não manchete. */}
+        <div key={tab} className="gaia-fade mt-4">
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-title text-[2.4rem] font-medium leading-none tabular-nums text-white">{s.headline}</span>
+            {s.unit && <span className="font-body text-[15px] text-white/45">{s.unit}</span>}
+          </div>
+          <p className="mt-1.5 font-body text-[12px] text-white/45">
+            <span className="font-medium tabular-nums text-info">{s.deltaBold}</span> desde março
+          </p>
+        </div>
+
+        <div className="relative mt-4 h-32 overflow-hidden rounded-[12px] bg-white/[0.03] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
+          <span key={"top" + tab} className="gaia-fade absolute right-2 top-1.5 z-10 font-body text-[9px] tabular-nums text-white/30">{s.top}</span>
+          <span key={"bottom" + tab} className="gaia-fade absolute bottom-5 right-2 z-10 font-body text-[9px] tabular-nums text-white/30">{s.bottom}</span>
+
+          <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+            <defs>
+              <linearGradient id="anthroFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#C1A9D3" stopOpacity="0.35" />
+                <stop offset="100%" stopColor="#C1A9D3" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <polygon ref={polygonRef} points={ANTHRO_AREAS[0]} fill="url(#anthroFill)" />
+            {/* Colunas por consulta — dentro do SVG pra pintarem SOBRE o fill e
+                sob a linha. Fora dele o `inset-0` do svg as encobria. */}
+            {ANTHRO_LABELS.slice(0, -1).map((label, i) => {
+              const x = ANTHRO_X0 + ((i + 0.5) / (ANTHRO_LABELS.length - 1)) * (ANTHRO_X1 - ANTHRO_X0);
+              return <line key={label} x1={x} y1="0" x2={x} y2="40" stroke="rgba(255,255,255,0.07)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />;
+            })}
+            <polyline ref={polylineRef} points={ANTHRO_LINES[0]} fill="none" stroke="#C1A9D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            {ANTHRO_COORDS[0].map(([x, y], i) => (
+              <circle
+                key={ANTHRO_LABELS[i]}
+                ref={(el: SVGCircleElement | null) => {
+                  circleRefs.current[i] = el;
+                }}
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill="#0A0C11"
+                stroke="#C1A9D3"
+                strokeWidth="1.4"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+          </svg>
+
+          {/* Última medição pulsa sem disputar o número principal — e
+              acompanha a nova posição Y a cada troca de série via transition
+              CSS em left/top (mesma gramática dos marcadores do MockExames). */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute transition-[left,top] duration-[800ms] ease-gaia"
+            style={{ left: `${lastX}%`, top: `${(lastY / 40) * 100}%`, transform: "translate(-50%,-50%)" }}
+          >
+            <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+              <span className="absolute h-2.5 w-2.5 rounded-full bg-[#C1A9D3]/60 motion-safe:animate-ping" />
+              <span className="h-2 w-2 rounded-full bg-[#C1A9D3] ring-2 ring-[#0A0C11]" />
+            </span>
+          </span>
+
+          {ANTHRO_LABELS.map((label, i) => {
+            const x = ANTHRO_X0 + (i / (ANTHRO_LABELS.length - 1)) * (ANTHRO_X1 - ANTHRO_X0);
+            return (
+              <span key={label} className="absolute bottom-1.5 z-10 -translate-x-1/2 font-body text-[9px] uppercase tracking-wide text-white/35" style={{ left: `${x}%` }}>
+                {label}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Rodapé — resumo, não responde à aba: fica parado por design. */}
+        <div className="mt-3 flex items-center justify-between">
+          {measures.map((m, i) => (
+            <div key={m.k} className={"min-w-0 flex-1 px-2 first:pl-0 last:pr-0 " + (i > 0 ? "border-l border-white/10" : "")}>
+              <p className="truncate font-body text-[9.5px] uppercase tracking-wide text-white/40">{m.k}</p>
               <div className="mt-0.5 flex items-baseline gap-1">
-                <span className="font-title text-[14px] font-medium tabular-nums text-white">{m.v}</span>
-                <span className={"font-body text-[10.5px] font-medium " + (m.up ? "text-sage-200" : "text-info")}>{m.d}</span>
+                <span className="font-title text-[13px] font-medium tabular-nums text-white">{m.v}</span>
+                <span className={"font-body text-[10px] font-medium tabular-nums " + (m.up ? "text-sage-200" : "text-info")}>{m.d}</span>
               </div>
             </div>
           ))}
@@ -549,19 +849,39 @@ const CALIBRAGEM = [
 ];
 
 function CalibragemCard() {
+  // Loop ÚNICO do Prontuário: uma linha de calibragem acende por vez (2,6s —
+  // mais rápido que os outros satélites porque são frases curtas, não sustentam
+  // 3-4s sem parecer travado). O ciclo vive AQUI DENTRO, não no pai: este card
+  // é renderizado DUAS vezes (ProntuarioLeft/Right no lg+ e ProntuarioStacked
+  // no mobile) — se o estado subisse pro pai, as duas instâncias brigariam
+  // pelo mesmo índice e o IntersectionObserver do useAutoCycle não saberia
+  // qual nó DOM observar. Cada instância tem seu próprio ref/ciclo.
+  const [active, ref] = useAutoCycle(CALIBRAGEM.length, 2600);
   return (
-    <>
+    <div ref={ref}>
       <p className="flex items-center gap-1.5 font-body text-[11px] font-semibold uppercase tracking-wide text-white/55">
         <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> Calibrado pela Gaia
       </p>
       <div className="mt-2.5 flex flex-col">
-        {CALIBRAGEM.map((t) => (
-          <p key={t} className="border-t border-white/10 py-2 font-body text-[12px] leading-snug text-white/75 first:border-t-0 first:pt-0 last:pb-0">
-            {t}
-          </p>
-        ))}
+        {CALIBRAGEM.map((t, i) => {
+          const on = i === active;
+          return (
+            <p
+              key={t}
+              className={
+                "flex items-center gap-2 border-t border-white/10 py-2 font-body text-[12px] leading-snug transition-colors duration-500 ease-gaia first:border-t-0 first:pt-0 last:pb-0 " +
+                (on ? "text-white/90" : "text-white/45")
+              }
+            >
+              {/* dot acende só na linha ativa — cor não transiciona bem em
+                  opacity 0→1 com bg translúcido, então some via width/scale */}
+              <span className={"h-1.5 w-1.5 shrink-0 rounded-full bg-roxo-300 transition-transform duration-500 ease-gaia " + (on ? "scale-100" : "scale-0")} />
+              {t}
+            </p>
+          );
+        })}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -628,6 +948,7 @@ export default function Features() {
       });
       gsap.from("[data-card]", {
         y: 40,
+        opacity: 0,
         duration: 1,
         ease: "power3.out",
         stagger: 0.08,
@@ -672,19 +993,6 @@ export default function Features() {
 
   return (
     <section ref={root} id="features" className="relative overflow-hidden bg-[#0A0C11] py-24 md:py-32">
-      {/* Fundo floral — íris roxa full-bleed, ancorada no topo. Overlay escuro
-          gradiente mantém o vidro dos cards legível e funde na base do #0A0C11. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/floral-iris.webp"
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-0 h-full w-full -scale-x-100 object-cover object-top opacity-70"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(180deg,rgba(10,12,17,0.55)_0%,rgba(10,12,17,0.78)_45%,rgba(10,12,17,0.94)_100%)]"
-      />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
         <header className="mb-14 max-w-2xl md:mb-16">
           <span data-reveal className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">
@@ -712,8 +1020,8 @@ export default function Features() {
           {/* B — Questionários (hero verde) */}
           <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/verde.png" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,10,0.5)_0%,rgba(10,14,10,0.18)_42%,rgba(10,14,10,0.4)_100%)]" />
+            <img src="/textures/questionarios-verde.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,10,0.42)_0%,rgba(10,14,10,0.2)_42%,rgba(10,14,10,0.34)_100%)]" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
                 <CardTitle>Questionários</CardTitle>
@@ -726,8 +1034,8 @@ export default function Features() {
           {/* C — Plano alimentar (hero óleo, card alto) */}
           <article data-card className={CARD_HERO + " lg:col-start-1 lg:row-start-2"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/folha.jpg" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,12,0.6)_0%,rgba(6,12,12,0.3)_46%,rgba(6,12,12,0.42)_100%)]" />
+            <img src="/textures/plano-pepino.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,12,0.78)_0%,rgba(6,12,12,0.58)_46%,rgba(6,12,12,0.72)_100%)]" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-9 md:pt-9">
                 <CardTitle>Plano alimentar</CardTitle>
@@ -739,12 +1047,14 @@ export default function Features() {
 
           {/* coluna direita inferior — Exames + Agenda */}
           <div className="flex flex-col gap-4 md:gap-5 lg:col-start-2 lg:row-start-2">
-            <article data-card className={CARD + " min-h-[360px] flex-1"}>
-              <Glow className="right-[-8%] top-[20%] h-56 w-56" color="rgba(214,160,78,0.18)" />
+            <article data-card className={CARD_HERO + " min-h-[360px] flex-1"}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/textures/exames-ambar.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,9,6,0.76)_0%,rgba(12,9,6,0.54)_42%,rgba(12,9,6,0.7)_100%)]" />
               <div className="relative flex h-full flex-col">
                 <div className="px-7 pt-7 md:px-8 md:pt-8">
                   <CardTitle>Exames de sangue</CardTitle>
-                  <CardBody>Suba o PDF do laboratório. A Gaia extrai os valores e marca o que está fora da faixa.</CardBody>
+                  <CardBody tone="hero">Suba o PDF do laboratório. A Gaia extrai os valores e marca o que está fora da faixa.</CardBody>
                 </div>
                 <MockExames />
               </div>

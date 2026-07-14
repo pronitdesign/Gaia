@@ -110,6 +110,10 @@ const config: Config = {
         soft: "0 2px 8px -2px rgba(58, 72, 94, 0.08), 0 8px 24px -8px rgba(58, 72, 94, 0.10)",
         "soft-lg":
           "0 4px 16px -4px rgba(58, 72, 94, 0.10), 0 16px 40px -12px rgba(58, 72, 94, 0.14)",
+        // vidro claro flutuante: inset highlight na quina de cima + sombra
+        // externa larga/difusa, mesmo tint frio da elevação padrão do DS.
+        glass:
+          "inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 16px -4px rgba(58, 72, 94, 0.10), 0 32px 64px -24px rgba(58, 72, 94, 0.22)",
       },
       transitionTimingFunction: {
         // easing assinatura do brief
