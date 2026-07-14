@@ -267,6 +267,43 @@
   animation: gaia-fade 0.45s ease both;
 }
 
+/* Aba "Plano" (PhoneScreen, ProntuarioScreen) — entrada escalonada das
+   linhas de refeição + tick dos checks "done". Delay de cada linha/tick vem
+   inline (i * 70ms / 800+i*200ms) porque é por-índice, não dá pra expressar
+   em CSS puro; o keyframe só define a curva. animation-fill-mode "both" via
+   shorthand: mantém opacity:0 ANTES do delay disparar (senão a linha pisca
+   visível no frame 0 antes de subir) e o estado final DEPOIS de terminar. */
+@keyframes gaia-meal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.gaia-meal-rise {
+  animation: gaia-meal-rise 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes gaia-tick {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.gaia-tick {
+  animation: gaia-tick 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gaia-parallax {
     transform: rotate(var(--rot, 0deg));
@@ -281,6 +318,12 @@
     animation: none;
     transform: scaleX(1);
   }
+  .gaia-pop,
+  .gaia-fade {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
   .gaia-badge-sheen,
   .gaia-badge-halo,
   .gaia-badge-ring,
@@ -289,6 +332,18 @@
   .gaia-shimmer,
   .gaia-caret,
   .gaia-scan {
+    animation: none;
+  }
+  /* Aba "Plano": na prática nunca é vista sob reduced-motion (useAutoCycle
+     congela em índice 0 = Anamnese), mas o resto do arquivo desliga toda
+     animação por classe aqui como higiene — cobrimos a mesma base. */
+  .gaia-meal-rise,
+  .gaia-tick {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .gaia-meal-spinner {
     animation: none;
   }
 }

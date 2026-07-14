@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -8,23 +8,39 @@ import { Badge } from "@/components/ui/Badge";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Fundo da section — gradiente Bruma.
+// Fundo da section — gradiente malva/lilás exportado do Figma (node 152-475).
 const BACKDROP = "/roberta-bg.webp";
 
 // Emenda com o off-white do #como-comecar (neutro-50): o gradiente entra desmaiado.
 const TOP_FADE = "linear-gradient(to bottom, transparent 0, #000 13%)";
 
-// Véu de neutro-50 sobre o gradiente. O pixel mais escuro do webp é rgb(138,72,124)
-// (o miolo magenta): sobre ele, texto neutro-700 só bate 4.5:1 com α ≥ 0.642. Como o
-// object-cover reposiciona o blob a cada viewport, o véu tem que estar ≥0.68 em TODA
-// faixa onde o editorial pode cair (a partir de 40vh) — não dá pra contar com sorte
-// de crop. Acima disso o banner cobre, então fica leve e o gradiente respira.
+// Véu de neutro-50 sobre o fundo. O pixel mais escuro do gradiente é rgb(181,131,169):
+// sobre ele, texto neutro-700 só bate 4.5:1 com α ≥ 0.45. Como o object-cover
+// reposiciona o gradiente a cada viewport, o véu tem que segurar esse pior caso em TODA
+// faixa onde o editorial pode cair (a partir de 40vh) — não dá pra contar com sorte de
+// crop. Fica em 0.58: cobre o gradiente com folga e ainda apaga o resto de pétala que a
+// máscara da orquídea deixa passar. Acima de 40vh só vivem as palavras gigantes (texto
+// grande: 3:1 basta) e o banner, que cobre — lá o véu quase some e o fundo do Figma
+// aparece na força cheia.
 const LEGIBILITY_VEIL =
-  "linear-gradient(to bottom, rgba(250,249,245,0.28) 0%, rgba(250,249,245,0.45) 30%, rgba(250,249,245,0.68) 41%, rgba(250,249,245,0.70) 100%)";
+  "linear-gradient(to bottom, rgba(250,249,245,0.04) 0%, rgba(250,249,245,0.08) 30%, rgba(250,249,245,0.18) 38%, rgba(250,249,245,0.58) 46%, rgba(250,249,245,0.62) 100%)";
+
+// A orquídea é foto sobre branco puro (255,255,255) — é assim que ela vem do Figma, e
+// lá o layer está em multiply. `mix-blend-mode: multiply` reproduz isso exato: branco
+// × gradiente = gradiente, então o fundo da foto some sem precisar de canal alpha.
+// A máscara corta a metade de baixo: as pétalas são vinho (~rgb(120,40,70)) e nenhum
+// véu razoável salvaria o editorial por cima delas — então a flor vive só na faixa
+// alta, atrás do card e das palavras.
+const FLOWER_FADE = "linear-gradient(to bottom, #000 0%, #000 42%, transparent 68%)";
 
 // Foto da Roberta — soltar o arquivo em /public e trocar aqui.
 // Enquanto não existe, o placeholder (gradiente Bruma + monograma) aparece por baixo.
 const PORTRAIT = "/roberta.jpg";
+
+// Orquídea cymbidium vinho, exportada do Figma (node 152-472) na mesma moldura do
+// gradiente. Fica no centro da section, atrás do card e das palavras; some quando o
+// retrato cresce pro full-bleed.
+const FLOWER = "/orquidea-roberta.webp";
 
 // Números da prova — ledger. `to` numérico dispara count-up; `static` fica fixo.
 const STATS = [
@@ -38,7 +54,15 @@ const STATS = [
 const BIO =
   "Roberta Carbonari é Mestre em Nutrição e especialista em Comportamento Alimentar. Gere três clínicas, forma nutricionistas Brasil afora e tem agenda com lista de espera. A anamnese sempre foi o ponto mais travado da rotina dela — Gaia é a ferramenta que ela queria ter tido, construída de dentro do consultório.";
 
-const BANNER_VH = 0.4; // banner = 40% da altura da tela
+// Retrato agora ocupa a section inteira (full-bleed). Um scrim claro na base
+// segura a legibilidade do editorial em texto escuro sobre a foto.
+const PORTRAIT_SCRIM =
+  "linear-gradient(to top, #FAF9F5 0%, rgba(250,249,245,0.94) 26%, rgba(250,249,245,0.58) 54%, transparent 100%)";
+
+// Vidro claro frostado — mesmo sistema do #como-comecar (glassLight). Pede
+// texto escuro por cima.
+const GLASS_CARD =
+  "backdrop-blur-2xl backdrop-saturate-150 transform-gpu bg-gradient-to-b from-white/85 to-white/64 shadow-[0_30px_80px_-28px_rgba(58,72,94,0.4),inset_0_1px_0_0_rgba(255,255,255,0.75),inset_0_0_0_1px_rgba(58,72,94,0.08)]";
 
 /** Retrato: placeholder (gradiente Bruma + monograma) com a foto real por cima quando existir. */
 function Portrait() {
@@ -64,8 +88,13 @@ function Portrait() {
   );
 }
 
-/** Fundo — gradiente Bruma full-bleed, desmaiando no topo pro off-white do #como-comecar. */
-function Afluente() {
+/**
+ * Fundo — a composição do Figma (node 152-474) full-bleed: gradiente malva por baixo,
+ * orquídea multiplicada em cima, véu de legibilidade fechando. O `z-0` aqui não é
+ * decorativo: position+z-index cria stacking context, e é ele que confina o multiply
+ * da flor a este bloco — sem isso o blend vazaria pro resto da página.
+ */
+function Afluente({ flowerRef }: { flowerRef?: RefObject<HTMLDivElement> }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -75,17 +104,28 @@ function Afluente() {
         className="absolute inset-0 h-full w-full object-cover"
         style={{ WebkitMaskImage: TOP_FADE, maskImage: TOP_FADE }}
       />
-      {/* Véu de legibilidade: os blobs magenta do gradiente chegam perto de #A0508F,
-          escuro demais pra texto ink sem isso. Firme onde o editorial pousa. */}
+
+      {flowerRef && (
+        <div
+          ref={flowerRef}
+          className="absolute left-1/2 top-1/2 w-[min(1180px,94vw)] -translate-x-1/2 -translate-y-1/2 mix-blend-multiply will-change-[opacity,transform]"
+          style={{ WebkitMaskImage: FLOWER_FADE, maskImage: FLOWER_FADE }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={FLOWER} alt="" className="h-auto w-full select-none" />
+        </div>
+      )}
+
+      {/* Véu de legibilidade — acima da flor, então lava as duas camadas de uma vez. */}
       <div className="absolute inset-0" style={{ background: LEGIBILITY_VEIL }} />
     </div>
   );
 }
 
-/** Ledger de números — valor à esquerda, label à direita, 4 linhas distribuídas. */
+/** Ledger de números — glass card frostado, valor à esquerda, label à direita. */
 function Stats() {
   return (
-    <div className="flex flex-col divide-y divide-neutro-800/15">
+    <div className={`flex flex-col divide-y divide-neutro-800/12 rounded-3xl px-7 py-5 md:px-8 md:py-6 ${GLASS_CARD}`}>
       {STATS.map((s, i) => (
         <div
           key={i}
@@ -181,6 +221,7 @@ export default function ARoberta() {
   const root = useRef<HTMLElement>(null);
   const pin = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
+  const flower = useRef<HTMLDivElement>(null);
   const wordL = useRef<HTMLSpanElement>(null);
   const wordR = useRef<HTMLSpanElement>(null);
   const editorial = useRef<HTMLDivElement>(null);
@@ -216,10 +257,11 @@ export default function ARoberta() {
         return;
       }
 
-      // O box do retrato cresce de um card-retrato (260x320, foto inteira) até o
-      // banner full-width/40vh. A imagem é object-cover DENTRO do box, então em
-      // p=0 vê-se a Roberta enquadrada (não um zoom), e em p=1 vira o banner.
-      // p: 0 = card pequeno · 1 = banner cheio.
+      // O box do retrato cresce de um card-retrato (260x320, foto inteira) até
+      // ocupar a section INTEIRA (full-bleed, 100vw × 100vh). A imagem é
+      // object-cover DENTRO do box, então em p=0 vê-se a Roberta enquadrada
+      // (não um zoom), e em p=1 ela vira o fundo da section.
+      // p: 0 = card pequeno · 1 = full-bleed.
       const WC0 = 260; // largura do card inicial
       const HC0 = 320; // altura do card inicial
       const state = { p: 0 };
@@ -229,9 +271,8 @@ export default function ARoberta() {
         if (!el) return;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        const bannerH = vh * BANNER_VH;
         const w = WC0 + p * (vw - WC0);
-        const h = HC0 + p * (bannerH - HC0);
+        const h = HC0 + p * (vh - HC0);
         // centrado na horizontal; sobe do centro da tela (p=0) pro topo (p=1)
         el.style.width = `${w}px`;
         el.style.height = `${h}px`;
@@ -263,6 +304,14 @@ export default function ARoberta() {
         ease: "power2.out",
         scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
       });
+      // A orquídea abre no centro, um pouco antes das palavras assentarem.
+      gsap.from(flower.current, {
+        autoAlpha: 0,
+        scale: 0.9,
+        duration: 1.5,
+        ease: "power2.out",
+        scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
+      });
 
       let counted = false;
 
@@ -291,6 +340,8 @@ export default function ARoberta() {
       )
         .to(wordL.current, { xPercent: -45, autoAlpha: 0, ease: "none", duration: 0.4 }, 0)
         .to(wordR.current, { xPercent: 45, autoAlpha: 0, ease: "none", duration: 0.4 }, 0)
+        // A flor dissolve conforme o retrato cresce — no zoom ela já não aparece.
+        .to(flower.current, { autoAlpha: 0, scale: 1.08, ease: "power1.in", duration: 0.35 }, 0)
         // Beat 2 — editorial sobe nos 60vh de baixo; números contam.
         .to(editorial.current, { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.5 }, 0.62)
         .call(
@@ -311,7 +362,7 @@ export default function ARoberta() {
     <section ref={root} id="a-roberta" className="relative overflow-hidden bg-neutro-50">
       {mode === "pinned" ? (
         <div ref={pin} className="relative h-screen overflow-hidden">
-          <Afluente />
+          <Afluente flowerRef={flower} />
 
           {/* palavras da headline gigante, flanqueando o centro (inner = mask reveal) */}
           <span
@@ -339,7 +390,7 @@ export default function ARoberta() {
             </span>
           </span>
 
-          {/* retrato — card-retrato que cresce até o banner full-width/40vh */}
+          {/* retrato — card-retrato que cresce até ocupar a section inteira */}
           <div
             ref={portrait}
             className="absolute z-20 overflow-hidden will-change-[width,height,top,left,filter]"
@@ -347,23 +398,34 @@ export default function ARoberta() {
             <Portrait />
           </div>
 
-          {/* editorial — ocupa os 60vh de baixo */}
+          {/* scrim claro na base da foto full-bleed — segura o editorial em
+              texto escuro sobre a metade inferior do retrato. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[22] h-[66%]"
+            style={{ background: PORTRAIT_SCRIM }}
+          />
+
+          {/* editorial — ancorado na base, sobre o scrim */}
           <div
             ref={editorial}
-            className="absolute inset-x-0 bottom-0 z-10 flex items-center"
-            style={{ top: `${BANNER_VH * 100}vh` }}
+            className="absolute inset-x-0 bottom-0 z-30 pb-10 md:pb-14"
           >
             <Editorial />
           </div>
         </div>
       ) : (
         // Fallback estático — mobile / prefers-reduced-motion
-        <div className="relative overflow-hidden py-16">
+        <div className="relative overflow-hidden pb-16">
           <Afluente />
-          <div className="relative z-10 mx-auto mb-12 w-full max-w-6xl px-6 md:px-10">
-            <div className="relative h-[42vh] max-h-[420px] w-full overflow-hidden rounded-card shadow-soft-lg">
-              <Portrait />
-            </div>
+          {/* foto full-bleed, ocupando o topo inteiro da section */}
+          <div className="relative z-10 mb-12 h-[70vh] max-h-[560px] w-full overflow-hidden">
+            <Portrait />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2"
+              style={{ background: PORTRAIT_SCRIM }}
+            />
           </div>
           <div ref={editorial} className="relative z-10">
             <Editorial />

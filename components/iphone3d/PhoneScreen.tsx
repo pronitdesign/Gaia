@@ -162,45 +162,61 @@ function InicioScreen() {
 
 /* ═══════════════════════ variant="prontuario" ═══════════════════════ */
 
-type Tab = { k: string; rows: [string, string][] };
+/* União discriminada por `kind`: 7 abas continuam label/valor genérico
+   ("rows"), só "Plano" carrega conteúdo próprio ("meals") — lista de
+   refeições com foto real. Discriminar por `kind` (em vez de, digamos,
+   checar `tab.k === "Plano"` no render) deixa o TypeScript estreitar o
+   union sozinho no branch abaixo, sem cast nem "as any" no .meals/.rows. */
+type Tab =
+  | { k: string; kind: "rows"; rows: [string, string][] }
+  | { k: string; kind: "meals"; meals: Meal[] };
+
+type Meal = { img: string; name: string; detail: string; state: "done" | "pending" };
+
+const MEALS: Meal[] = [
+  { img: "/plano-cafe.webp", name: "Café da manhã", detail: "Ovos, abacate e pão de centeio · 38 g proteína", state: "done" },
+  { img: "/plano-almoco.webp", name: "Almoço", detail: "Frango, arroz integral e brócolis · 620 kcal", state: "done" },
+  // "Iogurte natural com frutas vermelhas · 180 kcal" estourava a linha e o
+  // truncate comia justamente o "180 kcal" — o dado, não o enfeite. Detalhe
+  // fica no teto de ~45 caracteres, medido: é o que cabe nos 390px de tela
+  // antes do reticências (a linha do café, com 45, encosta e não corta).
+  { img: "/plano-lanche.webp", name: "Lanche da tarde", detail: "Iogurte com frutas vermelhas · 180 kcal", state: "done" },
+  { img: "/plano-jantar.webp", name: "Jantar", detail: "Salmão e legumes assados · 480 kcal", state: "pending" },
+];
 
 const TABS: Tab[] = [
-  { k: "Anamnese", rows: [
+  { k: "Anamnese", kind: "rows", rows: [
     ["Queixa principal", "Cansaço e ganho de peso"],
     ["Restrições", "Intolerância à lactose"],
     ["Rotina", "Sono irregular · sedentária"],
   ] },
-  { k: "Avaliação", rows: [
+  { k: "Avaliação", kind: "rows", rows: [
     ["Objetivo", "Perder 5 kg em 4 meses"],
     ["Nível de atividade", "Moderado · 3x/semana"],
     ["Observações", "Sem restrições articulares"],
   ] },
-  { k: "Plano", rows: [
-    ["Meta calórica", "1.510 kcal/dia"],
-    ["Refeições", "3 principais + 1 lanche"],
-    ["Adesão", "92% · 7 dias"],
-  ] },
-  { k: "Exames", rows: [
+  { k: "Plano", kind: "meals", meals: MEALS },
+  { k: "Exames", kind: "rows", rows: [
     ["Última coleta", "12 jun"],
     ["Alterado", "Vitamina D · TSH"],
     ["Próxima", "em 90 dias"],
   ] },
-  { k: "Antropometria", rows: [
+  { k: "Antropometria", kind: "rows", rows: [
     ["Peso atual", "72,8 kg"],
     ["Variação", "−5,2 kg em 6 meses"],
     ["IMC", "24,1"],
   ] },
-  { k: "Agenda", rows: [
+  { k: "Agenda", kind: "rows", rows: [
     ["Próxima consulta", "Hoje · 14h"],
     ["Formato", "Teleconsulta"],
     ["Recorrência", "Quinzenal"],
   ] },
-  { k: "Questionários", rows: [
+  { k: "Questionários", kind: "rows", rows: [
     ["Aplicados", "EAT-26 · PSQI · BSQ"],
     ["Pendente", "TFEQ-21"],
     ["Última pontuação", "EAT-26 · 19 pts"],
   ] },
-  { k: "Histórico", rows: [
+  { k: "Histórico", kind: "rows", rows: [
     ["Consultas", "6 desde março"],
     ["Primeira visita", "14 mar"],
     ["Última atualização", "hoje"],
@@ -314,6 +330,66 @@ function TimelineRow({ label, time, last }: { label: string; time: string; last?
   );
 }
 
+/* Linha da aba "Plano" — thumb real + nome + detalhe + status. `i` é o
+   índice na lista (0-3): dita o delay escalonado da entrada (gaia-meal-rise,
+   i*70ms) e, só nas refeições "done", o delay do tick do check
+   (gaia-tick, 800+i*200ms — espera a linha assentar antes de "confirmar").
+   O "pending" nunca recebe gaia-tick de propósito: o spinner fica girando
+   pra sempre enquanto a aba está em tela, porque o dia da Marina ainda não
+   acabou — não é um estado incompleto da implementação. */
+function MealRow({ meal, i }: { meal: Meal; i: number }) {
+  return (
+    <div
+      className="gaia-meal-rise flex items-center gap-3"
+      style={{ animationDelay: `${i * 70}ms` }}
+    >
+      {/* wrapper 40×40 carrega tamanho/raio/recorte/anel — o <img> por
+          dentro só preenche (object-cover h-full w-full). O inset ring
+          separa a foto do vidro escuro em vez de deixá-la flutuar sem
+          contorno, mesma lógica do avatar "MA" do card da paciente acima. */}
+      <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[11px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]">
+        {/* <img> cru, NUNCA next/image: este DOM não é montado pelo App
+            Router — é uma React root PARALELA criada pelo <Html transform>
+            do drei dentro do canvas 3D (ver comentário detalhado em
+            lib/useAutoCycle.ts sobre essa root remontar a cada render do
+            <Html>). next/image depende do ciclo de vida normal do Next
+            (loader de otimização, layout effects de prioridade/intersection
+            amarrados à árvore "real") pra funcionar direito; dentro dessa
+            root isolada isso não tem garantia nenhuma e o risco não compensa
+            economizar alguns KB numa thumb de 40px que nem é clicável.
+            alt="" + aria-hidden: puramente decorativa, o nome da refeição ao
+            lado já diz tudo que importa. */}
+        <img src={meal.img} alt="" aria-hidden className="h-full w-full object-cover" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-title text-[13px] font-medium text-white/90">{meal.name}</p>
+        <p className="truncate font-body text-[10.5px] text-white/45">{meal.detail}</p>
+      </div>
+      {meal.state === "done" ? (
+        <span
+          aria-hidden
+          // sage-500 quase sólido + check branco: a 18px sobre vidro escuro,
+          // o /25 anterior com ícone sage-200 lia como bolinha cinza apagada
+          // — o "feito" sumia. É o único ponto de cor saturada da tela, e é
+          // proposital: é ele que dá o pulso da lista (a paciente cumpriu).
+          className="gaia-tick grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-sage-500/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)]"
+          style={{ animationDelay: `${800 + i * 200}ms` }}
+        >
+          <IconCheck className="h-2.5 w-2.5 text-white" />
+        </span>
+      ) : (
+        // spinner entra junto com a linha (gaia-meal-rise já cuida disso) —
+        // sem tick próprio, e sem fim: continua girando enquanto a aba
+        // estiver em tela, de propósito (ver comentário da função).
+        <span
+          aria-hidden
+          className="gaia-meal-spinner h-[18px] w-[18px] shrink-0 animate-spin rounded-full border-2 border-white/15 border-t-brand"
+        />
+      )}
+    </div>
+  );
+}
+
 function ProntuarioScreen() {
   // Congela em "Anamnese" (índice 0) sob prefers-reduced-motion — useAutoCycle
   // já não inicia o intervalo nesse caso, então o índice nunca sai de 0.
@@ -354,16 +430,50 @@ function ProntuarioScreen() {
 
         <ChipsRow active={active} />
 
-        {/* conteúdo da aba — crossfade (gaia-fade, definido em globals.css) */}
-        <div className={"mx-6 mt-4 rounded-[16px] p-4 " + GLASS}>
-          <div key={active} className="gaia-fade divide-y divide-white/[0.08]">
-            {tab.rows.map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
-                <span className="shrink-0 font-body text-[12.5px] text-white/50">{label}</span>
-                <span className="text-right font-body text-[12.5px] font-medium text-white/90">{value}</span>
-              </div>
-            ))}
-          </div>
+        {/* conteúdo da aba — crossfade (gaia-fade, definido em globals.css).
+            min-h-[226px]: TRAVA DE ALTURA, valor MEDIDO, não estimado — rota
+            de debug temporária (DOM normal, sem 3D) + getBoundingClientRect
+            zerando o min-h pra pegar a altura natural: 4 linhas de refeição
+            (thumb 40px + gap-2.5) fecham em 219px; as 7 abas de texto puro
+            (3 linhas, sem thumb) ficam em ~130px. 226px = 219 + ~7px de
+            folga pra variação de sub-pixel entre navegadores/fontes, sem
+            sobrar gordura à toa. Sem essa trava, o card de conteúdo respira
+            com o próprio conteúdo e TUDO abaixo dele (stats, card de
+            atividade, BottomNav) pula a cada 2.8s só quando "Plano" entra no
+            ciclo. Aplicando o min-h nas 8 abas por igual — não só na "Plano"
+            — as 7 de texto ficam com folga no fundo do card (onde não
+            incomoda, mesmo raciocínio do flex-1 da atividade abaixo).
+            Conferido no mesmo harness: com essa trava, o card de atividade
+            (flex-1) fecha em 249.5px em QUALQUER aba ativa — 844px de tela
+            batendo exato com o scrollHeight do frame, sem overflow, sem
+            sobra pulando de tamanho. */}
+        <div className={"mx-6 mt-4 flex min-h-[226px] flex-col rounded-[16px] p-4 " + GLASS}>
+          {tab.kind === "rows" ? (
+            // flex-1 + justify-center: as 3 linhas são ~110px dentro de um
+            // card travado em 226px pela lista de refeições. Alinhadas no
+            // topo (como estavam), a sobra virava um buraco de 110px no pé
+            // do card e a aba lia como meio carregada — o mesmo "espaço
+            // morto" que o comentário do wrapper flex-col acima já combate.
+            // Centrando o bloco, a folga se divide em duas margens iguais e
+            // o card lê como arejado de propósito. Centrar (e não
+            // justify-around) preserva o ritmo do divide-y: com as linhas
+            // espalhadas, cada borda ficaria colada no topo da sua própria
+            // linha em vez de no meio do vão entre duas.
+            <div key={active} className="gaia-fade flex flex-1 flex-col justify-center divide-y divide-white/[0.08]">
+              {tab.rows.map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                  <span className="shrink-0 font-body text-[12.5px] text-white/50">{label}</span>
+                  <span className="text-right font-body text-[12.5px] font-medium text-white/90">{value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div key={active} className="gaia-fade flex flex-col gap-2.5">
+              {tab.meals.map((meal, i) => (
+                <MealRow key={meal.name} meal={meal} i={i} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* stats — resumo geral da paciente, não muda com a aba */}
@@ -396,8 +506,17 @@ function ProntuarioScreen() {
 }
 
 export default function PhoneScreen({ variant }: { variant: PhoneScreenVariant }) {
+  // borderRadius casa os cantos do DOM com o recorte arredondado do display do
+  // 15 Pro Max: o <Html transform> monta este frame como um retângulo reto sobre
+  // a tela curva da malha, então sem o raio as 4 pontas quadradas escapam pra
+  // fora do bisel (visível principalmente no topo). ~55px em 390px de largura
+  // ≈ o raio real do display (55pt num ~430pt de largura). overflow-hidden já
+  // recorta o conteúdo interno a essa curva.
   return (
-    <div style={{ width: W, height: H, pointerEvents: "none" }} className="select-none overflow-hidden">
+    <div
+      style={{ width: W, height: H, pointerEvents: "none", borderRadius: 56 }}
+      className="select-none overflow-hidden"
+    >
       {variant === "prontuario" ? <ProntuarioScreen /> : <InicioScreen />}
     </div>
   );

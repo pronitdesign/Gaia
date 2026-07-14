@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
@@ -16,10 +16,16 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
 });
 
 /* ── Pricing ────────────────────────────────────────────────────────────────
-   Card claro "Inclui" + card preto de preço com o phone CSS flutuando entre
-   eles como coluna real do grid (não sobrepõe texto). Vibe: soft structuralism
-   + editorial — cards com profundidade háptica (inset highlight, glow, hairline)
-   sobre fundo com luz ambiente. Copy do briefing Figma (node 9:508).         */
+   Barra de VIDRO FUMÊ atravessando o palco: o phone sobe atrás dela e afunda
+   a base no vidro (backdrop-blur pega o aparelho e o embaça por trás — é o
+   momento premium). Três zonas dentro do vidro: painel frosted claro (migração
+   + toggle), preço, checklist. Copy do briefing Figma (node 9:508).
+
+   STACKING (crítico): o ScrollPhone é um overlay `fixed z-[60]` na raiz. Pra
+   ficar NA FRENTE dele o vidro usa z-[70] — e nenhum ancestral pode criar
+   stacking context (sem transform/filter/isolate no palco), senão o z-70 fica
+   preso abaixo do phone. Por isso o reveal do vidro é só opacity+y, sem blur:
+   `filter` — mesmo blur(0px) — criaria contexto e mataria o efeito.          */
 
 /* pose fixa do iPhone 3D — [x, y, z] rad. tela de frente + leve giro 3/4 + lean editorial */
 const PHONE_POSE: [number, number, number] = [0.08, Math.PI - 0.28, -0.1];
@@ -38,18 +44,28 @@ const HAPTIC = "ease-[cubic-bezier(0.32,0.72,0,1)]";
 const NOISE =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
+/* vidro fumê: gradiente de opacidade (o que vende vidro é a variação, não o
+   valor médio) + saturação no backdrop pra aurora de trás puxar cor.
+   Denso à esquerda/centro (onde mora texto — garante contraste do branco) e
+   abrindo numa JANELA translúcida à direita, onde o phone atravessa por trás. */
+const GLASS =
+  "bg-[linear-gradient(104deg,rgba(0,10,26,0.84)_0%,rgba(0,10,26,0.78)_56%,rgba(0,10,26,0.48)_74%,rgba(0,10,26,0.32)_100%)] backdrop-blur-[28px] backdrop-saturate-[1.6]";
+
 export default function Pricing() {
   const root = useRef<HTMLElement>(null);
+  /* toggle real: ligado = migrando de outro sistema → 2 meses por conta da casa */
+  const [migrando, setMigrando] = useState(true);
 
   useGSAP(
     () => {
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (reduce) {
-        gsap.set("[data-reveal]", { opacity: 1, y: 0, filter: "none" });
+        gsap.set("[data-reveal], [data-glass]", { opacity: 1, y: 0, filter: "none" });
         return;
       }
       gsap.set("[data-reveal]", { opacity: 0, y: 44, filter: "blur(10px)" });
-      gsap.to("[data-reveal]", {
+      gsap.set("[data-glass]", { opacity: 0, y: 44 });
+      gsap.to("[data-reveal], [data-glass]", {
         opacity: 1,
         y: 0,
         filter: "blur(0px)",
@@ -57,115 +73,108 @@ export default function Pricing() {
         ease: "power3.out",
         stagger: 0.14,
         scrollTrigger: { trigger: root.current, start: "top 74%", once: true },
+        /* devolve filter:none nos reveals — blur(0px) ainda cria stacking context */
+        onComplete: () => gsap.set("[data-reveal]", { filter: "none" }),
       });
     },
     { scope: root },
   );
 
-  /* coluna esquerda — "Inclui" em barras soft */
-  const ColInclui = (
-    <div className="relative flex flex-col justify-center p-10 md:p-12 lg:min-h-[500px] lg:pr-24">
-      <div className="relative lg:max-w-[20rem]">
-        <h2 className="text-balance font-title text-h3 font-medium leading-[1.08] text-neutro-800 md:text-h2">
-          Tudo incluído.
-          <br />
-          <span className="italic text-neutro-600">Sem add-on.</span>
-        </h2>
+  /* ZONA A — painel frosted claro dentro do vidro escuro (contraste de vidros) */
+  const PainelMigracao = (
+    <div className="relative flex flex-col justify-between gap-8 overflow-hidden rounded-[1.75rem] border border-white/[0.18] bg-white/[0.14] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-md">
+      <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+      <div className="relative">
+        <p className="font-title text-body-l font-medium leading-[1.25] text-white">
+          Vem de outro sistema?
+        </p>
+        <p className="mt-2.5 font-body text-small leading-[1.6] text-white/65">
+          A gente migra seus pacientes e seu histórico. Você confere e segue
+          atendendo.
+        </p>
+      </div>
 
-        <ul className="mt-8 space-y-2.5">
-          {INCLUDES.map((item) => (
-            <li
-              key={item}
-              className={`group/li flex items-center gap-3.5 rounded-2xl border border-white/50 bg-neutro-0/50 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm transition-all duration-500 ${HAPTIC} hover:-translate-y-0.5 hover:border-white/70 hover:bg-neutro-0/85 hover:shadow-soft`}
-            >
-              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-roxo-600 text-white shadow-[0_2px_8px_-2px_rgba(138,105,216,0.55)] transition-transform duration-500 ${HAPTIC} group-hover/li:scale-110`}>
-                <IconCheck className="h-3.5 w-3.5" strokeWidth={2} />
-              </span>
-              <span className="font-body text-body font-medium text-neutro-700 transition-colors duration-500 group-hover/li:text-neutro-800">
-                {item}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-7 inline-flex w-fit items-center gap-2.5 rounded-full border border-white/60 bg-neutro-0/70 px-4 py-2 font-body text-small text-neutro-600 shadow-soft backdrop-blur">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-          2 meses grátis na migração
-        </div>
+      <div className="relative flex items-center justify-between gap-4">
+        <span className="font-body text-body font-medium tabular-nums text-white">
+          2 meses grátis
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={migrando}
+          aria-label="Estou migrando de outro sistema"
+          onClick={() => setMigrando((v) => !v)}
+          className={`relative h-8 w-[3.75rem] shrink-0 rounded-full border transition-colors duration-500 ${HAPTIC} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent ${
+            migrando
+              ? "border-white/20 bg-gradient-to-r from-brand to-roxo-500 shadow-[0_4px_16px_-4px_rgba(138,105,216,0.7)]"
+              : "border-white/15 bg-white/10"
+          }`}
+        >
+          <span
+            className={`absolute left-1 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_6px_-1px_rgba(0,10,26,0.5)] transition-transform duration-500 ${HAPTIC} ${
+              migrando ? "translate-x-7" : "translate-x-0"
+            }`}
+          />
+        </button>
       </div>
     </div>
   );
 
-  /* coluna direita — preço.
-     Card elevado que "flutua acima" do card principal: mais alto que ele
-     (lg:min-h-[560px] vs 500 do container, items-center → ultrapassa topo e
-     base ~30px), sombra maior e hairline claro. z-10: fica sobre o bg do card,
-     abaixo do phone (z-20) que o atravessa como na referência. */
-  const ColPreco = (
-    <div className="relative flex flex-col justify-center p-6 md:p-8 lg:min-h-[500px] lg:items-end lg:justify-center lg:p-0 lg:pl-40">
-      <div className="relative z-10 flex w-full flex-col justify-center overflow-hidden rounded-card border border-white/10 bg-ink p-10 shadow-[0_40px_90px_-30px_rgba(0,10,26,0.65)] md:p-12 lg:my-[-4rem] lg:min-h-[620px] lg:max-w-[24rem]">
-        {/* glows internos + inset highlight pro card escuro respirar */}
-        <div className="pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]" />
-        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-roxo-500/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-roxo-700/20 blur-3xl" />
-        {/* sheen — luz diagonal varrendo o card escuro (premium glass) */}
-        <span
-          aria-hidden
-          className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/12 to-transparent"
-        />
-        <div className="relative z-[1] lg:max-w-[22rem]">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60 backdrop-blur">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-          Plano único
+  /* ZONA B — preço. Troca conforme o toggle, sem letra miúda escondida. */
+  const Preco = (
+    <div>
+      <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 backdrop-blur">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+        Plano único
+      </span>
+
+      <div className="mt-5 flex items-start gap-1.5">
+        <span className="mt-2 font-title text-h3 font-medium text-white/45">R$</span>
+        <span className="font-title text-[3.75rem] font-semibold leading-[0.85] tracking-[-0.02em] text-white tabular-nums">
+          {migrando ? "0" : "49,90"}
         </span>
-
-        <p className="mt-5 font-title text-h3 font-medium leading-[1.1] text-white">
-          Um preço, sem letra miúda.
-        </p>
-
-        <div className="mt-7 flex items-start gap-1.5">
-          <span className="mt-2.5 font-title text-h3 font-medium text-white/50">R$</span>
-          <span className="font-title text-[4.75rem] font-semibold leading-[0.85] tracking-[-0.02em] text-white tabular-nums">
-            49,90
-          </span>
-          <span className="self-end pb-2.5 font-body text-body-l text-white/40">
-            /mês
-          </span>
-        </div>
-
-        <p className="mt-5 font-body text-body-l text-white/70">
-          Comece com 2 meses grátis.
-        </p>
-
-        <div className="my-8 h-px w-full bg-white/10" />
-
-        <a
-          href="#"
-          className={`group/cta flex w-full items-center justify-between gap-3 rounded-full bg-white py-2 pl-6 pr-2 transition-all duration-500 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-ink`}
-        >
-          <span className="font-body text-[15px] font-medium text-ink">
-            Migrar e ganhar 2 meses
-          </span>
-          <span
-            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform duration-500 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
-          >
-            <IconArrowUpRight className="h-4 w-4" />
-          </span>
-        </a>
-
-        <p className="mt-4 text-center font-body text-small text-white/40">
-          Sem fidelidade. Cancele quando quiser.
-        </p>
-        </div>
+        <span className="self-end pb-2 font-body text-body-l text-white/40">/mês</span>
       </div>
+
+      <p className="mt-4 max-w-[22ch] font-body text-small leading-[1.55] text-white/60">
+        {migrando ? (
+          <>
+            Nos 2 primeiros meses.{" "}
+            <span className="text-white/40">Depois R$ 49,90/mês.</span>
+          </>
+        ) : (
+          <>
+            Tudo incluído.{" "}
+            <span className="text-white/40">Sem add-on, sem letra miúda.</span>
+          </>
+        )}
+      </p>
     </div>
+  );
+
+  /* checklist — 2 colunas: cabe embaixo do preço sem quebrar linha */
+  const Checklist = (
+    <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+      {INCLUDES.map((item) => (
+        <li key={item} className="flex items-center gap-3">
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-inset ring-white/15">
+            <IconCheck className="h-3 w-3" strokeWidth={2.25} />
+          </span>
+          <span className="font-body text-small text-white/70">{item}</span>
+        </li>
+      ))}
+    </ul>
   );
 
   return (
     <section
       ref={root}
       id="pricing"
-      className="relative overflow-hidden bg-neutro-50 py-28 md:py-36"
+      /* overflow-x-clip (não -hidden): clipa as auroras laterais no eixo X — sem
+         scroll horizontal — mas deixa o Y livre pra aurora do topo sangrar pra
+         cima e fundir com o fim branco do Manifesto. -hidden cortava esse brilho
+         numa linha reta na borda: era o "corte" visível entre as seções. */
+      className="relative overflow-x-clip bg-neutro-50 py-28 md:py-36"
     >
       {/* AMBIENTE — luz de aurora escorrendo atrás da seção (profundidade) */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -181,66 +190,105 @@ export default function Pricing() {
       />
 
       <div className="relative mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
-        {/* framing editorial — eyebrow + linha de tensão */}
-        <div
-          data-reveal
-          className="mb-14 flex flex-col items-center text-center md:mb-16"
-        >
+        {/* framing editorial — eyebrow + título grande à esquerda */}
+        <div data-reveal className="max-w-[15ch]">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-neutro-0/70 px-3.5 py-1.5 font-body text-[11px] font-semibold uppercase tracking-[0.22em] text-neutro-500 shadow-soft backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-brand" />
             Preço
           </span>
-          <h2 className="mt-6 max-w-[16ch] text-balance font-title text-h2 font-medium leading-[1.05] text-neutro-800 md:text-[3.25rem]">
+          <h2 className="mt-6 text-balance font-title text-h2 font-medium leading-[1.02] text-neutro-800 md:text-[4rem]">
             Sem surpresa no{" "}
             <span className="italic text-neutro-600">fim do mês.</span>
           </h2>
         </div>
 
-        <div data-reveal className="relative">
-          {/* DOUBLE-BEZEL — bandeja externa (hairline + folga) segurando o card
-              como uma placa de vidro numa moldura usinada. curvas concêntricas. */}
-          <div className="rounded-[3rem] border border-white/50 bg-white/40 p-2 shadow-soft-lg md:p-2.5">
-            {/* CARD ÚNICO — o phone flutua no centro, atravessando o card */}
-            <div className="relative">
-              {/* bg do card: arredondado + clipado (glows contidos); fica atrás do
-                  phone pra que o aparelho possa ultrapassar as bordas sem cortar */}
-              <div
-                aria-hidden
-                className="absolute inset-0 overflow-hidden rounded-card border border-hairline bg-afluente shadow-soft"
-              >
-                <div className="pointer-events-none absolute inset-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]" />
-                <div className="pointer-events-none absolute -left-24 -top-20 h-72 w-72 rounded-full bg-roxo-200/40 blur-3xl" />
-                <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-roxo-200/40 blur-3xl" />
-              </div>
+        {/* PALCO — sem transform/filter aqui: o vidro precisa do z-70 vivo na raiz.
+            A folga pro phone é PADDING, não margin: o vidro é o primeiro filho em
+            fluxo no desktop e um margin-top colapsaria pra fora do palco.
+            Sangra pra direita (-5rem): alinhado à esquerda com o título e aberto
+            pro lado oposto — a assimetria é o gesto editorial da referência.
+            pt-27rem: calibrado na geometria REAL do aparelho (≈255×445, nasce a
+            +80px do topo do slot), não na do slot — a base afunda ~90px no vidro. */}
+        <div className="relative mt-12 lg:mr-[-5rem] lg:mt-[-6rem] lg:pt-[27rem]">
+          {/* bloom saturado atrás do phone — é o que o vidro refrata */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-[86%] top-16 hidden h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(163,133,192,0.5),rgba(194,210,228,0.28)_48%,transparent_72%)] blur-2xl lg:block"
+          />
 
-              {/* conteúdo em duas colunas dentro do mesmo card */}
-              <div className="relative grid grid-cols-1 lg:grid-cols-2 lg:items-center">
-                {ColInclui}
+          {/* iPhone 3D — desktop: SLOT/âncora de pouso. O aparelho em si é o
+              ScrollPhone persistente (overlay fixo em app/page.tsx) que viaja
+              desde o card de Prontuário e pousa exatamente aqui. Este div só
+              reserva a posição/tamanho (360×640) que o ScrollPhone lê vivo.
+              Agora centrado na JANELA do vidro (86% do palco, mesma fração da
+              terceira coluna) e no topo: a base afunda na barra. Em %, pra
+              acompanhar a largura do palco em qualquer viewport. */}
+          <div
+            data-phone-end
+            aria-hidden
+            className="pointer-events-none absolute left-[88%] top-0 z-20 hidden h-[640px] w-[360px] -translate-x-1/2 lg:block"
+          />
 
-                {/* iPhone 3D — mobile: em fluxo, entre as colunas */}
-                <div className="lg:hidden">
-                  <div className="mx-auto h-[440px] w-[300px] motion-reduce:animate-none animate-[gaia-float_6s_ease-in-out_infinite]">
-                    <IPhone3D
-                      height="100%"
-                      scale={16}
-                      rotation={PHONE_POSE}
-                      screen={<PhoneScreen variant="inicio" />}
-                    />
-                  </div>
+          {/* iPhone 3D — mobile: em fluxo, com a base entrando no vidro */}
+          <div className="lg:hidden">
+            <div className="mx-auto -mb-24 h-[440px] w-[300px] animate-[gaia-float_6s_ease-in-out_infinite] motion-reduce:animate-none">
+              <IPhone3D
+                height="100%"
+                scale={16}
+                rotation={PHONE_POSE}
+                screen={<PhoneScreen variant="inicio" />}
+              />
+            </div>
+          </div>
+
+          {/* BARRA DE VIDRO — z-70 pra ficar na frente do ScrollPhone (z-60):
+              o backdrop-blur pega o aparelho por trás e afunda a base dele. */}
+          <div
+            data-glass
+            className={`relative z-[70] mt-8 overflow-hidden rounded-[2.25rem] border border-white/15 p-2.5 shadow-[0_40px_90px_-30px_rgba(0,10,26,0.55)] lg:mt-0 ${GLASS}`}
+          >
+            {/* inset highlight — a quina de cima do vidro pegando luz */}
+            <div className="pointer-events-none absolute inset-0 rounded-[2.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(255,255,255,0.06)]" />
+            {/* sheen — luz diagonal varrendo o vidro */}
+            <span
+              aria-hidden
+              className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/12 to-transparent"
+            />
+
+            <div className="relative z-[1] grid grid-cols-1 gap-2.5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,0.9fr)]">
+              {PainelMigracao}
+
+              <div className="flex flex-col justify-between gap-7 p-7 lg:pl-10">
+                <div className="flex flex-col gap-7">
+                  {Preco}
+                  {Checklist}
                 </div>
 
-                {ColPreco}
+                {/* rodapé do vidro — meta à esquerda, CTA à direita */}
+                <div className="flex flex-col gap-5 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-body text-small text-white/60">
+                    Sem fidelidade. Cancele quando quiser.
+                  </p>
+                  <a
+                    href="#"
+                    className={`group/cta inline-flex shrink-0 items-center gap-3 rounded-full bg-white py-2 pl-6 pr-2 transition-all duration-500 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent`}
+                  >
+                    <span className="font-body text-[15px] font-medium text-ink">
+                      {migrando ? "Migrar e ganhar 2 meses" : "Começar agora"}
+                    </span>
+                    <span
+                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform duration-500 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
+                    >
+                      <IconArrowUpRight className="h-4 w-4" />
+                    </span>
+                  </a>
+                </div>
               </div>
 
-              {/* iPhone 3D — desktop: SLOT/âncora de pouso. O aparelho em si é o
-                  ScrollPhone persistente (overlay fixo em app/page.tsx) que viaja
-                  desde o card de Prontuário e pousa exatamente aqui. Este div só
-                  reserva a posição/tamanho (360×640) que o ScrollPhone lê vivo. */}
-              <div
-                data-phone-end
-                aria-hidden
-                className="pointer-events-none absolute left-1/2 top-1/2 z-20 hidden h-[640px] w-[360px] -translate-x-1/2 -translate-y-1/2 lg:block"
-              />
+              {/* ZONA C — janela: coluna deliberadamente vazia. É onde o vidro
+                  abre e o phone aparece congelado atrás, fosco. Sem texto aqui
+                  de propósito: o aparelho é o conteúdo. */}
+              <div aria-hidden className="hidden lg:block" />
             </div>
           </div>
         </div>

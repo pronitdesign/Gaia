@@ -36,6 +36,14 @@ const GLASS_DARK =
   "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.92),inset_0_1px_0_0_rgba(255,255,255,0.16),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
 const GLASS = `relative overflow-hidden ${GLASS_BLUR} ${GLASS_DARK}`;
 
+/* Vidro claro/fosco — deixa o floral atravessar (satélites do Prontuário).
+   Mais aéreo e premium que o GLASS_DARK: tinta branca translúcida, aro de luz
+   nítido e realce interno no topo. Legível sobre a pétala escura. */
+const GLASS_FROST =
+  `relative overflow-hidden ${GLASS_BLUR} ` +
+  "bg-gradient-to-b from-white/[0.13] to-white/[0.05] " +
+  "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.32),inset_0_0_0_1px_rgba(255,255,255,0.12)]";
+
 // card-fantasma atrás — meia opacidade, offset, mesmo vidro (profundidade)
 function Ghost({ radius = "rounded-[18px]" }: { radius?: string }) {
   return (
@@ -431,77 +439,75 @@ function MockExames() {
 
 /* ═══════════════ AGENDA ═══════════════ */
 function MockAgenda() {
-  // Agenda de verdade: grade de calendário (day view). Linhas de meia-hora
-  // bem próximas (08–13), consultas posicionadas por horário e duração como
-  // blocos. Micro-interação: a linha do "agora" desliza pelo dia a cada ~3s,
-  // acendendo a consulta em curso — como um calendário vivo.
-  const BASE = 8; // 08:00
-  const HOUR = 34; // px por hora
-  const HALF = HOUR / 2;
-  const ROWS = 10; // 08:00 → 13:00 em passos de 30 min
-  const H = ROWS * HALF;
+  // Lista de consultas do dia — mesma gramática das linhas de refeição do
+  // MockPlano: calha de horário à esquerda, espinha colorida de 3px, nome do
+  // paciente, duração/formato à direita. Micro-interação: uma consulta por
+  // vez fica "ativa" (a cada ~3s) — quando ela é teleconsulta, a Gaia mostra
+  // o link já criado. Cor só distingue formato: roxo = tele, sage = presencial.
   const events = [
-    { s: 8.5, e: 9.33, n: "Marina Alves", c: "#A385C0", t: "08:30", tele: true },
-    { s: 9.66, e: 10.5, n: "Rafael Nunes", c: "#95A9C4", t: "09:40", tele: false },
-    { s: 11, e: 11.5, n: "Bianca Souza", c: "#8B9E6F", t: "11:00", tele: true },
-    { s: 12, e: 12.75, n: "Diego Farias", c: "#C4A46A", t: "12:00", tele: false },
+    { t: "08:30", n: "Marina Alves", dur: "40 min", tele: true },
+    { t: "09:40", n: "Rafael Nunes", dur: "50 min", tele: false },
+    { t: "11:00", n: "Bianca Souza", dur: "30 min", tele: true },
+    { t: "12:00", n: "Diego Farias", dur: "45 min", tele: false },
   ];
   const [active, ref] = useAutoCycle(events.length, 3000);
   const cur = events[active];
   return (
-    <div ref={ref} className="mt-7 flex-1 px-7 pb-7 md:px-8 md:pb-8">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="font-body text-[12.5px] font-medium text-white/75">Hoje · seg, 14</span>
-        <span className="inline-flex items-center gap-1.5 font-body text-[11px] text-white/40">
-          <span className="h-1.5 w-1.5 rounded-full bg-sage-300" /> Google Calendar
-        </span>
-      </div>
+    <div ref={ref} className="mt-5 flex-1 px-7 pb-7 md:px-8 md:pb-8">
+      <div style={px(0.32)} className={"gaia-parallax rounded-[16px] p-4 " + GLASS}>
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="font-title text-[15px] font-medium leading-tight text-white">Hoje · seg, 14</p>
+            <p className="font-body text-[11.5px] leading-tight text-white/50">4 consultas · 08:30–12:45</p>
+          </div>
+          <Pill className="shrink-0 text-white/60">
+            <span className="h-1.5 w-1.5 rounded-full bg-sage-300" /> Google Calendar
+          </Pill>
+        </div>
 
-      <div className="relative" style={{ height: H }}>
-        {/* grade de horas — meia-hora, linhas próximas */}
-        {Array.from({ length: ROWS + 1 }).map((_, k) => {
-          const hour = k % 2 === 0;
-          return (
-            <div key={k} className="absolute inset-x-0 flex items-center" style={{ top: k * HALF }}>
-              <span className="w-10 shrink-0 -translate-y-1/2 pr-2 text-right font-body text-[9.5px] tabular-nums text-white/30">
-                {hour ? `${String(BASE + k / 2).padStart(2, "0")}:00` : ""}
-              </span>
-              <span className={"h-px flex-1 " + (hour ? "bg-white/[0.09]" : "bg-white/[0.045]")} />
-            </div>
-          );
-        })}
-
-        {/* consultas — blocos posicionados por horário/duração */}
-        <div className="absolute inset-y-0 left-10 right-0">
+        <div className="divide-y divide-white/[0.08]">
           {events.map((ev, idx) => {
             const on = idx === active;
             return (
               <div
                 key={idx}
                 className={
-                  "absolute left-0 right-1 flex items-center gap-1.5 overflow-hidden rounded-[7px] pl-2 pr-1.5 transition-all duration-500 ease-gaia " +
-                  (on ? "z-10 shadow-[0_10px_24px_-12px_rgba(0,0,0,0.75)] ring-1 ring-brand/40" : "opacity-80")
+                  "flex items-center gap-3 rounded-[10px] px-2 py-1 transition-colors duration-500 ease-gaia " +
+                  (on ? "bg-white/[0.06] opacity-100" : "opacity-45")
                 }
-                style={{
-                  top: (ev.s - BASE) * HOUR,
-                  height: (ev.e - ev.s) * HOUR,
-                  borderLeft: `2px solid ${on ? "#8A69D8" : ev.c}`,
-                  background: on ? "rgba(138,105,216,0.22)" : ev.c + "1f",
-                }}
               >
-                <span className="min-w-0 flex-1 truncate font-body text-[11.5px] font-medium text-white/90">{ev.n}</span>
-                {on && ev.tele && <IconArrowUpRight className="h-3 w-3 shrink-0 text-roxo-200" />}
-                <span className="shrink-0 font-body text-[9.5px] tabular-nums text-white/45">{ev.t}</span>
+                <span
+                  className={"h-6 w-[3px] shrink-0 rounded-full transition-colors duration-500 ease-gaia " + (ev.tele ? "bg-brand" : "bg-sage-400")}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-body text-[11px] tabular-nums text-white/40">{ev.t}</span>
+                    <span className="font-body text-[12.5px] font-medium text-white/90">{ev.n}</span>
+                    {on && <Pill className="!px-1.5 !py-0.5 text-[11px] text-white/60">agora</Pill>}
+                  </div>
+                </div>
+                <span className="shrink-0 font-body text-[11px] tabular-nums text-white/50">{ev.dur}</span>
               </div>
             );
           })}
+        </div>
 
-          {/* linha do "agora" — desliza até a consulta em curso */}
-          <div className="pointer-events-none absolute inset-x-0 z-20 transition-all duration-700 ease-gaia" style={{ top: (cur.s - BASE) * HOUR }}>
-            <div className="relative h-[1.5px] bg-brand/80">
-              <span className="absolute -left-[3px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-brand" />
-              <span aria-hidden className="absolute -left-[3px] top-1/2 h-2 w-2 -translate-y-1/2 animate-ping rounded-full bg-brand/60" />
-            </div>
+        {/* faixa de rodapé — altura fixa, SEMPRE presente. Só o conteúdo troca
+            (reanima via gaia-fade keyado por `active`), pra não haver reflow
+            quando o ciclo alterna teleconsulta ↔ presencial. */}
+        <div className="mt-2.5 flex min-h-[40px] items-center rounded-[12px] bg-white/[0.06] p-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+          <div key={active} className="gaia-fade flex w-full min-w-0 items-center justify-between gap-3">
+            <GaiaTag className="shrink-0 whitespace-nowrap">{cur.tele ? "link criado" : "lembrete enviado"}</GaiaTag>
+            <Pill className="min-w-0 shrink-0 gap-1 whitespace-nowrap text-white/70">
+              {cur.tele ? (
+                <>
+                  meet.google.com/abc-defg
+                  <IconArrowUpRight className="h-3 w-3 shrink-0 text-roxo-200" />
+                </>
+              ) : (
+                "WhatsApp · 24h antes"
+              )}
+            </Pill>
           </div>
         </div>
       </div>
@@ -514,12 +520,12 @@ function MockAgenda() {
 function PlanoAtivoCard() {
   return (
     <>
-      <p className="font-body text-[11px] font-medium uppercase tracking-wide text-white/45">Plano ativo</p>
+      <p className="font-body text-[11px] font-medium uppercase tracking-wide text-white/60">Plano ativo</p>
       <p className="mt-1 font-title text-[16px] font-medium text-white">1.510 kcal/dia</p>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/12">
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/25">
         <span data-bar className="block h-full w-[68%] origin-left rounded-full bg-brand" />
       </div>
-      <p className="mt-1.5 font-body text-[10.5px] text-white/50">adesão 68% nesta semana</p>
+      <p className="mt-1.5 font-body text-[10.5px] text-white/65">adesão 68% nesta semana</p>
     </>
   );
 }
@@ -530,7 +536,7 @@ function ExamesNovosCard() {
       <span className="grid h-7 w-7 place-items-center rounded-full bg-warning/15 text-warning"><TrendArrow dir="down" className="h-3.5 w-3.5" /></span>
       <div>
         <p className="font-body text-[12.5px] font-medium text-white">2 exames novos</p>
-        <p className="font-body text-[10.5px] text-white/50">1 fora da faixa</p>
+        <p className="font-body text-[10.5px] text-white/65">1 fora da faixa</p>
       </div>
     </div>
   );
@@ -563,13 +569,13 @@ function CalibragemCard() {
 function ProntuarioLeft() {
   return (
     <div className="pointer-events-none absolute left-[3%] top-1/2 hidden w-[214px] -translate-y-1/2 flex-col gap-3.5 lg:flex xl:left-[6%]">
-      <span style={px(1.2, -4)} className={"gaia-parallax inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1.5 font-body text-[11.5px] font-medium text-white/75 " + GLASS + " " + FLOAT}>
+      <span style={px(1.2, -4)} className={"gaia-parallax inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1.5 font-body text-[11.5px] font-medium text-white/85 " + GLASS_FROST + " " + FLOAT}>
         <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> 5 sugestões da Gaia
       </span>
-      <div style={px(1.55, 5)} className={"gaia-parallax rounded-[15px] p-3.5 " + GLASS + " " + FLOAT}>
+      <div style={px(1.55, 5)} className={"gaia-parallax rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <span style={px(1.35, -6)} className={"gaia-parallax inline-flex items-center gap-1.5 self-start rounded-full px-3.5 py-1.5 font-title text-[12.5px] font-semibold text-white " + GLASS + " " + FLOAT}>
+      <span style={px(1.35, -6)} className={"gaia-parallax inline-flex items-center gap-1.5 self-start rounded-full px-3.5 py-1.5 font-title text-[12.5px] font-semibold text-white " + GLASS_FROST + " " + FLOAT}>
         <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> Gaia
       </span>
     </div>
@@ -580,10 +586,10 @@ function ProntuarioLeft() {
 function ProntuarioRight() {
   return (
     <div className="pointer-events-none absolute right-[3%] top-1/2 hidden w-[240px] -translate-y-1/2 flex-col gap-3.5 lg:flex xl:right-[6%]">
-      <div style={px(1.5, 4)} className={"gaia-parallax rounded-[15px] p-3.5 " + GLASS + " " + FLOAT}>
+      <div style={px(1.5, 4)} className={"gaia-parallax rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div style={px(1.7, -5)} className={"gaia-parallax self-end rounded-[15px] p-3.5 " + GLASS + " " + FLOAT}>
+      <div style={px(1.7, -5)} className={"gaia-parallax self-end rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -594,13 +600,13 @@ function ProntuarioRight() {
 function ProntuarioStacked() {
   return (
     <div className="mt-7 flex flex-col gap-3 lg:hidden">
-      <div className={"w-[214px] rounded-[14px] p-3.5 " + GLASS + " " + FLOAT}>
+      <div className={"w-[214px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <div className={"w-[240px] rounded-[14px] p-3.5 " + GLASS + " " + FLOAT}>
+      <div className={"w-[240px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div className={"w-[200px] rounded-[14px] p-3.5 " + GLASS + " " + FLOAT}>
+      <div className={"w-[200px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -666,6 +672,19 @@ export default function Features() {
 
   return (
     <section ref={root} id="features" className="relative overflow-hidden bg-[#0A0C11] py-24 md:py-32">
+      {/* Fundo floral — íris roxa full-bleed, ancorada no topo. Overlay escuro
+          gradiente mantém o vidro dos cards legível e funde na base do #0A0C11. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/floral-iris.webp"
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 h-full w-full -scale-x-100 object-cover object-top opacity-70"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(180deg,rgba(10,12,17,0.55)_0%,rgba(10,12,17,0.78)_45%,rgba(10,12,17,0.94)_100%)]"
+      />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
         <header className="mb-14 max-w-2xl md:mb-16">
           <span data-reveal className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">
@@ -757,7 +776,10 @@ export default function Features() {
             {/* min-h preserva a altura visual do palco agora que a Marina vive na
                 tela do iPhone (ver PhoneScreen) que a ScrollPhone sobrepõe aqui. */}
             <div className="relative flex flex-col p-7 md:p-10 lg:min-h-[600px]">
-              <div className="max-w-md">
+              {/* lg: coluna estreita — o texto vive à esquerda do phone
+                  centralizado e nunca corre por baixo do aparelho (glass começa
+                  ~270px dentro do card). Solto no mobile, onde não há phone. */}
+              <div className="max-w-md lg:max-w-[248px]">
                 <CardTitle>Prontuário</CardTitle>
                 <CardBody tone="hero">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
               </div>

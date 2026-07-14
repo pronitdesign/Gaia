@@ -26,6 +26,16 @@ const CURVE_2 = "M 0 96 Q 250 154 500 100 Q 750 52 1000 116";
    textAnchor é middle, então o centro não pode passar de ~36%/~64%). */
 const TRAVEL = { from: 36, to: 64 };
 
+/* Range de scroll em que cada frase resolve o blur. A de cima já está em tela
+   quando a seção abre, então pode resolver no percurso até o centro. A de baixo
+   mora no rodapé de uma seção de 160vh: se esperasse o centro dela chegar ao
+   miolo da viewport, ficaria borrada muito depois do phone já ter pousado ali.
+   Ela resolve ENQUANTO entra — nítida no instante em que o phone a alcança. */
+const BLUR_RANGE = {
+  1: { start: "top 88%", end: "center 52%" },
+  2: { start: "top bottom", end: "top 72%" },
+} as const;
+
 /* O gradiente é a seção inteira: nasce no #0A0C11 do Features e morre no
    #FAF9F5 (neutro-50) do Pricing — os dois tons são lidos das pontas reais,
    então a costura some. No miolo ele floresce pelo roxo da marca em vez de
@@ -82,8 +92,8 @@ export default function Manifesto() {
           ease: "none",
           scrollTrigger: {
             trigger: svg,
-            start: "top 88%",
-            end: "center 52%",
+            start: BLUR_RANGE[n].start,
+            end: BLUR_RANGE[n].end,
             scrub: true,
           },
         });
