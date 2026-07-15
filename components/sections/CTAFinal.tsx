@@ -20,6 +20,12 @@ gsap.registerPlugin(ScrollTrigger);
      · MASK   0    → 0.24 — o telhado abre enquanto o palco ainda desliza pra
        dentro da viewport, e ABRE ATÉ PREENCHER a section (vira retângulo
        full-bleed, sem creme). O vídeo só começa depois que ela encheu tudo.
+     · FRASE  0.10 → 0.34 — "Enquanto você atendia, a Gaia anotou." Nasce
+       DENTRO do gesto do arco (não numa cena parada) e morre cavalgando o
+       início do scrub do vídeo (0.30): quem dispensa a frase é a câmera se
+       mexendo, não um fade avulso. Só existe na primeira cena — câmera
+       fechada na tela do tablet, antes do pull-back — por isso não sobrevive
+       além de 0.34.
      · VÍDEO  0.30 → 0.62 — o scroll é a agulha da timeline: pull-back saindo
        da tela do tablet até a cena inteira. Só começa com o palco parado.
      · ROBERTA 0.62 → 0.67 — o recorte alpha (mesmo pixel do frame final) faz
@@ -196,6 +202,10 @@ export default function CTAFinal() {
   const arch = useRef<SVGPathElement>(null); // o `d` é reescrito a cada frame
   const video = useRef<HTMLVideoElement>(null); // agulha do scrub (currentTime)
   const clipRoberta = useRef<HTMLDivElement>(null); // camada do recorte alpha
+  // A FRASE da primeira cena — câmera ainda fechada na tela do tablet, antes
+  // do pull-back. Vive e morre dentro do gesto do arco (ver timeline); depois
+  // disso quem fala é a câmera se afastando, não mais texto sobre a tela.
+  const firstLine = useRef<HTMLDivElement>(null);
   // O BLOCO interno (headline + botão), não a camada full-screen: é o bloco que
   // viaja de cima do corpo dela até a faixa do topo. Animar a camada moveria a
   // caixa de layout inteira e o `y` não teria significado nenhum.
@@ -280,6 +290,28 @@ export default function CTAFinal() {
           onUpdate: () => writeArch(mask.p),
         },
         0,
+      );
+
+      // ── FRASE 0.10 → 0.34 ────────────────────────────────────────────────
+      // "Enquanto você atendia, a Gaia anotou." — a única linha da primeira
+      // cena, câmera ainda fechada na tela do tablet. Entra em 0.10→0.20:
+      // DENTRO do gesto do arco (que roda 0→0.24), não numa cena parada — ela
+      // nasce junto com a abertura do telhado. Segura 0.20→0.28. Sai em
+      // 0.28→0.34, cavalgando o começo do scrub do vídeo (0.30): quem
+      // dispensa a frase é a CÂMERA se mexendo, não um fade avulso — o `y:-24`
+      // sobe contra o recuo. `fromTo` com immediateRender pelo mesmo motivo do
+      // ctaBlock e dos cards: precisa nascer invisível desde o mount, senão
+      // fica de fantasma sobre a tela do tablet.
+      tl.fromTo(
+        firstLine.current,
+        { autoAlpha: 0, y: 0 },
+        { autoAlpha: 1, duration: 0.1, ease: "power2.out" },
+        0.1,
+      );
+      tl.to(
+        firstLine.current,
+        { autoAlpha: 0, y: -24, duration: 0.06, ease: "power2.in" },
+        0.28,
       );
 
       // ── CTA 0.64 → 0.88 ───────────────────────────────────────────────────
@@ -448,6 +480,24 @@ export default function CTAFinal() {
             {/* DENTRO do clip de propósito: fora dele os scrims pintariam o creme
               ao redor do arco. */}
             <Wash />
+
+            {/* FRASE da primeira cena — câmera fechada na tela do tablet, antes
+              do pull-back. Vive DENTRO do clip de propósito: assim o arco já
+              a corta de graça (nunca sangra no creme enquanto o telhado abre)
+              e o z-0 já a mantém abaixo do CTA (z-20) e da Roberta (z-30). Só
+              existe com motion: em reduced-motion não há primeira cena — o
+              still já é o destino da câmera, e a frase boiaria em cima do
+              CTA. Sem `aria-hidden`: é copy de verdade, fica na a11y tree. */}
+            {motion === true ? (
+              <div
+                ref={firstLine}
+                className="pointer-events-none absolute inset-0 grid place-items-center px-[6vw] opacity-0"
+              >
+                <p className="max-w-[20ch] text-balance text-center font-title text-[clamp(1.75rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
+                  Enquanto você atendia, a Gaia anotou.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* z-20 · CTA — entre o vídeo (z-0) e a Roberta (z-30): é ESSA ordem que

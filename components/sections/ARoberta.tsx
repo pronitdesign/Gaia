@@ -829,9 +829,9 @@ export default function ARoberta() {
                 885×516). Rectangle 1 = 68,230 / 214×122 → %; Rectangle 2 = 218,294 /
                 231×188 → %. Mapeados como fração do full-bleed (100vw × 100vh). */}
             {/* card 1 — Credencial (Rectangle 1). min-h pra nunca cortar o conteúdo. */}
-            <CredentialCard className="absolute left-[7.7%] top-[42%] z-[29] min-h-[30%] w-[24.2%]" />
-            {/* card 2 — Alcance (Rectangle 2, sobrepondo o card 1) */}
-            <ImpactCard className="absolute left-[24.6%] top-[56%] z-[29] min-h-[31%] w-[26.1%]" />
+            <CredentialCard className="absolute left-[5%] top-[42%] z-[29] min-h-[24%] w-[21%]" />
+            {/* card 2 — Alcance (afastado do card 1, com gap entre eles) */}
+            <ImpactCard className="absolute left-[30%] top-[43%] z-[29] min-h-[31%] w-[22%]" />
           </div>
 
           {/* editorial — ancorado na base, sobre o scrim escuro (texto claro) */}
