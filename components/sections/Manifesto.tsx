@@ -4,7 +4,7 @@ import { useRef, type CSSProperties } from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { skyGradientCss, WATER_LINE } from "@/lib/sky";
+import { skyGradientCss } from "@/lib/sky";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -135,20 +135,6 @@ export default function Manifesto() {
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-soft-light"
         style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
-      />
-
-      {/* Âncora da linha d'água: marcador de altura zero que o ScrollPhone lê
-          vivo por frame (mesmo padrão de [data-phone-start]/[data-phone-end]),
-          pra saber onde a água nasce e quanto dela mostrar. Não pinta nada —
-          a água é renderizada no Canvas do ScrollPhone, não aqui, porque
-          reflexão planar exige água e phone na MESMA cena 3D.
-          As duas frases são z-[70] e o canvas é z-[60]: a água passa por baixo
-          do texto de graça. */}
-      <div
-        aria-hidden
-        data-water-start
-        className="pointer-events-none absolute left-0 h-0 w-full"
-        style={{ top: `${WATER_LINE * 100}%` }}
       />
 
       {/* linha 1 — branca, no escuro */}

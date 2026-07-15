@@ -1,9 +1,14 @@
 /*
-Os stops do céu do Manifesto — fonte única, consumida por dois lugares:
+Os stops dos dois céus da travessia.
 
-  1. Manifesto.tsx  → o gradiente CSS de fundo da seção
-  2. Sky3D.tsx      → o skydome dentro do Canvas, que existe só pra reflexão
-                      planar da água ter o que refletir
+  SKY_STOPS  → o Manifesto. Só CSS: quando a água morava lá, ela refletia o topo
+               deste gradiente (#0A0C11, o preto do Features) e lia como piche.
+               A água mudou de seção; este gradiente ficou.
+
+  DIVE_STOPS → o Mergulho. Fonte ÚNICA, consumida por dois lugares:
+                 1. Mergulho.tsx → o gradiente CSS de fundo da seção
+                 2. Sky3D.tsx    → o skydome dentro do Canvas, que existe só pra
+                                   reflexão planar da água ter o que refletir
 
 Reflexão planar só reflete o que está na cena 3D. O céu do Manifesto é CSS, e
 CSS não existe pro WebGL — sem o skydome, a água refletiria os Lightformers de
@@ -46,18 +51,40 @@ export const SKY_STOPS: SkyStop[] = [
   { color: "#FAF9F5", pos: 1.0 },
 ];
 
-/** O gradiente CSS da seção. */
-export const skyGradientCss = (angle = "180deg") =>
+/* O céu do MERGULHO — a seção onde a água de fato vive.
+
+   Nasce no #FAF9F5 exato em que o Manifesto morre e volta pra ele no fim, pra as
+   duas costuras sumirem. Que ele seja CLARO não é escolha estética solta: a água
+   reflete o céu da cena, então este creme é o que torna a água pálida e a faz
+   entrar no submerso do Pricing sem salto de tom. No ângulo rasante quem manda é
+   o reflexo, não a cor da água — foi a lição de quando a água morava no
+   Manifesto e refletia o preto do Features.
+
+   O miolo desce um fio pro lavanda: é a luz mudando conforme se aproxima da
+   superfície. Sem isso a seção lê como um bloco chapado. */
+export const DIVE_STOPS: SkyStop[] = [
+  { color: "#FAF9F5", pos: 0.0 },
+  { color: "#F4F1F7", pos: 0.34 },
+  { color: "#E9E3F1", pos: 0.62 },
+  { color: "#F3F0F6", pos: 0.84 },
+  { color: "#FAF9F5", pos: 1.0 },
+];
+
+const gradientCss = (stops: SkyStop[], angle: string) =>
   `linear-gradient(${angle},` +
-  SKY_STOPS.map((s) => `${s.color} ${+(s.pos * 100).toFixed(2)}%`).join(",") +
+  stops.map((s) => `${s.color} ${+(s.pos * 100).toFixed(2)}%`).join(",") +
   ")";
 
+/** O gradiente CSS do Manifesto. */
+export const skyGradientCss = (angle = "180deg") => gradientCss(SKY_STOPS, angle);
+
+/** O gradiente CSS do Mergulho. Sky3D lê os MESMOS stops. */
+export const diveGradientCss = (angle = "180deg") => gradientCss(DIVE_STOPS, angle);
+
 /**
- * Onde a água nasce, em fração da seção.
+ * Onde a superfície mora, em fração da seção do Mergulho.
  *
- * 0.76 cai logo abaixo da segunda frase ("A Gaia cuida do resto.", que resolve
- * em ~72%) e antes de #FAF9F5 fechar a costura com o Pricing em 95% — ou seja,
- * a água vive na faixa lavanda pálida (#A493C2 → #EFEBEC) e sai de cena antes
- * de tocar a emenda. Mexer aqui sem olhar a costura do Pricing é como quebrá-la.
+ * 0.5 põe a linha d'água no meio do capítulo: metade pra chegar, metade pra
+ * atravessar e sair. O phone cruza aqui — ver [data-phone-water] em Mergulho.tsx.
  */
-export const WATER_LINE = 0.76;
+export const WATER_LINE = 0.5;

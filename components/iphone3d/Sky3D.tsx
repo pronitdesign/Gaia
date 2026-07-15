@@ -46,7 +46,7 @@ igual pros dois passes, e é isso que mantém os dois honestos.
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { SKY_STOPS } from "@/lib/sky";
+import { DIVE_STOPS } from "@/lib/sky";
 
 /** Raio da cúpula. Tem que englobar o plano da água inteiro (SPAN do
  *  WaterScene) com folga, senão a água volta a existir fora do céu. */
@@ -63,7 +63,10 @@ function useSkyTexture() {
     // canvas interpola em sRGB entre stops, igual ao linear-gradient do CSS —
     // é por isso que o céu do reflexo casa com o fundo sem correção de cor.
     const g = ctx.createLinearGradient(0, 0, 0, TEX_H);
-    SKY_STOPS.forEach((s) => g.addColorStop(s.pos, s.color));
+    // DIVE_STOPS, não SKY_STOPS: a água mora no Mergulho, e é o céu DELE que ela
+    // reflete. Com os stops do Manifesto, o reflexo devolvia o #0A0C11 do topo
+    // daquele gradiente — o preto do Features — e a água lia como piche.
+    DIVE_STOPS.forEach((s) => g.addColorStop(s.pos, s.color));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 1, TEX_H);
 

@@ -3,6 +3,7 @@ import ComoComecar from "@/components/sections/ComoComecar";
 import Features from "@/components/sections/Features";
 import ARoberta from "@/components/sections/ARoberta";
 import Manifesto from "@/components/sections/Manifesto";
+import Mergulho from "@/components/sections/Mergulho";
 import Pricing from "@/components/sections/Pricing";
 import CTAFinal from "@/components/sections/CTAFinal";
 
@@ -21,6 +22,9 @@ export default function Home() {
       <Features />
       {/* Manifesto — interstitial cinético que costura o escuro do Features ao claro do Pricing */}
       <Manifesto />
+      {/* Mergulho — o capítulo da água. Seção própria porque texto + travessia +
+          Pricing não cabem em dois tempos de scroll; ver o cabeçalho dela. */}
+      <Mergulho />
       <Pricing />
       {/* CTA Final — fecha a página com o footer embutido sobre a imagem */}
       <CTAFinal />

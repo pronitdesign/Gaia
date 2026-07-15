@@ -5,8 +5,8 @@ ScrollPhone — um único iPhone 3D persistente que viaja com o scroll.
 Nasce reto de frente no card de Prontuário (Features) mostrando a tela do
 prontuário, atravessa o Manifesto girando 360º e, quando vira de costas no
 miolo, TROCA de tela — de modo que ao pousar no slot do Pricing já mostra a
-tela "Início". Um único aparelho, duas telas. No caminho ele cruza a superfície
-de água que nasce ao fim do texto do Manifesto, e reflete nela.
+tela "Início". Um único aparelho, duas telas. Entre o Manifesto e o Pricing ele
+atravessa a seção Mergulho, onde deita na superfície da água e reflete nela.
 
 Técnica: overlay `fixed` full-viewport (pointer-events-none). A cada frame lê o
 rect vivo de dois âncoras no DOM — [data-phone-start] e [data-phone-end] — e
@@ -100,27 +100,29 @@ const easeX = (t: number) => {
 /* giro: smootherstep concentra a rotação no miolo (Manifesto) → de costas no centro */
 const easeSpin = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
-/* ÁGUA E MERGULHO — a janela, em p (o progresso do PHONE).
+/* ÁGUA E MERGULHO — a janela nasce da ÂNCORA, não de constantes.
 
-   Isto já foi dirigido pela âncora [data-water-start] do Manifesto, e estava
-   errado de um jeito que só a medição mostrou: durante o mergulho inteiro o
-   phone estava em cy ≈ 1105–1153, com viewport de 900 — ou seja, 250px ABAIXO
-   da dobra. A água chegava quando ele já tinha saído de quadro. Nenhum ângulo de
-   câmera conserta isso, porque o problema era tempo, não geometria: a
-   trajetória do phone pertence às âncoras Features→Pricing, o mergulho pertencia
-   ao Manifesto, e os dois foram calibrados sem saber um do outro.
+   Duas tentativas anteriores erraram por fixar a janela num número:
 
-   Agora os dois saem de p. Eles se encontram por construção, e continuam se
-   encontrando se alguém retunar X_HOLD, easePos ou a altura das seções — que é
-   justamente o tipo de coisa que muda sem avisar.
+     - dirigida pela âncora do Manifesto: durante o mergulho inteiro o phone
+       estava em cy 1105–1153, com viewport de 900. A água chegava depois dele
+       sair de quadro.
+     - dirigida por um p fixo: o pico caía em p=0.51, com o segundo texto ainda
+       em cena (base 149). Empurrar a janela pra frente fazia o mergulho
+       atropelar o pouso no Pricing.
 
-   A janela é um bump: 0 no Features, cheia no miolo do Manifesto, 0 de volta no
-   Pricing. A câmera volta a nivelar pra o phone pousar certo no slot, e quem
-   carrega o "ainda estamos dentro d'água" dali em diante é o Pricing (ver
-   Underwater.tsx). O canvas é z-[60], por cima da página inteira: a água PRECISA
-   morrer antes do Pricing, senão boia sobre os cards. */
-const DIVE_FROM = 0.3;
-const DIVE_TO = 0.72;
+   O phone está na água quando o percurso dele chega ao ponto de passagem — isto
+   é, quando eP == wp, com wp derivado do rect VIVO de [data-phone-water]. Então
+   é wp que dita o pico. Assim a janela se realinha sozinha se alguém mudar a
+   altura do Mergulho, do Manifesto, das seções acima, ou retunar easePos/X_HOLD.
+   Nada disso precisa saber que a água existe.
+
+   DIVE_SPAN — quanto de eP o mergulho ocupa de cada lado de wp. O bump morre nas
+   duas pontas, então a câmera nivela e o phone pousa certo no slot. Quem carrega
+   o "ainda estamos dentro d'água" dali em diante é o Pricing (Underwater.tsx). O
+   canvas é z-[60], sobre a página inteira: a água PRECISA morrer antes do
+   Pricing, senão boia sobre os cards. */
+const DIVE_SPAN = 0.3;
 
 /* Onde o phone deita.
    No fundo do mergulho ele fica NA HORIZONTAL e entra pela metade — deitado na
@@ -170,8 +172,8 @@ export default function ScrollPhone() {
   // os passes de reflexão+refração nas seções que não têm água.
   const [waterOn, setWaterOn] = useState(false);
   const water = useRef<WaterState>({ amount: 0 });
-  // 0→1 do mergulho. Escrito por placeWater(), lido por place() — o phone deita
-  // no mesmo compasso em que a câmera afunda.
+  // 0→1 do mergulho. Escrito por setDive() e lido por placeWorld() no MESMO
+  // frame — o phone deita no mesmo compasso em que a câmera afunda.
   const dive = useRef(0);
 
   useEffect(() => {
@@ -255,7 +257,60 @@ export default function ScrollPhone() {
       const eP = easePos(p);
       const eS = easeSpin(p);
       const cx = lerp(a.left + a.width / 2, b.left + b.width / 2, easeX(p));
-      const cy = lerp(a.top + a.height / 2, b.top + b.height / 2, eP);
+
+      /* CY PASSA PELO MERGULHO.
+
+         Antes o cy era um lerp direto do card do Features até o slot do Pricing.
+         Como as duas âncoras ficam a ~2 viewports uma da outra, o MEIO desse
+         lerp cai fora da tela: medido, o phone chegava a cy 1150 com viewport de
+         900 e desaparecia justamente no trecho onde a água acontece. Isso é
+         anterior a esta feature — sempre foi assim, só não incomodava enquanto
+         não havia nada pra ver ali.
+
+         [data-phone-water] quebra o lerp em dois trechos e ancora o meio na
+         linha d'água. O phone passa por onde a água está, não por baixo da
+         dobra.
+
+         wp sai dos rects VIVOS, não de constante: se alguém mudar a altura do
+         Mergulho, do Manifesto ou das seções acima, o ponto de passagem
+         acompanha sozinho. É o mesmo motivo de tudo aqui ler rect vivo. */
+      const waterEl = document.querySelector<HTMLElement>("[data-phone-water]");
+      const aC = a.top + a.height / 2;
+      const bC = b.top + b.height / 2;
+      let cy: number;
+      if (waterEl) {
+        const w = waterEl.getBoundingClientRect();
+        const wC = w.top + w.height / 2;
+        const span = bC - aC;
+        const wp = span === 0 ? 0.5 : Math.min(0.98, Math.max(0.02, (wC - aC) / span));
+
+        /* A divisão é em p, NÃO em eP — e isto é a diferença entre funcionar e
+           não funcionar, não estilo.
+
+           Com o corte em eP, o phone chega à âncora quando eP == wp; nesse
+           instante ela está em 0.72·H + span·(wp − easePos⁻¹(wp)) na tela. Como
+           easePos é um cubic in-out, esse termo só zera se wp for exatamente
+           0.5 — e wp vem do layout, não é escolha nossa. Medido: dava wp≈0.66, o
+           termo virava ~400px, e a travessia acontecia em cy 1049, abaixo da
+           dobra. De novo.
+
+           Cortando em p, o termo desaparece por álgebra: em p == wp o phone está
+           na âncora e a âncora está em 0.72·H = onde o pouso é medido. Em quadro,
+           qualquer que seja a altura das seções. O easing continua inteiro —
+           aplicado DENTRO de cada perna. */
+        cy =
+          p < wp
+            ? lerp(aC, wC, easePos(p / wp))
+            : lerp(wC, bC, easePos((p - wp) / (1 - wp)));
+
+        /* Mergulho centrado em wp: pico exato no frame em que o phone toca a
+           superfície. É isto que impede água e phone de se desencontrarem quando
+           alguém mexer em qualquer altura da página. */
+        setDive(bump((p - wp + DIVE_SPAN) / (2 * DIVE_SPAN)));
+      } else {
+        cy = lerp(aC, bC, eP);
+        setDive(0);
+      }
       placeWorld(cx, cy, lerp(START_G, END_G, eP));
       if (group.current) {
         // No fundo do mergulho o phone deita na superfície, no MESMO compasso da
@@ -282,13 +337,15 @@ export default function ScrollPhone() {
        afunda rumo à superfície — a água toma o quadro porque nos aproximamos
        dela, não porque ela cresceu.
 
-       Dirigido por p: ver ÁGUA E MERGULHO acima pro porquê. */
-    const placeWater = (p: number) => {
-      const camera = cam.current;
-      const d = bump((p - DIVE_FROM) / (DIVE_TO - DIVE_FROM));
+       Chamado de dentro de place(), ANTES de placeWorld(): move a câmera, e é a
+       matriz dela que placeWorld desprojeta. Invertido, o phone fica um frame
+       atrás da câmera — e um frame de atraso num mergulho com pitch aparece
+       como tremor. */
+    const setDive = (d: number) => {
       dive.current = d;
       water.current.amount = d;
 
+      const camera = cam.current;
       if (camera) {
         camera.rotation.x = DIVE_PITCH * d;
         camera.position.y = -DIVE_DROP * d;
@@ -305,13 +362,10 @@ export default function ScrollPhone() {
     // E sem água: ela é movimento por definição, e o custo dos passes de
     // reflexão não se justifica pra quem pediu pra não se mexer.
     if (reduce) {
-      // placeWater(1) primeiro: em p=1 o bump vale 0, então isso nivela a câmera
-      // e zera a água. Sem ele a câmera fica com a pose do último frame e o
-      // phone pousa desprojetado de uma câmera torta.
-      const park = () => {
-        placeWater(1);
-        place(1);
-      };
+      // place(1) já chama setDive: em p=1 o bump morre em 0, então a câmera
+      // nivela e a água some sozinha — quem pediu pra nada se mexer não paga os
+      // passes de reflexão nem vê o mergulho.
+      const park = () => place(1);
       park();
       window.addEventListener("resize", park);
       window.addEventListener("scroll", park, { passive: true });
@@ -335,11 +389,6 @@ export default function ScrollPhone() {
       const target = window.innerHeight * 0.72;
       const dist = endC - startC; // ~constante (distância entre os âncoras)
       const p = dist === 0 ? 0 : Math.min(1, Math.max(0, (target - startC) / dist));
-      // placeWater ANTES de place: ele move a câmera e escreve dive, e place lê
-      // os dois (desprojeta pela matriz da câmera, e deita o phone por dive).
-      // Invertido, o phone fica um frame atrás da câmera — e um frame de atraso
-      // num mergulho com pitch aparece como tremor.
-      placeWater(p);
       place(p);
     };
 
@@ -357,7 +406,7 @@ export default function ScrollPhone() {
         <PerspectiveCamera makeDefault position={[0, 0, CAM_Z]} fov={CAM_FOV} />
         <CameraBridge camRef={cam} />
         <Lights />
-        {/* Céu e água só existem na janela do Manifesto — ver placeWater(). */}
+        {/* Céu e água só existem na janela do Mergulho — ver setDive(). */}
         {waterOn && (
           <Suspense fallback={null}>
             <Sky3D />
