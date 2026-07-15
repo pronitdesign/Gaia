@@ -4,6 +4,7 @@ import { useRef, type CSSProperties } from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { skyGradientCss, WATER_LINE } from "@/lib/sky";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -36,19 +37,11 @@ const BLUR_RANGE = {
   2: { start: "top bottom", end: "top 72%" },
 } as const;
 
-/* O gradiente é a seção inteira: nasce no #0A0C11 do Features e morre no
-   #FAF9F5 (neutro-50) do Pricing — os dois tons são lidos das pontas reais,
-   então a costura some. No miolo ele floresce pelo roxo da marca em vez de
-   passar por cinza neutro (que lia como sujeira/lavado). Os stops finais
-   repetem #FAF9F5 pra chegar no tom do Pricing ANTES do fim e segurar — sem
-   isso, qualquer arredondamento no último pixel vira uma linha visível. */
-const SKY =
-  "linear-gradient(180deg," +
-  "#0A0C11 0%,#0A0C11 12%," +
-  "#150F22 24%,#241A38 36%,#372953 46%," +
-  "#5F4590 56%,#6E52A0 64%,#A493C2 72%," +
-  "#D5CCE0 81%,#EFEBEC 89%," +
-  "#FAF9F5 95%,#FAF9F5 100%)";
+/* O gradiente é a seção inteira. Os stops moram em lib/sky.ts porque o skydome
+   do ScrollPhone (que existe só pra água ter o que refletir) precisa dos MESMOS
+   valores — se as duas listas divergirem, o reflexo mostra um céu diferente do
+   céu. Ver o cabeçalho de lib/sky.ts pro raciocínio inteiro. */
+const SKY = skyGradientCss();
 
 /* mesmo grão do Features/Pricing — aqui ele tem função, não só textura: um
    gradiente de 130vh com poucos stops faz banding em tela boa, e o ruído
@@ -142,6 +135,20 @@ export default function Manifesto() {
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-soft-light"
         style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
+      />
+
+      {/* Âncora da linha d'água: marcador de altura zero que o ScrollPhone lê
+          vivo por frame (mesmo padrão de [data-phone-start]/[data-phone-end]),
+          pra saber onde a água nasce e quanto dela mostrar. Não pinta nada —
+          a água é renderizada no Canvas do ScrollPhone, não aqui, porque
+          reflexão planar exige água e phone na MESMA cena 3D.
+          As duas frases são z-[70] e o canvas é z-[60]: a água passa por baixo
+          do texto de graça. */}
+      <div
+        aria-hidden
+        data-water-start
+        className="pointer-events-none absolute left-0 h-0 w-full"
+        style={{ top: `${WATER_LINE * 100}%` }}
       />
 
       {/* linha 1 — branca, no escuro */}
