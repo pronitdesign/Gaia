@@ -25,42 +25,171 @@ gsap.registerPlugin(ScrollTrigger);
 
 // Cards ficam PARADOS — sem lift/parallax no hover. A vida vem de dentro,
 // de micro-interações autônomas que rodam sozinhas (ver mocks abaixo).
+/* Grão fino (film grain) — a MESMA receita que o Manifesto e o Pricing já
+   usam. Terceira cópia da string porque é assim que o projeto já a carrega;
+   se um dia virar quatro, vale extrair pra lib/ (não fiz agora pra não tocar
+   no Pricing, que está sendo editado em paralelo).
+
+   A razão honesta é CONSISTÊNCIA, não milagre: as outras duas seções escuras
+   do site têm grão e esta era a única sem, então ela lia como de outro material
+   quando se rola de uma pra outra.
+
+   Não espere mais que isso dele aqui. Medi ligado contra desligado nesta seção:
+   ruído local 2,16 → 2,33, níveis distintos de cor 235 → 236. Quase nada — e a
+   razão é a mesma física que limita o overlay: `soft-light` a 0,045 sobre um
+   fundo de luminância ~12 praticamente não move o pixel. Em tela clara a mesma
+   receita renderia muito mais.
+   Se um dia o banding aparecer de verdade num gradiente desta seção, o
+   caminho não é subir a opacity (a 0,08+ o grão vira sujeira visível) — é
+   trocar soft-light por overlay NESTA peça. */
+const NOISE =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+
 /* ── Elevação ──────────────────────────────────────────────────────────────
    Em tema escuro a sombra sozinha não levanta nada: o fundo da seção é #0A0C11
    e sombra preta sobre quase-preto não tem contraste pra existir. Quem faz o
-   card virar objeto é o RIM LIGHT — a linha de 1px na quina de cima, que lê
-   como a luz da cena batendo na aresta. A sombra entra como peso, e no mobile
-   como separação entre cards empilhados.
+   card virar objeto é a ARESTA DE LUZ (ver EdgeLight). A sombra entra como
+   peso, e no mobile como separação entre cards empilhados.
 
-   Duas sombras e não uma, porque elas fazem trabalhos diferentes: a larga
-   (90px, quase toda espalhada) é a sombra ambiente, e a curta (30px) é a de
-   contato, que ancora o card no fundo. Só a larga = o card flutua sem chão;
-   só a curta = lê como adesivo colado. */
-const LIFT =
-  "shadow-[0_40px_90px_-32px_rgba(0,0,0,0.95),0_14px_30px_-14px_rgba(0,0,0,0.75),inset_0_1px_0_0_rgba(255,255,255,0.13)]";
+   Duas sombras e não uma, porque fazem trabalhos diferentes: a larga (90px,
+   quase toda espalhada) é a sombra ambiente, e a curta (30px) é a de contato,
+   que ancora o card no fundo. Só a larga = o card flutua sem chão; só a curta
+   = lê como adesivo colado.
+
+   NÃO existe halo de cor atrás do card, e isso é decisão medida, não omissão.
+   Houve uma versão com um: uma terceira sombra colorida por card (roxo no
+   Antropometria, verde no Plano, âmbar no Exames...) vazando pro fundo da
+   seção. Lia como amadora, e o número explica por quê — medido no bento do
+   Zouti, que é a régua:
+
+     fundo colado na borda do card vs. fundo na margem  →  +0,0 de 255
+     vão entre os cards                                 →  rgb(0,4,10), o mesmo
+                                                           preto da margem
+
+   Zero. O card profissional pousa em preto chapado. A nossa versão com halo
+   dava +29,5, e o vão entre os cards chegava a 57 de luminância contra 11,9 da
+   margem: os vãos acendiam, e seis halos de cores diferentes viravam arco-íris.
+   Luz de marca atrás do card é o atalho que denuncia o atalho.
+   Onde a luz mora é DENTRO do card — Glow, Hotspot, EdgeLight. */
+
+/* ── Grão ──────────────────────────────────────────────────────────────────
+   A superfície de TODO card do bento. Substituiu a malha de pontos que vivia
+   só nos dois sem foto — ponto é padrão geométrico, e padrão geométrico
+   denuncia o CSS por mais que se mascare. Grão é material.
+
+   DUAS ESCALAS, e é isso que faz a peça ler como premium em vez de chuvisco:
+
+     GROSSO (baseFrequency 0.012, tile de 700px) — manchas largas e moles. É o
+       que dá ao card ÁREAS mais escuras e outras mais claras, ou seja, um
+       material que não é uniforme. Sozinho, o card já para de ser tinta.
+     FINO (baseFrequency 0.85, tile de 140px) — o film grain da casa, a mesma
+       receita do Manifesto e do Pricing. É o que quebra o banding do gradiente
+       e dá a textura de perto.
+
+   Uma escala só não resolve: o fino sozinho é sujeira uniforme (a mesma
+   densidade em todo lugar), e o grosso sozinho é mancha sem material. Juntas
+   viram superfície.
+
+   A MÁSCARA É O INVERSO DA QUE ESTAVA AQUI, e a correção é o ponto da peça: a
+   malha de pontos sumia perto da lâmpada, com a lógica de que "a luz estoura o
+   relevo". Isso vale pra relevo alto sob luz forte — não pra grão. Grão é o
+   material sendo revelado: no escuro não se vê textura nenhuma, é só preto. A
+   luz é o que a torna visível. Então aqui o padrão é FORTE onde a lâmpada bate
+   e desmaia (sem sumir — o piso é 0,15) na penumbra.
+
+   `overlay` faz metade do trabalho sozinho, e é por isso que ele: overlay
+   escurece o pixel escuro do ruído e clareia o claro, ou seja, ele É "áreas
+   darkers e outras mais claras" por definição. E como overlay rende
+   proporcionalmente à luminância do fundo, o grão já aparece mais onde o card
+   está aceso — a máscara só reforça o que a física já faz.
+
+   `at` é a mesma posição de lâmpada do Hotspot e do EdgeLight do card. Os três
+   têm que concordar, senão a textura aparece do lado errado. */
+const noise = (freq: number, oct: number, tile: number) =>
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${tile}' height='${tile}'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${freq}' numOctaves='${oct}' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+
+const GRAIN_COARSE = noise(0.012, 3, 700);
+const GRAIN_FINE = noise(0.85, 2, 140);
+
+function Grain({ at }: { at: string }) {
+  const fade = `radial-gradient(78% 78% at ${at}, #000 0%, rgba(0,0,0,0.5) 52%, rgba(0,0,0,0.15) 100%)`;
+  const base = "pointer-events-none absolute inset-0 z-10 mix-blend-overlay";
+  return (
+    <>
+      {/* grosso primeiro: é o material. O fino pinta por cima dele. */}
+      <div
+        aria-hidden
+        className={base}
+        style={{ backgroundImage: GRAIN_COARSE, backgroundSize: "700px", opacity: 0.5, maskImage: fade, WebkitMaskImage: fade }}
+      />
+      <div
+        aria-hidden
+        className={base}
+        style={{ backgroundImage: GRAIN_FINE, backgroundSize: "140px", opacity: 0.16, maskImage: fade, WebkitMaskImage: fade }}
+      />
+    </>
+  );
+}
 
 /* Preenchimento em gradiente, não chapa: #1B2130 no topo caindo pra #13171F na
    base é a mesma tinta de antes (a média bate no #171C26 que já estava aqui),
    só que agora ACESA POR CIMA. Chapa lisa não tem direção de luz, e é o que
-   fazia o card ler como retângulo recortado em vez de superfície. */
+   fazia o card ler como retângulo recortado em vez de superfície.
+   Sem `border`: quem desenha a silhueta é o EdgeLight, uma borda de 1px que É
+   a luz. A sombra volta pra classe agora que não há mais halo inline pra
+   sobrescrevê-la. */
+const LIFT =
+  "shadow-[0_40px_90px_-32px_rgba(0,0,0,0.95),0_14px_30px_-14px_rgba(0,0,0,0.75)]";
+
 const CARD =
-  "group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.11] " +
+  "group relative isolate flex flex-col overflow-hidden rounded-[22px] " +
   "bg-gradient-to-b from-[#1B2130] to-[#13171F] " +
   LIFT;
 
-const CARD_HERO =
-  "group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.09] " + LIFT;
+const CARD_HERO = "group relative isolate flex flex-col overflow-hidden rounded-[22px] " + LIFT;
 
-/* Rim light dos heróis — CAMADA, e não o `inset` que o LIFT já carrega.
-   Motivo medido, não teórico: `inset` box-shadow pinta na camada de fundo do
-   próprio card, e a textura é uma <img absolute inset-0> — filho posicionado
-   pinta DEPOIS do fundo do pai. A foto começa a 1px do topo do card, ou seja,
-   exatamente em cima da linha de luz, e a engolia inteira. O card escuro não
-   tem img, então lá o inset do LIFT funciona e esta peça não é usada.
-   Vai DEPOIS do véu (senão o escurecimento apaga a luz junto com a textura) e
-   antes do conteúdo, que é `relative` e portanto pinta acima de qualquer jeito. */
-const RIM =
-  "pointer-events-none absolute inset-0 rounded-[21px] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16)]";
+/* ── Aresta de luz ─────────────────────────────────────────────────────────
+   A borda de 1px do card, mas com BRILHO VARIÁVEL: ela acende onde a lâmpada
+   do card está e apaga girando em volta. Substitui duas peças que se
+   contradiziam — a `border` de tinta uniforme (que é moldura desenhada, não
+   luz) e a linha de rim light fixa no TOPO. Esta última era o erro grosso: eu
+   pus a lâmpada de todo card na BASE (ver Hotspot) e a aresta continuava
+   dizendo que a luz vinha de cima. Aresta que não concorda com a fonte não lê
+   como luz, lê como contorno — e é isso que fazia o card parecer recortado por
+   mais glow que se pusesse atrás.
+
+   Como funciona: o elemento é um retângulo do tamanho exato do card com 1px de
+   `padding`. O fundo dele é um radial-gradient centrado NA LÂMPADA. Aí duas
+   máscaras se cancelam — uma cobre a caixa toda, a outra cobre só o miolo
+   (content-box), e o `exclude` deixa passar apenas a diferença: a moldura de
+   1px. O resultado é um anel que herda o gradiente, ou seja, aresta clara perto
+   da fonte e quase invisível do lado oposto. É borda de verdade, não sombra:
+   acompanha o raio sozinha e não invade o conteúdo.
+
+   Precisa de `-webkit-` E do padrão: `mask-composite` usa vocabulário diferente
+   nos dois (`xor` no WebKit, `exclude` no spec). Sem o par, Safari desenha o
+   retângulo cheio no lugar da moldura.
+
+   Vai DEPOIS do véu nos heróis — antes dele o escurecimento apagaria a aresta
+   junto com a textura — e antes do conteúdo, que é `relative` e pinta acima de
+   qualquer jeito. */
+function EdgeLight({ at, className = "" }: { at: string; className?: string }) {
+  const stops = "rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.22) 42%, rgba(255,255,255,0.07) 100%";
+  return (
+    <div
+      aria-hidden
+      className={"pointer-events-none absolute inset-0 rounded-[22px] " + className}
+      style={{
+        padding: "1px",
+        background: `radial-gradient(70% 70% at ${at}, ${stops})`,
+        WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+        WebkitMaskComposite: "xor",
+        mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+        maskComposite: "exclude",
+      }}
+    />
+  );
+}
 
 /* ── Vidro (receita do Como Começa) ─────────────────────────────────────── */
 const GLASS_BLUR = "backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
@@ -151,30 +280,119 @@ function Avatar({ person, className = "" }: { person: Person; className?: string
   );
 }
 
-/* Luz de cor atrás do vidro. Não é enfeite solto: os painéis do card são
-   backdrop-blur + saturate, e blur não tem o que borrar se atrás dele só existe
-   chapa lisa. O glow é O QUE O VIDRO REFRATA — tira ele e o painel vira
-   retângulo cinza, por mais blur que tenha. Por isso ele mora SEMPRE atrás do
-   painel (antes dele no fluxo), nunca por cima.
+/* Realce difuso — uma mancha branca borrada que SATURA o que está embaixo dela.
 
-   `blur` é prop porque o raio tem que acompanhar o tamanho da mancha: 70px numa
-   mancha de 320px lê como sujeira, não como luz. A régua é ~1/4 da largura.
-   Sem `-z`: o glow é irmão anterior do conteúdo, que é `relative` — a ordem do
-   fluxo já resolve, e z-index negativo aqui escaparia atrás do próprio card. */
-function Glow({
-  className = "",
-  color = "rgba(138,105,216,0.28)",
-  blur = 70,
-}: {
-  className?: string;
-  color?: string;
-  blur?: number;
-}) {
+   Mora na camada MAIS ALTA do card (z-10, acima do conteúdo), e é isso que faz
+   a peça existir. Ela já morou atrás do painel, com outro papel ("o que o vidro
+   refrata"), e ali não fazia nada: overlay mistura com o que já foi pintado
+   ABAIXO dele, e abaixo só havia o gradiente chapado do card. Por cima, o que
+   ele encontra é a foto, o vidro e o dado — que é onde há cor pra saturar.
+   O `isolate` no card existe por causa deste z-10: sem contexto de empilhamento
+   próprio, o z escaparia e a mancha pintaria sobre os cards vizinhos.
+
+   Quem satura é o `backdrop-filter`, NÃO o blend. Isto é medido, e derruba a
+   intuição mais natural do mundo: uma mancha branca em `mix-blend-overlay` por
+   cima do card não satura NADA. Medi ligado contra desligado, com os ciclos
+   congelados — saturação média 0,2640 → 0,2639, ou seja +0,0%; só a luminância
+   subia (30 → 34). E não é questão de calibrar alpha: sobre fundo escuro o
+   overlay faz `2 × fundo`, que multiplica os três canais IGUALMENTE. A razão
+   entre R, G e B não muda, logo a saturação não PODE mudar. Branco em overlay
+   é matematicamente incapaz de saturar.
+
+   `backdrop-filter: saturate()` faz o que o blend não faz: ele reprocessa o que
+   já está pintado atrás, empurrando a cor pra fora do cinza. O âmbar do Exames
+   fica mais âmbar, o verde do pepino mais verde — e sem adicionar tinta
+   nenhuma, que é o requisito. Um pingo de `brightness` junto porque saturação
+   pura escurece a percepção do miolo.
+
+   Por isso a peça mora na camada MAIS ALTA do card (z-10, acima do conteúdo):
+   backdrop-filter só reprocessa o que foi pintado ABAIXO dele. Ela já morou
+   atrás do painel, com outro papel ("o que o vidro refrata"), e ali só
+   encontrava o gradiente chapado do card — nada pra saturar. O `isolate` no
+   card existe por causa deste z-10: sem contexto de empilhamento próprio, o z
+   escaparia e a mancha agiria sobre os cards vizinhos.
+
+   SEM `blur` no filtro, e isto é uma cicatriz: a primeira versão desta peça
+   levava `blur()` junto do saturate, herdado de quando ela vivia ATRÁS do
+   painel. Estando por cima, o backdrop dela é o CONTEÚDO — e o "72,8 kg", as
+   linhas do Questionários e os nomes da Agenda saíram borrados na tela. Peça
+   que mora em cima só pode reprocessar COR (saturate, brightness); qualquer
+   coisa que mexa em nitidez ali destrói o texto. Os números não pegaram isso,
+   o screenshot pegou.
+
+   A forma vem de MÁSCARA. backdrop-filter age na caixa inteira e não tem borda
+   macia própria — sairia um retângulo saturado com quina viva. A máscara radial
+   desliga o efeito gradualmente, e é ela que faz a peça ser mancha em vez de
+   recorte.
+
+   Sem prop de cor, de propósito: houve uma versão colorida (roxo no
+   Antropometria, roxo + sage na Agenda) e ela saiu — tinta pintaria os seis
+   cards da mesma cor de marca e cada foto perderia a própria. Aqui não há cor
+   pra passar: a peça só intensifica a que o card já tem. */
+function Glow({ className = "" }: { className?: string }) {
+  const fade = "radial-gradient(closest-side, #000 0%, rgba(0,0,0,0.75) 45%, transparent 100%)";
+  const f = "saturate(1.55) brightness(1.06)";
   return (
     <div
       aria-hidden
-      className={"pointer-events-none absolute rounded-full " + className}
-      style={{ background: color, filter: `blur(${blur}px)` }}
+      className={"pointer-events-none absolute z-10 rounded-full " + className}
+      style={{
+        backdropFilter: f,
+        WebkitBackdropFilter: f,
+        maskImage: fade,
+        WebkitMaskImage: fade,
+      }}
+    />
+  );
+}
+
+/* Ponto quente — a FONTE de luz do card. Não é um Glow mais forte: o Glow é a
+   mancha ambiente COLORIDA que enche o card de cor pro vidro ter o que refratar,
+   e por isso é larga, chapada e fraca. Este é uma lâmpada, e lâmpada faz o
+   contrário de tingir — ela acende o que já está ali.
+
+   BRANCO, não roxo, e essa é a decisão inteira desta peça. Luz roxa PINTA de
+   roxo: o pepino do Plano ficava roxo, o âmbar do Exames virava magenta, e os
+   seis cards viravam a mesma cena lavada da cor da marca. Luz branca só soma
+   luminância — o pepino fica um pepino mais aceso, o âmbar um âmbar mais aceso,
+   o vidro escuro um vidro mais aceso. A luz ACOMPANHA o design de cada card em
+   vez de impor um por cima. Quem carrega a cor da marca aqui já são os Glows;
+   a lâmpada não precisa repetir o recado.
+
+   `plus-lighter` e não `screen`: os dois somam luz, mas screen é assintótico
+   (nunca chega ao branco, comprime tudo perto do topo) e plus-lighter é soma
+   reta — backdrop + fonte×alpha. É a matemática de dois feixes de luz caindo no
+   mesmo ponto, então o núcleo estoura de verdade e a queda é linear, que é como
+   o olho espera que luz se comporte. Em compensação ele CLIPA: por isso os
+   alphas abaixo são baixos (0,28 no miolo, não 0,55). Com valor de cor puro o
+   card viraria um borrão branco.
+
+   `ellipse closest-side` não é detalhe — é o que separa ponto de mancha, e
+   custou uma rodada de screenshot pra achar. O padrão do CSS é `farthest-corner`:
+   o raio vira a DIAGONAL da caixa, então numa caixa de 288px a luz tinha raio 204
+   e vazava ~310px de diâmetro — maior que a própria caixa que eu escrevi, e sem
+   núcleo, porque as paradas de cor ficavam esticadas. Lia como nuvem, não como
+   lâmpada. Com `closest-side` o raio é a meia-largura/meia-altura: a caixa É a
+   luz, o que eu escrevo é o que aparece, e as paradas se concentram — núcleo
+   apertado, queda longa. `ellipse` (e não `circle`) porque aí caixa não-quadrada
+   vira elipse de graça: é o que o Prontuário precisa pra a luz escapar dos dois
+   lados do phone.
+
+   Uma por card. O que varia é ONDE ela nasce — nunca a cor, que é sempre a
+   mesma luz branca. Vira gramática (a mesma coisa acontecendo em seis lugares)
+   em vez de seis enfeites diferentes.
+   Como o Glow, mora SEMPRE atrás do conteúdo e, nos heróis, depois do véu. */
+function Hotspot({ className = "", rgb = "255,255,255" }: { className?: string; rgb?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={"pointer-events-none absolute mix-blend-plus-lighter " + className}
+      style={{
+        background: `radial-gradient(ellipse closest-side, rgba(${rgb},0.4) 0%, rgba(${rgb},0.22) 26%, rgba(${rgb},0.07) 52%, transparent 76%)`,
+        // Blur pequeno de propósito: o gradiente já É a queda. Isto aqui só
+        // mata o banding das faixas em tela escura, sem derreter o núcleo.
+        filter: "blur(24px)",
+      }}
     />
   );
 }
@@ -195,17 +413,6 @@ const PLANO_MEALS = [
   { img: "/plano-cafe.webp", t: "07:30", n: "Café da manhã", food: "Ovos mexidos com aveia em flocos, mamão papaia e café sem açúcar", short: "Ovos mexidos, aveia e mamão", kcal: 410, prot: 24, c: "#A385C0" },
   { img: "/plano-almoco.webp", t: "12:30", n: "Almoço", food: "Frango grelhado, arroz integral e salada de folhas com azeite", short: "Frango grelhado, arroz e salada", kcal: 620, prot: 46, c: "#95A9C4" },
   { img: "/plano-jantar.webp", t: "20:00", n: "Jantar", food: "Salmão assado com legumes no vapor e purê de abóbora", short: "Salmão assado e legumes", kcal: 480, prot: 42, c: "#8B9E6F" },
-];
-
-/* Sugestões da Gaia — uma por refeição, no MESMO índice do baralho. O card
-   satélite e o prato da frente trocam no mesmo beat, então a sugestão é
-   sempre sobre o prato que está sendo mostrado (whey → aveia do café, arroz
-   → almoço, refri → jantar). Um ciclo só no card inteiro: dois ritmos
-   independentes competindo pelo olho fazem o card parecer inquieto. */
-const PLANO_SUGESTOES = [
-  { t: "Incluir 20 g de whey na aveia", d: "+18 g prot" },
-  { t: "Trocar arroz por batata-doce", d: "−80 kcal" },
-  { t: "Trocar refri por água com gás", d: "−140 kcal" },
 ];
 
 /* Baralho de refeições — a refeição da vez fica na frente; as outras espiam
@@ -368,9 +575,7 @@ function MockPlano() {
     { k: "Carbo", g: 168, pct: 48, c: "bg-azul-400" },
     { k: "Gord", g: 47, pct: 22, c: "bg-sage-400" },
   ];
-  // Um ciclo só (~3,6s) move o baralho E a sugestão — ver PLANO_SUGESTOES.
   const [i, ref, entered] = useAutoCycle(PLANO_MEALS.length, 3600);
-  const s = PLANO_SUGESTOES[i];
 
   // ASSINATURA — dar as cartas. O leque só abre 420ms depois do card entrar:
   // é o tempo do painel de cima assentar (a transição do .gaia-parallax é de
@@ -397,93 +602,61 @@ function MockPlano() {
     // conteúdo e o overflow-hidden do CARD_HERO decepava o "+" (medido: 18px
     // fora da borda em 1440px). Alinha com o pb-7/pb-8 dos outros mocks.
     <div ref={ref} className="relative mt-8 flex-1 px-7 pb-8 md:px-9 md:pb-9">
-      {/* back card — adesão, espiando por trás da quina do painel. z-0 + o
-          painel ser o primeiro nó do fluxo (sem margem no topo) são o par que
-          faz o tuck: este chip precisa de OUTRA peça na frente pra continuar
-          sendo algo que espia em vez de um card órfão. */}
-      <div data-enter-delay={200} style={px(1.35, -7)} className={"gaia-parallax gaia-from-left absolute -left-2 -top-3 z-0 w-[142px] rounded-[13px] p-3 " + GLASS + " " + FLOAT}>
-        <p className="font-body text-[10.5px] text-white/50">Adesão</p>
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-title text-[17px] font-medium tabular-nums text-white">92%</span>
-          <span className="font-body text-[11px] font-medium text-sage-200">7 dias</span>
-        </div>
-      </div>
-
       {/* CENTRO — a ficha da Marina num painel só: quem, as três refeições e
           os macros do dia. É a leitura de dados do plano, densa e parada.
           O baralho NÃO mora aqui: ele é a mesma informação com foto, e as
           duas coisas juntas no meio brigavam. Aqui a lista; embaixo, solto,
           o baralho. */}
-      <div className="relative">
-        <div data-enter-delay={0} style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS + " " + FLOAT}>
-          <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
-            <Avatar person={MARINA} className="h-9 w-9 text-[13px]" />
-            <div className="min-w-0 flex-1">
-              <p className="font-title text-[15px] font-medium text-white">Plano · Marina</p>
-              <p className="font-body text-[11.5px] text-white/50">Seg a sex · 3 refeições</p>
-            </div>
-            <Pill className="shrink-0 tabular-nums text-sage-200">1.510 kcal</Pill>
+      <div data-enter-delay={0} style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS + " " + FLOAT}>
+        <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+          <Avatar person={MARINA} className="h-9 w-9 text-[13px]" />
+          <div className="min-w-0 flex-1">
+            <p className="font-title text-[15px] font-medium text-white">Plano · Marina</p>
+            <p className="font-body text-[11.5px] text-white/50">Seg a sex · 3 refeições</p>
           </div>
+          <Pill className="shrink-0 tabular-nums text-sage-200">1.510 kcal</Pill>
+        </div>
 
-          <div className="divide-y divide-white/[0.08]">
-            {PLANO_MEALS.map((m) => (
-              <div key={m.n} className="flex items-center gap-3 py-2.5">
-                <span className="h-8 w-[3px] shrink-0 rounded-full" style={{ background: m.c }} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-body text-[11px] tabular-nums text-white/40">{m.t}</span>
-                    <span className="font-body text-[12.5px] font-medium text-white/90">{m.n}</span>
-                  </div>
-                  <p className="truncate font-body text-[12px] text-white/50">{m.short}</p>
+        <div className="divide-y divide-white/[0.08]">
+          {PLANO_MEALS.map((m) => (
+            <div key={m.n} className="flex items-center gap-3 py-2.5">
+              <span className="h-8 w-[3px] shrink-0 rounded-full" style={{ background: m.c }} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-body text-[11px] tabular-nums text-white/40">{m.t}</span>
+                  <span className="font-body text-[12.5px] font-medium text-white/90">{m.n}</span>
                 </div>
-                <span className="shrink-0 font-body text-[12px] tabular-nums text-white/70">{m.kcal}</span>
+                <p className="truncate font-body text-[12px] text-white/50">{m.short}</p>
               </div>
+              <span className="shrink-0 font-body text-[12px] tabular-nums text-white/70">{m.kcal}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 rounded-[12px] bg-white/[0.06] p-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="font-body text-[11px] font-medium text-white/70">Macros do dia</span>
+            <span className="font-body text-[11px] tabular-nums text-white/40">327 g</span>
+          </div>
+          <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10">
+            {macros.map((m) => (
+              <span key={m.k} data-bar className={m.c} style={{ width: `${m.pct}%` }} />
             ))}
           </div>
-
-          <div className="mt-3 rounded-[12px] bg-white/[0.06] p-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-            <div className="mb-2 flex items-baseline justify-between">
-              <span className="font-body text-[11px] font-medium text-white/70">Macros do dia</span>
-              <span className="font-body text-[11px] tabular-nums text-white/40">327 g</span>
-            </div>
-            <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10">
-              {macros.map((m) => (
-                <span key={m.k} data-bar className={m.c} style={{ width: `${m.pct}%` }} />
-              ))}
-            </div>
-            <div className="mt-2.5 flex items-center justify-between">
-              {macros.map((m) => (
-                <span key={m.k} className="flex items-center gap-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${m.c}`} />
-                  <span className="font-body text-[11px] text-white/55">{m.k}</span>
-                  <span className="font-body text-[11px] font-medium tabular-nums text-white/85">{m.g}g</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <GaiaTag>somou pela TACO</GaiaTag>
-            <Pill className="text-white/60">importado por PDF</Pill>
+          <div className="mt-2.5 flex items-center justify-between">
+            {macros.map((m) => (
+              <span key={m.k} className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${m.c}`} />
+                <span className="font-body text-[11px] text-white/55">{m.k}</span>
+                <span className="font-body text-[11px] font-medium tabular-nums text-white/85">{m.g}g</span>
+              </span>
+            ))}
           </div>
         </div>
 
-        {/* Sugestão — ancorada NO PAINEL, não no container. Antes ela morava
-            no rodapé do container; com o baralho ocupando esse rodapé agora,
-            ela cairia em cima do "+" e da foto da carta da frente. Presa na
-            quina do painel ela fica na junção painel/baralho, perto do prato
-            de que está falando. */}
-        <div data-enter-delay={780} style={px(1.65, 5)} className={"gaia-parallax gaia-land absolute -bottom-5 -right-3 z-20 w-[186px] rounded-[14px] p-3 " + GLASS + " " + FLOAT}>
-          <GaiaTag>sugestão</GaiaTag>
-          <div key={i} className="gaia-fade">
-            <p className="mt-1.5 font-body text-[12.5px] font-medium text-white/90">{s.t}</p>
-            <div className="mt-2 flex items-center justify-between">
-              <Pill className="text-sage-200">{s.d}</Pill>
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)]">
-                <IconCheck className="h-3.5 w-3.5" />
-              </span>
-            </div>
-          </div>
+        <div className="mt-3 flex items-center justify-between">
+          <GaiaTag>somou pela TACO</GaiaTag>
+          <Pill className="text-white/60">importado por PDF</Pill>
         </div>
       </div>
 
@@ -491,9 +664,8 @@ function MockPlano() {
           lista acima vista de perto, com a foto do prato. Sem rotação no
           conjunto: as cartas sangram foto e "+" pra fora do próprio nó, e
           inclinar tudo faria a quina do "+" cair torta. O diagonal da pilha já
-          dá o desalinho. O mt-10 é a folga que a sugestão precisa — ela desce
-          20px abaixo da quina do painel. */}
-      <div data-enter-delay={120} style={px(0.45)} className="gaia-parallax relative z-[11] mt-10">
+          dá o desalinho. */}
+      <div data-enter-delay={120} style={px(0.45)} className="gaia-parallax relative z-[11] mt-8">
         <MealDeck front={i} dealt={dealt} />
       </div>
     </div>
@@ -521,75 +693,106 @@ function MockQuestionarios() {
   const [i, ref, entered] = useAutoCycle(insights.length, 3400);
   const ins = insights[i];
   return (
-    <div ref={ref} className="relative mt-8 flex-1 px-7 pb-7 md:px-8">
+    // pb grande até <lg e pb-7 normal dali pra cima: abaixo de lg (1024px) o
+    // grid vira 1 coluna e cada hero cresce pela PRÓPRIA altura — nada aqui
+    // estica o Antropometria, então dá pra dar folga de verdade pro Insight
+    // pousar. A partir de lg os dois heroes voltam a dividir a mesma linha
+    // do grid (o Antropometria manda), e aí a folga já vem de graça dessa
+    // divisão — pb extra ali só inflaria a linha inteira, o que é proibido.
+    <div ref={ref} className="relative mt-8 flex-1 px-7 pb-32 md:px-8 lg:pb-7">
       {/* ASSINATURA — a Gaia lê e conclui. Os sete instrumentos entram um a um
           de baixo, cada um com seu check dando tick logo atrás, e SÓ ENTÃO o
           Insight pousa por cima (ver o gaia-land lá embaixo). É a promessa do
           card em ordem: primeiro a leitura, depois a conclusão. Se o Insight
           chegasse junto com a lista, o card diria as duas coisas ao mesmo
           tempo e não diria nenhuma. */}
-      {/* lista de instrumentos — de fundo. Único mock sem gaia-parallax até
-          aqui; recebe a mesma receita de entrada do MockExames/MockAntropometria. */}
-      <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
-        <div className="mb-1 flex items-baseline justify-between">
-          <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
-          <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
-        </div>
-        {/* A entrada mora num WRAPPER e não na própria linha, e isso é
-            obrigatório, não estilo: gaia-meal-rise roda com fill-mode `both`,
-            que gruda o estado final (`opacity: 1`) no nó PRA SEMPRE depois de
-            terminar — e animação vence declaração comum na cascata. Na linha,
-            ela mataria o opacity-40 de quem não é o instrumento da vez e o
-            acender/apagar do ciclo nunca mais aconteceria. Separadas, cada nó
-            tem um dono só: o wrapper monta, a linha acende.
-            O divide-y é do pai e cai no filho direto — que agora é o wrapper,
-            então a régua entra junto com a linha em vez de aparecer antes. */}
-        <div className="divide-y divide-white/[0.06]">
-          {instruments.map((it, idx) => {
-            const on = it.k === ins.k;
-            return (
-              <div key={it.k} className={entered ? "gaia-meal-rise" : "opacity-0"} style={{ animationDelay: `${120 + idx * 60}ms` }}>
-                <div className={"flex items-center gap-2.5 py-2 transition-opacity duration-500 " + (on ? "opacity-100" : "opacity-40")}>
-                  {/* tick 140ms atrás da linha: o quadro chega, o check marca.
-                      Juntos viram um borrão só; o atraso é o que faz ler como
-                      a Gaia pontuando o instrumento que acabou de ler. */}
-                  <span
-                    className={
-                      "grid h-5 w-5 place-items-center rounded-full shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] transition-colors duration-500 " +
-                      (on ? "bg-brand" : "bg-white/12") +
-                      (entered ? " gaia-tick" : " opacity-0")
-                    }
-                    style={{ animationDelay: `${260 + idx * 60}ms` }}
-                  >
-                    <IconCheck className="h-3 w-3 text-white" />
-                  </span>
-                  <span className="font-body text-[12.5px] font-medium text-white/90">{it.k}</span>
-                  <span className="hidden truncate font-body text-[11.5px] text-white/45 sm:block">{it.full}</span>
-                  <span className="ml-auto font-body text-[11px] tabular-nums text-white/55">{it.s}</span>
+      {/* wrapper local — igual ao "CENTRO" do MockPlano: o Insight morde a
+          quina do PAINEL, não a do container. Ancorar nele (não no container)
+          é o que faz a mordida ser sempre a mesma profundidade, não impórta
+          se a lista tem folga sobrando embaixo. */}
+      <div className="relative">
+        {/* lista de instrumentos — de fundo. Único mock sem gaia-parallax até
+            aqui; recebe a mesma receita de entrada do MockExames/MockAntropometria.
+            Recuo à esquerda (ml) abre a pista pro Insight pousar sem decapar
+            linha nenhuma; -mr cancela o padding direito do container e sangra
+            a lista até a borda real do card — mesma receita de sangria do
+            MockPlano (-left-2/-right-3), o overflow-hidden do CARD_HERO é
+            quem faz o corte. Ritmo das linhas mais seco (py-1, era py-2) e
+            pb-10 (era o p-4 padrão de 16px) só trocam ONDE dentro da lista a
+            altura mora — o total é o mesmo de antes (nada aqui pode crescer a
+            linha do grid: o Antropometria ao lado é quem dita essa altura, e
+            ela é fixa). O pb-10 sobra de propósito: é o vidro vazio embaixo
+            da última linha onde o Insight pousa por cima. */}
+        <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax ml-14 -mr-7 rounded-[18px] p-4 pb-10 md:ml-16 md:-mr-8 " + GLASS}>
+          <div className="mb-1 flex items-baseline justify-between">
+            <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
+            <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
+          </div>
+          {/* A entrada mora num WRAPPER e não na própria linha, e isso é
+              obrigatório, não estilo: gaia-meal-rise roda com fill-mode `both`,
+              que gruda o estado final (`opacity: 1`) no nó PRA SEMPRE depois de
+              terminar — e animação vence declaração comum na cascata. Na linha,
+              ela mataria o opacity-40 de quem não é o instrumento da vez e o
+              acender/apagar do ciclo nunca mais aconteceria. Separadas, cada nó
+              tem um dono só: o wrapper monta, a linha acende.
+              O divide-y é do pai e cai no filho direto — que agora é o wrapper,
+              então a régua entra junto com a linha em vez de aparecer antes. */}
+          <div className="divide-y divide-white/[0.06]">
+            {instruments.map((it, idx) => {
+              const on = it.k === ins.k;
+              return (
+                <div key={it.k} className={entered ? "gaia-meal-rise" : "opacity-0"} style={{ animationDelay: `${120 + idx * 60}ms` }}>
+                  <div className={"flex items-center gap-2.5 py-1 transition-opacity duration-500 " + (on ? "opacity-100" : "opacity-40")}>
+                    {/* tick 140ms atrás da linha: o quadro chega, o check marca.
+                        Juntos viram um borrão só; o atraso é o que faz ler como
+                        a Gaia pontuando o instrumento que acabou de ler. */}
+                    <span
+                      className={
+                        "grid h-5 w-5 place-items-center rounded-full shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] transition-colors duration-500 " +
+                        (on ? "bg-brand" : "bg-white/12") +
+                        (entered ? " gaia-tick" : " opacity-0")
+                      }
+                      style={{ animationDelay: `${260 + idx * 60}ms` }}
+                    >
+                      <IconCheck className="h-3 w-3 text-white" />
+                    </span>
+                    <span className="font-body text-[12.5px] font-medium text-white/90">{it.k}</span>
+                    <span className="hidden truncate font-body text-[11.5px] text-white/45 sm:block">{it.full}</span>
+                    <span className="ml-auto font-body text-[11px] tabular-nums text-white/55">{it.s}</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* card de Insight — flutua por cima e troca sozinho. Wrapper externo
-          carrega a entrada (gaia-parallax escreve transform); o miolo carrega
-          a troca de conteúdo (key+gaia-pop também escreve transform) — as duas
-          classes NUNCA no mesmo nó, senão uma pisa na transform da outra. */}
-      <div data-enter-delay={800} style={px(1.5, 4)} className="gaia-parallax gaia-land absolute bottom-5 left-5 z-20 w-[250px] md:left-8">
-        <div key={i} className={"gaia-pop rounded-[16px] p-4 " + GLASS + " " + FLOAT}>
-          <div className="flex items-center justify-between">
-            <GaiaTag>Insight · {ins.k}</GaiaTag>
-            <span className={"grid h-6 w-6 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning" : "bg-brand/20 text-roxo-200")}>
-              <IconArrowUpRight className="h-3.5 w-3.5" />
-            </span>
+        {/* card de Insight — flutua por cima e troca sozinho. Wrapper externo
+            carrega a entrada (gaia-parallax escreve transform); o miolo carrega
+            a troca de conteúdo (key+gaia-pop também escreve transform) — as duas
+            classes NUNCA no mesmo nó, senão uma pisa na transform da outra.
+            Ancorado NO PAINEL (-bottom/-left negativos, mesma receita da
+            Sugestão do MockPlano), não no container: a maior parte do card
+            cai FORA da lista, no vão que já existia embaixo dela, e só a
+            quina de cima morde o pb-10 — vidro vazio, nunca linha. Compactado
+            (p-2.5, número menor, gaps mais secos) porque o orçamento vertical
+            aqui é a folga que já existia, não uma nova — o -bottom-[93px] foi
+            medido no DOM, não chutado: cobre a folga que sobra abaixo da
+            lista sem deixar a mordida encostar na última linha nem o Insight
+            passar do overflow-hidden do card. */}
+        <div data-enter-delay={800} style={px(1.5, 4)} className="gaia-parallax gaia-land absolute -bottom-[93px] -left-3 z-20 w-[222px]">
+          <div key={i} className={"gaia-pop rounded-[14px] p-2.5 " + GLASS + " " + FLOAT}>
+            <div className="flex items-center justify-between">
+              <GaiaTag>Insight · {ins.k}</GaiaTag>
+              <span className={"grid h-4 w-4 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning" : "bg-brand/20 text-roxo-200")}>
+                <IconArrowUpRight className="h-2.5 w-2.5" />
+              </span>
+            </div>
+            <div className="mt-1 flex items-end gap-1.5">
+              <span className={"font-title text-[1.5rem] font-medium leading-none tabular-nums " + (ins.warn ? "text-warning" : "text-white")}>{ins.n}</span>
+              <span className="mb-0.5 font-body text-[10.5px] text-white/45">{ins.of}</span>
+            </div>
+            <p className="mt-1 font-body text-[11.5px] leading-snug text-white/70">{ins.msg}</p>
           </div>
-          <div className="mt-2 flex items-end gap-1.5">
-            <span className={"font-title text-[2.1rem] font-medium leading-none tabular-nums " + (ins.warn ? "text-warning" : "text-white")}>{ins.n}</span>
-            <span className="mb-1 font-body text-[11px] text-white/45">{ins.of}</span>
-          </div>
-          <p className="mt-2 font-body text-[12px] leading-snug text-white/70">{ins.msg}</p>
         </div>
       </div>
     </div>
@@ -1022,28 +1225,68 @@ function MockAgenda() {
 
 /* ═══════════════ PRONTUÁRIO (hero teal, largura total) ═══════════════ */
 /* Peças de vidro individuais — reusadas nos clusters (lg) e no empilhado (mobile). */
+const MACROS: [string, string, string][] = [
+  ["Proteína", "112 g", "62%"],
+  ["Carbo", "140 g", "80%"],
+  ["Gordura", "48 g", "45%"],
+];
+
 function PlanoAtivoCard() {
   return (
     <>
-      <p className="font-body text-[11px] font-medium uppercase tracking-wide text-white/60">Plano ativo</p>
-      <p className="mt-1 font-title text-[16px] font-medium text-white">1.510 kcal/dia</p>
+      <div className="flex items-center justify-between">
+        <p className="font-body text-[11px] font-medium uppercase tracking-wide text-white/60">Plano ativo</p>
+        <span className="rounded-full bg-brand/15 px-2 py-0.5 font-body text-[10px] font-medium text-roxo-100">3ª semana</span>
+      </div>
+      <p className="mt-1.5 font-title text-[16px] font-medium text-white">1.510 kcal/dia</p>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/25">
         <span data-bar className="block h-full w-[68%] origin-left rounded-full bg-brand" />
       </div>
       <p className="mt-1.5 font-body text-[10.5px] text-white/65">adesão 68% nesta semana</p>
+      {/* macros — o detalhe que faltava: a divisão do dia, não só o total */}
+      <div className="mt-3 grid grid-cols-3 gap-2.5 border-t border-white/10 pt-3">
+        {MACROS.map(([nome, valor, pct]) => (
+          <div key={nome}>
+            <p className="font-body text-[9.5px] uppercase tracking-wide text-white/45">{nome}</p>
+            <p className="mt-0.5 font-title text-[13px] font-medium text-white">{valor}</p>
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-black/25">
+              <span data-bar className="block h-full origin-left rounded-full bg-brand/70" style={{ width: pct }} />
+            </div>
+          </div>
+        ))}
+      </div>
     </>
   );
 }
 
+const EXAMES: [string, string, boolean][] = [
+  ["Vitamina D", "18 ng/mL", true],
+  ["Ferritina", "62 ng/mL", false],
+];
+
 function ExamesNovosCard() {
   return (
-    <div className="flex items-center gap-2">
-      <span className="grid h-7 w-7 place-items-center rounded-full bg-warning/15 text-warning"><TrendArrow dir="down" className="h-3.5 w-3.5" /></span>
-      <div>
-        <p className="font-body text-[12.5px] font-medium text-white">2 exames novos</p>
-        <p className="font-body text-[10.5px] text-white/65">1 fora da faixa</p>
+    <>
+      <div className="flex items-center gap-2">
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-warning/15 text-warning"><TrendArrow dir="down" className="h-3.5 w-3.5" /></span>
+        <div>
+          <p className="font-body text-[12.5px] font-medium text-white">2 exames novos</p>
+          <p className="font-body text-[10.5px] text-white/65">1 fora da faixa</p>
+        </div>
       </div>
-    </div>
+      {/* quais exames, e qual valor saiu da faixa — o detalhe que faltava */}
+      <div className="mt-3 flex flex-col gap-1.5 border-t border-white/10 pt-2.5">
+        {EXAMES.map(([nome, valor, fora]) => (
+          <div key={nome} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 font-body text-[11.5px] text-white/80">
+              <span className={"h-1.5 w-1.5 shrink-0 rounded-full " + (fora ? "bg-warning" : "bg-sage-300")} />
+              {nome}
+            </span>
+            <span className={"font-body text-[11.5px] tabular-nums " + (fora ? "text-warning" : "text-white/55")}>{valor}</span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -1086,6 +1329,10 @@ function CalibragemCard() {
           );
         })}
       </div>
+      {/* de onde a Gaia tirou os ajustes — dá lastro à sugestão */}
+      <p className="mt-3 border-t border-white/10 pt-2.5 font-body text-[10px] uppercase tracking-wide text-white/40">
+        a partir de 2 exames · 1 questionário
+      </p>
     </div>
   );
 }
@@ -1098,31 +1345,33 @@ function CalibragemCard() {
    coisa só. Por isso o gesto é convergência e não cascata: cascata contaria
    uma lista, e o assunto aqui é reunião. */
 
-/* Cluster esquerdo — espia atrás da borda esquerda do phone (lg+). */
+/* Cluster esquerdo — UM card de vidro espia atrás da borda esquerda do phone
+   (lg+). Só Plano Ativo: os pills saíram, o palco fica com 3 cards no total.
+   Largura maior (p-4/w-[248px]) pra dar espaço de trabalho aos macros — não é
+   escala, é conteúdo: fonte normal, mais linhas de informação. */
 function ProntuarioLeft() {
   return (
-    <div className="pointer-events-none absolute left-[3%] top-1/2 hidden w-[214px] -translate-y-1/2 flex-col gap-3.5 lg:flex xl:left-[6%]">
-      <span data-enter-delay={60} style={px(1.2, -4)} className={"gaia-parallax gaia-converge-l inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1.5 font-body text-[11.5px] font-medium text-white/85 " + GLASS_FROST + " " + FLOAT}>
-        <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> 5 sugestões da Gaia
-      </span>
-      <div data-enter-delay={0} style={px(1.55, 5)} className={"gaia-parallax gaia-converge-l rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+    <div className="pointer-events-none absolute left-[5%] top-1/2 hidden w-[248px] -translate-y-1/2 flex-col lg:flex xl:left-[7%]">
+      <div data-enter-delay={0} style={px(1.55, 0)} className={"gaia-parallax gaia-converge-l rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <span data-enter-delay={120} style={px(1.35, -6)} className={"gaia-parallax gaia-converge-l inline-flex items-center gap-1.5 self-start rounded-full px-3.5 py-1.5 font-title text-[12.5px] font-semibold text-white " + GLASS_FROST + " " + FLOAT}>
-        <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> Gaia
-      </span>
     </div>
   );
 }
 
-/* Cluster direito — espia atrás da borda direita do phone (lg+). */
+/* Cluster direito — dois cards de vidro espalhados na vertical: Calibragem no
+   topo (largo, com lista + lastro), Exames novos embaixo colado na direita
+   (mais estreito, w-[210px]). justify-between abre o vão que deixa os dois
+   flanqueando a borda direita do phone (lg+). */
 function ProntuarioRight() {
   return (
-    <div className="pointer-events-none absolute right-[3%] top-1/2 hidden w-[240px] -translate-y-1/2 flex-col gap-3.5 lg:flex xl:right-[6%]">
-      <div data-enter-delay={40} style={px(1.5, 4)} className={"gaia-parallax gaia-converge-r rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+    <div className="pointer-events-none absolute right-[4%] top-1/2 hidden h-[92%] w-[256px] -translate-y-1/2 flex-col justify-between lg:flex xl:right-[5%]">
+      {/* par da direita SEM rotação, borda direita flush: Calibragem preenche o
+          container e Exames (mais estreito) cola na mesma borda via self-end. */}
+      <div data-enter-delay={40} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div data-enter-delay={140} style={px(1.7, -5)} className={"gaia-parallax gaia-converge-r self-end rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={140} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r w-[210px] self-end rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -1137,13 +1386,13 @@ function ProntuarioStacked() {
           não há convergência pra encenar — o que sobra da assinatura é a
           chegada pela esquerda, alinhada com a pilha. E dedo não tem hover:
           depth aqui seria peso de will-change sem contrapartida. */}
-      <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left w-[214px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left w-[248px] rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-left w-[240px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-left w-[256px] rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-left w-[200px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-left w-[224px] rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -1238,15 +1487,20 @@ export default function Features() {
         </header>
 
         <div data-grid className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-2">
-          {/* A — Antropometria (dark, vidro único) */}
+          {/* A — Antropometria (escuro, vidro único) */}
           <article data-card className={CARD + " min-h-[440px] lg:col-start-1 lg:row-start-1"}>
-            {/* Duas luzes, e a cor não é aleatória: o roxo é a mesma família do
-                #C1A9D3 que desenha a linha do gráfico, então o vidro refrata a
-                cor do próprio dado que ele mostra. O azul frio na quina oposta
-                é o contraluz — uma cor só no card faz a luz ler como filtro
-                chapado por cima; duas em quinas opostas dão direção. */}
-            <Glow className="left-[-14%] top-[34%] h-80 w-80" color="rgba(138,105,216,0.32)" blur={95} />
-            <Glow className="right-[-16%] top-[-10%] h-64 w-64" color="rgba(122,144,174,0.22)" blur={80} />
+            <Grain at="50% 100%" />
+            {/* Blur BRANCO em overlay — é o que o vidro do painel refrata.
+                Houve aqui uma versão colorida (roxo + azul frio em quinas
+                opostas) e ela saiu: cor no blur pinta o card de marca e todos
+                os seis viravam a mesma cena tingida. Branco só levanta o que já
+                existe. */}
+            <Glow className="left-[-14%] top-[34%] h-80 w-80" />
+            {/* A fonte nasce embaixo do gráfico, no centro: é o rodapé de
+                medidas que ela acende por trás, e a curva do peso cai da
+                esquerda pra cá — a luz mora onde a leitura termina. */}
+            <Hotspot className="bottom-[-110px] left-1/2 h-[300px] w-[380px] -translate-x-1/2" />
+            <EdgeLight at="50% 100%" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
                 <CardTitle>Antropometria</CardTitle>
@@ -1266,8 +1520,10 @@ export default function Features() {
                 card de Insight (que é uma leitura dela) pousa bem aqui em cima,
                 então a luz explica de quem é a voz. Entra DEPOIS do véu: antes
                 dele o escurecimento apagaria a luz junto com a textura. */}
-            <Glow className="bottom-[-4%] left-[-10%] h-80 w-80" color="rgba(138,105,216,0.30)" blur={95} />
-            <span aria-hidden className={RIM} />
+            <Glow className="bottom-[-4%] left-[-10%] h-80 w-80" />
+            <Hotspot className="bottom-[-90px] left-[-70px] h-[300px] w-[340px]" />
+            <Grain at="18% 100%" />
+            <EdgeLight at="18% 100%" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
                 <CardTitle>Questionários</CardTitle>
@@ -1278,11 +1534,20 @@ export default function Features() {
           </article>
 
           {/* C — Plano alimentar (hero óleo, card alto) */}
+          {/* verde do pepino */}
           <article data-card className={CARD_HERO + " lg:col-start-1 lg:row-start-2"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/textures/plano-pepino.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,12,0.6)_0%,rgba(6,12,12,0.38)_46%,rgba(6,12,12,0.54)_100%)]" />
-            <span aria-hidden className={RIM} />
+            {/* A quina esquerda é onde a carta da frente do baralho fica — a
+                pilha se abre PRA FORA da luz, subindo e indo pra direita, e o
+                canto aceso é de onde ela sai. Branca faz aqui o que cor nenhuma
+                faria: acende o pepino como pepino. Luz roxa deixava a textura
+                arroxeada (foi a primeira tentativa, e a foto perdia o assunto);
+                luz verde sobre folha verde simplesmente some. */}
+            <Hotspot className="bottom-[-80px] left-[-80px] h-[320px] w-[360px]" />
+            <Grain at="12% 100%" />
+            <EdgeLight at="12% 100%" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-9 md:pt-9">
                 <CardTitle>Plano alimentar</CardTitle>
@@ -1294,17 +1559,38 @@ export default function Features() {
 
           {/* coluna direita inferior — Exames + Agenda */}
           <div className="flex flex-col gap-4 md:gap-5 lg:col-start-2 lg:row-start-2">
+            {/* âmbar dos bokeh */}
             <article data-card className={CARD_HERO + " min-h-[360px] flex-1"}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/textures/exames-ambar.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,9,6,0.58)_0%,rgba(12,9,6,0.34)_42%,rgba(12,9,6,0.52)_100%)]" />
-              {/* Sem Glow AQUI, e é decisão, não esquecimento: a textura deste
+              {/* Véu ALIVIADO no miolo (0,34 → 0,24) — este é o card claro do
+                  bento, o papel que no bento do Pixel Point é do "1" âmbar.
+                  Medido lá: os cards deles vão de 36,6 a 139,9 de luminância,
+                  amplitude 103, razão 3,8×. Os nossos seis estavam entre 37,7 e
+                  41,0 — amplitude 3,3, razão 1,1×. Seis cards na mesma
+                  escuridão, e nenhuma camada de luz conserta isso, porque o
+                  problema não é a luz: é não haver contraste ENTRE as peças.
+                  Aqui o alívio deixa os bokeh quentes da foto queimarem de
+                  verdade e o card vira o ponto claro da composição.
+                  O topo continua fechado (0,52, quase o original): é onde o
+                  título e o corpo em branco moram, e ali o véu não é estilo — é
+                  o que segura o contraste do texto. Por isso o gradiente abre
+                  no meio e fecha nas duas pontas, em vez de clarear por igual. */}
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,9,6,0.54)_0%,rgba(12,9,6,0.24)_46%,rgba(12,9,6,0.4)_100%)]" />
+              {/* Continua SEM Glow, e a razão é a de sempre: a textura deste
                   card já É uma fonte de luz (os bokeh quentes fora de foco).
                   Somar âmbar sobre âmbar não deu profundidade — deu lavagem: o
                   card virou o ponto mais claro do bento e puxou o olho pra
-                  longe do laudo, que é o assunto. Luz de cor serve pra dar ao
-                  vidro o que refratar; onde a foto já entrega isso, ela sobra. */}
-              <span aria-hidden className={RIM} />
+                  longe do laudo, que é o assunto. Mancha ambiente aqui sobra.
+                  O Hotspot não recai nisso porque não é mais tinta: ele é
+                  branco e pequeno, então não ENGROSSA o âmbar — acende os
+                  bokeh que já estão naquela quina, que é o que uma luz faz com
+                  uma foto. E fica na quina onde os marcadores param quando o
+                  valor está alto: o lado "fora da faixa" da régua, que é o
+                  assunto do card. */}
+              <Hotspot className="bottom-[-80px] right-[-70px] h-[280px] w-[320px]" />
+              <Grain at="85% 100%" />
+              <EdgeLight at="85% 100%" />
               <div className="relative flex h-full flex-col">
                 <div className="px-7 pt-7 md:px-8 md:pt-8">
                   <CardTitle>Exames de sangue</CardTitle>
@@ -1314,12 +1600,16 @@ export default function Features() {
               </div>
             </article>
 
+            {/* roxo = teleconsulta, a cor que a espinha das linhas usa */}
             <article data-card className={CARD + " min-h-[360px] flex-1"}>
               {/* Roxo e sage porque são as duas cores que a própria agenda usa
                   na espinha das linhas (roxo = tele, sage = presencial): a luz
                   do card é a legenda dele, desfocada. */}
-              <Glow className="bottom-[4%] left-[-12%] h-72 w-72" color="rgba(138,105,216,0.28)" blur={88} />
-              <Glow className="right-[-14%] top-[2%] h-56 w-56" color="rgba(139,158,111,0.20)" blur={75} />
+              <Grain at="15% 100%" />
+              <Glow className="bottom-[4%] left-[-12%] h-72 w-72" />
+              <Glow className="right-[-14%] top-[2%] h-56 w-56" />
+              <Hotspot className="bottom-[-80px] left-[-60px] h-[280px] w-[320px]" />
+              <EdgeLight at="15% 100%" />
               <div className="relative flex h-full flex-col">
                 <div className="px-7 pt-7 md:px-8 md:pt-8">
                   <CardTitle>Agenda</CardTitle>
@@ -1333,6 +1623,11 @@ export default function Features() {
 
         {/* Prontuário — hero teal, largura total, phone 3D centralizado */}
         <div className="mt-4 grid grid-cols-1 gap-4 md:mt-5 md:gap-5 lg:grid-cols-6">
+          {/* malva da pétala. Alpha mais baixo (0,38) que os outros de
+              propósito: este card tem 1024px de largura contra ~500 dos
+              vizinhos, então o mesmo alpha renderia o dobro de franja e o
+              Prontuário viraria o ponto mais aceso do bento — quando ele é o
+              fecho, não a manchete. */}
           <article data-card className={CARD_HERO + " lg:col-span-6"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/textures/petala.jpg" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
@@ -1345,7 +1640,30 @@ export default function Features() {
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,12,0.62)_0%,rgba(6,10,12,0.34)_46%,rgba(6,10,12,0.5)_100%)]" />
             {/* assento radial atrás do phone — dá contraste ao aparelho centralizado */}
             <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 hidden h-[620px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(4,8,10,0.66)_0%,rgba(4,8,10,0.32)_52%,transparent_74%)] lg:block" />
-            <span aria-hidden className={RIM} />
+            {/* DEPOIS do assento, e a ordem é o ponto: o assento é justamente o
+                escurecimento no centro que dá contraste ao phone, então uma luz
+                central antes dele nasceria e seria apagada no frame seguinte.
+                Aqui ela acende POR CIMA.
+
+                MUITO larga e rasa (900×260), e não redonda como as outras. O
+                centro inferior deste card é o lugar mais disputado do bento, e
+                os números são de régua no DOM, não de olho: o phone ocupa
+                x 596–844 e desce até 668 (passa da borda do card, que fecha em
+                619); o satélite esquerdo vai até x 563 e o direito começa em
+                888. Entre eles sobram frestas de 33px e 44px. Uma luz redonda
+                de ~220px centrada aqui fica INTEIRA atrás do aparelho — foi o
+                que aconteceu nas duas primeiras tentativas: o hotspot existia
+                no DOM, media certo, e não aparecia em tela.
+                O que existe de vão é a FAIXA de 55px na base (y 564–619), livre
+                em toda a largura fora do phone. Por isso a elipse é rasa e
+                deitada: ela mora nessa faixa e sai pelos dois lados do
+                aparelho. O phone ganha contraluz em vez de tapar a lâmpada —
+                escuro atrás do corpo (o assento), luz escapando por baixo. É
+                também pra onde os três satélites convergem: a luz marca o
+                centro da reunião. */}
+            <Hotspot className="bottom-[-120px] left-1/2 h-[260px] w-[900px] -translate-x-1/2" />
+            <Grain at="50% 100%" />
+            <EdgeLight at="50% 100%" />
 
             {/* min-h preserva a altura visual do palco agora que a Marina vive na
                 tela do iPhone (ver PhoneScreen) que a ScrollPhone sobrepõe aqui. */}
@@ -1379,6 +1697,20 @@ export default function Features() {
           </article>
         </div>
       </div>
+
+      {/* Film grain — por cima de TUDO, e é aí que ele difere do Manifesto e do
+          Pricing, onde a mesma peça fica só no fundo da seção. Aqui os cards
+          cobrem quase toda a área: grão só no fundo não encostaria em nenhuma
+          das superfícies que precisam dele. Por isso z-20 (o conteúdo é z-10) —
+          ele cai sobre os cards, as texturas e o vidro, que é onde o gradiente
+          mora e onde o banding aparece.
+          `soft-light` e opacity 0,045: os mesmos valores das outras duas seções.
+          Acima disso o grão vira sujeira visível em vez de superfície. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-20 opacity-[0.045] mix-blend-soft-light"
+        style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
+      />
     </section>
   );
 }
