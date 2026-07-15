@@ -12,3 +12,10 @@ npm-debug.log*
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Screenshots de referência / debug (não são assets do app)
+/undefined/
+/plano-*.png
+/pricing_whole.png
+/aroberta-floral.jpeg
+/debugphone.png
