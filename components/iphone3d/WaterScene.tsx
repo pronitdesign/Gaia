@@ -32,28 +32,22 @@ import RippleFX from "@/components/iphone3d/water/InteractiveFX/RippleFX";
 import { WaterContext } from "@/components/iphone3d/water/WaterContext";
 
 export type WaterState = {
-  /** Y do plano no mundo. Escrito por frame pelo ScrollPhone. */
-  y: number;
   /** 0→1: quanto da água mostrar. 0 = ausente. */
   amount: number;
 };
 
-/* Teto do plano — o número que decide se isto lê como água ou como afogamento.
+/* Altura da superfície no mundo. FIXA — quem se move é a câmera.
 
-   O horizonte cai no centro da tela sempre (câmera nivelada). Mas a LINHA
-   D'ÁGUA — onde a superfície cruza a profundidade do phone (z=0) — depende da
-   altura do plano, e é ela que importa: é onde o aparelho entra na água.
+   A primeira versão perseguia a âncora do DOM com o plano, e isso estava errado
+   de raiz: subir o plano até a linha do olho põe a água no meio da tela e
+   AFOGA o phone, porque o horizonte de um plano horizontal cai sempre na altura
+   do olho, não importa a altura do plano. A água não sobe — a câmera desce.
+   Ver O MERGULHO em ScrollPhone.tsx.
 
-     screenY = (1 + (|y| / CAM_Z) / tan(fov/2)) / 2 · innerHeight
-
-   Com y = -1.2, CAM_Z = 4, fov 50°: a linha cai a ~74% da tela. O phone
-   atravessa lá embaixo, fica seco acima e reflete logo abaixo — que é a
-   composição pedida.
-
-   Encostar em 0 (o primeiro palpite) põe o plano na linha do olho: a água nasce
-   no meio da tela, engole o phone inteiro e vira uma massa roxa chapada. Foi
-   exatamente o que aconteceu. Não suba isto sem olhar a travessia. */
-const Y_CEIL = -1.2;
+   Com y = -1.2, CAM_Z = 4 e fov 50°, a linha d'água cruza a profundidade do
+   phone a ~74% da tela: ele entra lá embaixo, fica seco acima e reflete logo
+   abaixo. */
+export const WATER_Y = -1.2;
 
 /** Tamanho do plano. Precisa ser grande o bastante pra borda de trás colapsar
  *  DENTRO do horizonte — em 190 ela parava ~12px abaixo dele e aparecia como
@@ -64,8 +58,12 @@ const SPAN = 900;
    então cor saturada aqui não "colore a água": ela ESCURECE tudo que a água
    mostra, e o reflexo do phone desaparece dentro do roxo. Um tom claro deixa o
    reflexo mandar e a cor só assinar — que é o que água faz.
-   Lavanda da faixa onde ela vive (#A493C2 → #D5CCE0 do lib/sky). */
-const WATER_COLOR = "#C9BCDF";
+
+   Calibrada contra o submerso do Pricing (Underwater.tsx, uDeep #A08FC4 sobre
+   creme): mergulhar tem que ser uma passagem contínua de tom, não um baque. A
+   superfície vista de cima é mais clara que a água vista de dentro, então este
+   tom fica um degrau acima daquele. Se mexer num, olhe o outro. */
+const WATER_COLOR = "#DDD4EC";
 
 /* Escreve u_amount na material da água. Precisa ser FILHO do
    WaterSurfaceComplex, porque é ele quem provê o WaterContext com o ref da
@@ -95,13 +93,11 @@ export default function WaterScene({
   useFrame(() => {
     const g = holder.current;
     if (!g) return;
-    const { y, amount } = stateRef.current;
-    g.visible = amount > 0.001;
-    g.position.y = Math.min(y, Y_CEIL);
+    g.visible = stateRef.current.amount > 0.001;
   });
 
   return (
-    <group ref={holder} visible={false}>
+    <group ref={holder} position={[0, WATER_Y, 0]} visible={false}>
       <WaterSurfaceComplex
         width={SPAN}
         length={SPAN}

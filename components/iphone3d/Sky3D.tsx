@@ -22,15 +22,25 @@ existe. O vazio voltava como uma faixa preta cruzando o horizonte. Reflexo
 precisa de céu em todas as direções — logo, cúpula.
 
 ALINHAMENTO COM O CSS: a cúpula é pintada por ELEVAÇÃO, e a elevação é convertida
-na posição de tela que a câmera principal veria naquele ângulo:
+na posição de tela que a câmera PRINCIPAL veria naquele ângulo:
 
-    tanθ       = dir.y / |dir.xz|
-    screenFrac = 0.5 · (1 - tanθ / tan(fov/2))
+    θ          = atan(dir.y, |dir.xz|)        ← elevação no MUNDO
+    screenFrac = 0.5 · (1 - tan(θ - pitch) / tan(fov/2))
     gradientPos= fTop + screenFrac · (fBot - fTop)
 
 …com fTop/fBot lidos do rect vivo da seção. Assim a cor no horizonte do reflexo é
 a mesma cor que o gradiente CSS mostra na altura do horizonte, e subir na cúpula
 percorre o gradiente como subir na tela. O reflexo e o fundo são o mesmo céu.
+
+O `- pitch` existe porque a câmera INCLINA no mergulho (ver ScrollPhone). Sem ele
+o céu escorregaria em relação ao gradiente CSS justamente no momento em que se
+está olhando pra ele.
+
+E repare que a conta parte da direção no MUNDO, não no espaço da câmera. Céu é
+céu: a cor numa direção não pode depender de quem olha. Quem amostra esta cúpula
+é a câmera ESPELHADA da reflexão — se a cor viesse do espaço de câmera, o reflexo
+mostraria um céu diferente do céu. `uPitch` é um escalar da câmera principal,
+igual pros dois passes, e é isso que mantém os dois honestos.
 */
 
 import { useEffect, useMemo, useRef } from "react";
@@ -82,6 +92,7 @@ export default function Sky3D() {
           uFTop: { value: 0 },
           uFBot: { value: 1 },
           uTanHalfFov: { value: 1 },
+          uPitch: { value: 0 },
         },
         vertexShader: /* glsl */ `
           varying vec3 vDir;
@@ -98,15 +109,17 @@ export default function Sky3D() {
           uniform float uFTop;
           uniform float uFBot;
           uniform float uTanHalfFov;
+          uniform float uPitch;
           varying vec3 vDir;
 
           void main() {
             vec3 d = normalize(vDir);
-            // tangente da elevação. O max() no denominador evita divisão por
-            // zero exatamente no zênite/nadir, onde |d.xz| colapsa.
-            float tanElev = d.y / max(length(d.xz), 1e-4);
-            // qual altura de tela a câmera principal veria neste ângulo
-            float screenFrac = 0.5 * (1.0 - tanElev / uTanHalfFov);
+            // elevação no MUNDO. O max() evita o atan degenerar no zênite/nadir,
+            // onde |d.xz| colapsa.
+            float elev = atan(d.y, max(length(d.xz), 1e-4));
+            // qual altura de tela a câmera principal veria neste ângulo — com a
+            // inclinação dela descontada, senão o céu escorrega no mergulho
+            float screenFrac = 0.5 * (1.0 - tan(elev - uPitch) / uTanHalfFov);
             screenFrac = clamp(screenFrac, 0.0, 1.0);
             // …e qual fração do gradiente da seção mora naquela altura
             float g = mix(uFTop, uFBot, screenFrac);
@@ -136,6 +149,9 @@ export default function Sky3D() {
     material.uniforms.uTanHalfFov.value = Math.tan(
       (camera.fov * Math.PI) / 180 / 2,
     );
+    // pitch da câmera PRINCIPAL. Escalar, igual pros dois passes de render —
+    // ver o cabeçalho: é o que impede o reflexo de ver um céu diferente do céu.
+    material.uniforms.uPitch.value = camera.rotation.x;
   });
 
   return (

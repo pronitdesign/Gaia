@@ -27,7 +27,7 @@ pro espaço do mundo em placeWorld(). Ver COMPENSAÇÃO DE ESCALA abaixo, que é
 */
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { PerspectiveCamera, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { gsap } from "gsap";
@@ -35,7 +35,7 @@ import IPhoneModel from "@/components/iphone3d/IPhoneModel";
 import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 import Sky3D from "@/components/iphone3d/Sky3D";
-import WaterScene, { type WaterState } from "@/components/iphone3d/WaterScene";
+import WaterScene, { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
 
 const TWO_PI = Math.PI * 2;
 // Yaw nas duas pontas: Features reto de frente (Math.PI), Pricing em 3/4 mais
@@ -48,11 +48,34 @@ const END_TILT: [number, number] = [0.1, -0.19]; // [x, z] = PHONE_POSE do Prici
 const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário
 const END_G = 820 / 900; // 0.911… → casa o slot 461×820 do Pricing
 
-/* CÂMERA — precisa ser conhecida aqui fora, não só no JSX: placeWorld() roda no
-   gsap.ticker (fora do React) e desprojeta pixels→mundo na mão. Se mudar no
-   <PerspectiveCamera>, mude aqui. */
+/* CÂMERA — conhecida aqui fora porque place() roda no gsap.ticker, fora do
+   React. Se mudar no <PerspectiveCamera>, mude aqui. */
 const CAM_Z = 4;
 const CAM_FOV = 50; // default do drei <PerspectiveCamera>
+
+/* O MERGULHO.
+
+   A câmera não fica parada: conforme o Manifesto acaba, ela DESCE e INCLINA em
+   direção à superfície, até a água tomar o quadro. É isso que faz "entrar na
+   água" em vez de "olhar a água de longe".
+
+   Por que a inclinação é necessária, e não decoração: pra uma câmera nivelada, o
+   horizonte de um plano horizontal cai SEMPRE na linha do olho — o centro exato
+   da tela — e a água nunca passa da metade de baixo. Não tem tuning que escape
+   disso; é geometria. Inclinando pra baixo, o horizonte sobe e a água engole o
+   quadro. (A peachweb resolve o mesmo problema por outro caminho: colinas atrás
+   da água escondem a borda e o horizonte verdadeiro nunca aparece. Nós não temos
+   paisagem, então inclinamos.)
+
+   DIVE_PITCH — quanto a câmera baixa o olhar no fundo do mergulho.
+   DIVE_DROP  — quanto ela desce, em unidades de mundo, rumo à superfície.
+                Para logo ACIMA de WATER_Y: a câmera não atravessa de fato — quem
+                entrega o "dentro d'água" é o Pricing (ver Underwater.tsx), e o
+                shader do Water2 não foi feito pra ser olhado por baixo. */
+const DIVE_PITCH = -0.30; // ~17°
+const DIVE_DROP = 0.9;
+/** Quanto o phone encolhe no pico do mergulho. Ver o uso em placeWorld. */
+const DIVE_SHRINK = 0.42;
 
 /* COMPENSAÇÃO DE ESCALA — a única regressão real do canvas viewport.
    O canvas era 506×900 FIXO, então a altura visível do frustum (2·tan(fov/2)·z
@@ -77,32 +100,79 @@ const easeX = (t: number) => {
 /* giro: smootherstep concentra a rotação no miolo (Manifesto) → de costas no centro */
 const easeSpin = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
-/* ÁGUA — a janela de vida.
-   O canvas é z-[60], por cima da página inteira. Água que exista fora do
-   Manifesto taparia Features, Pricing e CTA Final. Então ela nasce e morre com
-   a âncora [data-water-start]: o "nascer quando o texto acaba" é consequência
-   da arquitetura, não um efeito por cima dela.
-   FADE_PX = distância em pixels de tela pra resolver o fade nas duas pontas. */
-const FADE_PX = 260;
+/* ÁGUA E MERGULHO — a janela, em p (o progresso do PHONE).
 
-/** Altura visível do frustum na profundidade da câmera. */
-const visibleHeight = () => 2 * Math.tan((CAM_FOV * Math.PI) / 180 / 2) * CAM_Z;
+   Isto já foi dirigido pela âncora [data-water-start] do Manifesto, e estava
+   errado de um jeito que só a medição mostrou: durante o mergulho inteiro o
+   phone estava em cy ≈ 1105–1153, com viewport de 900 — ou seja, 250px ABAIXO
+   da dobra. A água chegava quando ele já tinha saído de quadro. Nenhum ângulo de
+   câmera conserta isso, porque o problema era tempo, não geometria: a
+   trajetória do phone pertence às âncoras Features→Pricing, o mergulho pertencia
+   ao Manifesto, e os dois foram calibrados sem saber um do outro.
 
-/** pixels de tela (y) → Y do mundo no plano z=0 */
-const screenYToWorld = (py: number) => {
-  const vh = visibleHeight();
-  return -(py / window.innerHeight - 0.5) * vh;
+   Agora os dois saem de p. Eles se encontram por construção, e continuam se
+   encontrando se alguém retunar X_HOLD, easePos ou a altura das seções — que é
+   justamente o tipo de coisa que muda sem avisar.
+
+   A janela é um bump: 0 no Features, cheia no miolo do Manifesto, 0 de volta no
+   Pricing. A câmera volta a nivelar pra o phone pousar certo no slot, e quem
+   carrega o "ainda estamos dentro d'água" dali em diante é o Pricing (ver
+   Underwater.tsx). O canvas é z-[60], por cima da página inteira: a água PRECISA
+   morrer antes do Pricing, senão boia sobre os cards. */
+const DIVE_FROM = 0.3;
+const DIVE_TO = 0.72;
+
+/* Onde o phone deita.
+   No fundo do mergulho ele fica NA HORIZONTAL e entra pela metade — deitado na
+   superfície, cortado por ela. É a pose do mergulho, e ela tem que resolver de
+   volta em 0 nas duas pontas, senão o phone chega torto no slot do Pricing (que
+   espera END_TILT) ou no card do Features (que espera reto). Daí ser um bump e
+   não um lerp. */
+const DIVE_ROLL = Math.PI / 2;
+
+/** bump: 0 nas pontas, 1 no meio, sem canto vivo. */
+const bump = (t: number) => {
+  const s = Math.min(1, Math.max(0, t));
+  return Math.sin(s * Math.PI) ** 2;
 };
+
+/* Entrega a câmera ATIVA pro gsap.ticker, que roda fora do React.
+
+   Pega do useThree e não de um ref no <PerspectiveCamera> de propósito: o
+   makeDefault do drei resolve qual câmera é a default por efeito, e o ticker
+   começa a rodar antes disso. Com o ref cru, placeWorld() saía cedo no
+   `if (!camera) return` e o grupo ficava na origem — com o modelo em escala 16.5
+   e a câmera em z=4, isso põe a câmera DENTRO do aparelho, olhando as faces
+   internas, que são descartadas. A tela ficava vazia e não havia erro nenhum
+   pra explicar. useThree devolve a câmera que o renderer realmente usa. */
+function CameraBridge({
+  camRef,
+}: {
+  camRef: React.MutableRefObject<THREE.PerspectiveCamera | null>;
+}) {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  useEffect(() => {
+    camRef.current = camera;
+    return () => {
+      camRef.current = null;
+    };
+  }, [camera, camRef]);
+  return null;
+}
 
 export default function ScrollPhone() {
   const group = useRef<THREE.Group>(null);
+  const cam = useRef<THREE.PerspectiveCamera>(null);
   const [enabled, setEnabled] = useState(false);
   // Qual tela mostrar: false = prontuário (Features), true = Início (Pricing).
   const [showAlt, setShowAlt] = useState(false);
   // Água montada? Estado (não ref) porque montar/desmontar é o que evita pagar
   // os passes de reflexão+refração nas seções que não têm água.
   const [waterOn, setWaterOn] = useState(false);
-  const water = useRef<WaterState>({ y: -10, amount: 0 });
+  const water = useRef<WaterState>({ amount: 0 });
+  // 0→1 do mergulho. Escrito por placeWater(), lido por place() — o phone deita
+  // no mesmo compasso em que a câmera afunda.
+  const dive = useRef(0);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -118,20 +188,62 @@ export default function ScrollPhone() {
     const altRef = { current: false };
     const wetRef = { current: false };
 
-    /* Posiciona o grupo 3D a partir de coordenadas de TELA. É aqui, e só aqui,
-       que mora a diferença do canvas viewport: a conta de p, as easings e os
-       cx/cy em pixels são idênticos ao que eram quando isto era CSS. */
+    const ndc = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const onScreen = new THREE.Vector3();
+    const onWater = new THREE.Vector3();
+
+    /* Posiciona o grupo 3D a partir de coordenadas de TELA, usando a MATRIZ da
+       câmera — não trigonometria à mão.
+
+       A primeira versão calculava a altura visível do frustum e dividia
+       (`-(cy/H - 0.5) · 2·tan(fov/2)·z`). Aquilo assume câmera nivelada olhando
+       por -Z, e era verdade até a câmera começar a inclinar no mergulho. Com
+       pitch, aquela conta põe o phone no lugar errado — e pior, erra mais quanto
+       mais dramático o mergulho, que é exatamente onde se olha.
+
+       unproject() usa a matrizWorld real, então funciona pra qualquer pose. O
+       phone fica na tela onde o layout mandou, inclinando a câmera ou não.
+       Manter a distância fixa em CAM_Z preserva o tamanho em tela: perspectiva
+       encolhe com a distância, e é a distância que seguramos. */
     const placeWorld = (cx: number, cy: number, g: number) => {
       const el = group.current;
-      if (!el) return;
-      const vh = visibleHeight();
-      const vw = vh * (window.innerWidth / window.innerHeight);
-      el.position.set(
-        (cx / window.innerWidth - 0.5) * vw,
-        screenYToWorld(cy),
-        0,
+      const camera = cam.current;
+      if (!el || !camera) return;
+      camera.updateMatrixWorld();
+      ndc.set(
+        (cx / window.innerWidth) * 2 - 1,
+        -((cy / window.innerHeight) * 2 - 1),
+        0.5,
       );
-      el.scale.setScalar(g * (REF_H / window.innerHeight));
+      ndc.unproject(camera);
+      dir.copy(ndc).sub(camera.position).normalize();
+      onScreen.copy(camera.position).addScaledVector(dir, CAM_Z);
+
+      /* NO MERGULHO O PHONE SOLTA DO DOM.
+
+         Fora do mergulho ele é escravo do layout: nasce no card de Prontuário e
+         pousa no slot do Pricing, pixel-exato, lendo os rects vivos. Isso é
+         inegociável nas duas pontas.
+
+         No meio, não dá pra ser as três coisas ao mesmo tempo — colado à tela,
+         com a câmera se movendo, e cruzando uma água estática. É uma posição com
+         três donos. Medido: com pitch de 17° e queda de 0.9, a tela em cy=698
+         cai no mundo em y ≈ -3.0, e a água está em -1.2. O phone não cruzava a
+         superfície, afundava 1.8 abaixo dela e escurecia.
+
+         Então no pico do mergulho ele vai pra SUPERFÍCIE (mesmo x, y = WATER_Y):
+         deitado, cortado pela linha d'água, entrando pela metade. O lerp por dive
+         devolve ele ao layout nas duas pontas, sem costura, porque dive é um bump
+         que morre em 0 lá. */
+      onWater.set(onScreen.x, WATER_Y, onScreen.z);
+      el.position.lerpVectors(onScreen, onWater, dive.current);
+
+      /* Na superfície o phone fica mais perto da câmera (ela desceu até quase
+         rasar a água), e perspectiva o infla até encher o quadro. DIVE_SHRINK
+         devolve o respiro — é enquadramento, não escala real. */
+      const shrink = 1 - DIVE_SHRINK * dive.current;
+      el.scale.setScalar(g * (REF_H / window.innerHeight) * shrink);
     };
 
     const place = (p: number) => {
@@ -146,10 +258,15 @@ export default function ScrollPhone() {
       const cy = lerp(a.top + a.height / 2, b.top + b.height / 2, eP);
       placeWorld(cx, cy, lerp(START_G, END_G, eP));
       if (group.current) {
+        // No fundo do mergulho o phone deita na superfície, no MESMO compasso da
+        // câmera. dive já é um bump (0 → 1 → 0), então ele resolve sozinho de
+        // volta em 0 nas duas pontas — o Features espera reto, o Pricing espera
+        // END_TILT. Não passar por bump() de novo: bump(bump(x)) é outra curva.
+        const roll = DIVE_ROLL * dive.current;
         group.current.rotation.set(
           lerp(START_TILT[0], END_TILT[0], eP),
           lerp(START_YAW, END_YAW, eP) + eS * TWO_PI, // 3/4 nas pontas + giro completo
-          lerp(START_TILT[1], END_TILT[1], eP),
+          lerp(START_TILT[1], END_TILT[1], eP) + roll,
         );
       }
       // Troca de tela quando o aparelho passa das costas (eS > 0.5) — a troca
@@ -161,28 +278,23 @@ export default function ScrollPhone() {
       }
     };
 
-    /* A água segue a âncora do Manifesto. amount cai a zero nas duas pontas pra
-       ela não vazar por cima das seções vizinhas (o canvas é z-[60]). */
-    const placeWater = () => {
-      const anchor = document.querySelector<HTMLElement>("[data-water-start]");
-      if (!anchor) {
-        water.current.amount = 0;
-        if (wetRef.current) {
-          wetRef.current = false;
-          setWaterOn(false);
-        }
-        return;
-      }
-      const y = anchor.getBoundingClientRect().top;
-      const H = window.innerHeight;
-      // Entra quando a âncora sobe pela base da tela; sai quando cruza o topo.
-      const fadeIn = Math.min(1, Math.max(0, (H - y) / FADE_PX));
-      const fadeOut = Math.min(1, Math.max(0, y / FADE_PX));
-      const amount = Math.min(fadeIn, fadeOut);
-      water.current.amount = amount;
-      water.current.y = screenYToWorld(y);
+    /* A água é FIXA no mundo; quem se move é a CÂMERA. Ela baixa o olhar e
+       afunda rumo à superfície — a água toma o quadro porque nos aproximamos
+       dela, não porque ela cresceu.
 
-      const wet = amount > 0.001;
+       Dirigido por p: ver ÁGUA E MERGULHO acima pro porquê. */
+    const placeWater = (p: number) => {
+      const camera = cam.current;
+      const d = bump((p - DIVE_FROM) / (DIVE_TO - DIVE_FROM));
+      dive.current = d;
+      water.current.amount = d;
+
+      if (camera) {
+        camera.rotation.x = DIVE_PITCH * d;
+        camera.position.y = -DIVE_DROP * d;
+      }
+
+      const wet = d > 0.001;
       if (wet !== wetRef.current) {
         wetRef.current = wet;
         setWaterOn(wet);
@@ -193,7 +305,13 @@ export default function ScrollPhone() {
     // E sem água: ela é movimento por definição, e o custo dos passes de
     // reflexão não se justifica pra quem pediu pra não se mexer.
     if (reduce) {
-      const park = () => place(1);
+      // placeWater(1) primeiro: em p=1 o bump vale 0, então isso nivela a câmera
+      // e zera a água. Sem ele a câmera fica com a pose do último frame e o
+      // phone pousa desprojetado de uma câmera torta.
+      const park = () => {
+        placeWater(1);
+        place(1);
+      };
       park();
       window.addEventListener("resize", park);
       window.addEventListener("scroll", park, { passive: true });
@@ -217,8 +335,12 @@ export default function ScrollPhone() {
       const target = window.innerHeight * 0.72;
       const dist = endC - startC; // ~constante (distância entre os âncoras)
       const p = dist === 0 ? 0 : Math.min(1, Math.max(0, (target - startC) / dist));
+      // placeWater ANTES de place: ele move a câmera e escreve dive, e place lê
+      // os dois (desprojeta pela matriz da câmera, e deita o phone por dive).
+      // Invertido, o phone fica um frame atrás da câmera — e um frame de atraso
+      // num mergulho com pitch aparece como tremor.
+      placeWater(p);
       place(p);
-      placeWater();
     };
 
     gsap.ticker.add(update);
@@ -233,6 +355,7 @@ export default function ScrollPhone() {
       <Canvas className="!absolute inset-0" gl={{ alpha: true, antialias: true }} dpr={[1, 2]}>
         <ambientLight intensity={0.3} />
         <PerspectiveCamera makeDefault position={[0, 0, CAM_Z]} fov={CAM_FOV} />
+        <CameraBridge camRef={cam} />
         <Lights />
         {/* Céu e água só existem na janela do Manifesto — ver placeWater(). */}
         {waterOn && (
