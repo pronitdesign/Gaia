@@ -28,25 +28,61 @@ import { useCallback, useEffect, useState } from "react";
    callback toda vez que o nó anexa OU desanexa, então o efeito abaixo (que
    depende de `el`, não de um ref opaco) SEMPRE re-executa quando o nó muda —
    garantido pelo próprio contrato de refs, não por sorte de timing. */
+/* `entered` — vira true na PRIMEIRA vez que o nó aparece e nunca mais volta.
+   É o gatilho das entradas de assinatura dos cards do Features (o gráfico que
+   se plota, o baralho que se abre, as agulhas que assentam): coisas que
+   acontecem uma vez, quando o card chega, e não a cada ida e volta do scroll.
+
+   Mora AQUI e não num hook próprio porque o observer já existe: todo mock que
+   precisa da entrada já chama este hook pro ciclo, e um segundo
+   IntersectionObserver no mesmo nó seria o mesmo trabalho duas vezes. */
 export function useAutoCycle(length: number, delay: number) {
   const [i, setI] = useState(0);
+  const [entered, setEntered] = useState(false);
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const ref = useCallback((node: HTMLDivElement | null) => setEl(node), []);
 
   useEffect(() => {
-    if (!el || length <= 1) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!el) return;
+    // Sem movimento: a cena nasce montada. `entered` sobe na hora (senão as
+    // entradas de assinatura ficariam presas no estado inicial pra sempre —
+    // gráfico não plotado, baralho fechado), mas o CSS neutraliza a transição
+    // de cada uma, então o resultado é o estado final direto, sem animação.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setEntered(true);
+      return;
+    }
     let timer: number | undefined;
     const start = () => {
-      if (timer === undefined) timer = window.setInterval(() => setI((p) => (p + 1) % length), delay);
+      if (length > 1 && timer === undefined) timer = window.setInterval(() => setI((p) => (p + 1) % length), delay);
     };
     const stop = () => {
       if (timer !== undefined) { window.clearInterval(timer); timer = undefined; }
     };
-    const io = new IntersectionObserver(([e]) => (e.isIntersecting ? start() : stop()), { threshold: 0.35 });
+    // DOIS gates, e não um, porque entrar e ciclar não têm o mesmo requisito:
+    //
+    // `entered` dispara no PRIMEIRO PIXEL. Tem que ser assim porque quem monta
+    // a casca do card é outro observer (o do Features, a 20% do CARD) e este
+    // aqui observa o mock, que é mais baixo e começa mais embaixo. Com um gate
+    // único de 35%, existe uma faixa em que a casca já chegou e o conteúdo
+    // ainda não — e parado nela o card fica montado e VAZIO: painel de vidro
+    // com cabeçalho e nada dentro, gráfico com eixo e sem linha. Não é um
+    // flash de um frame, é um estado estável (medido: mock a 34% de visível,
+    // painel apresentado, seis instrumentos invisíveis). Conteúdo só pode
+    // estar escondido enquanto está fora da tela.
+    //
+    // O ciclo continua exigindo 35% — animar sozinho pra ninguém é o que ele
+    // sempre quis evitar, e agora ele PARA de verdade ao sair: com threshold
+    // só em 0.35 o callback nem era chamado quando o elemento saía de vez
+    // (0.34 → 0 não cruza 0.35), então o stop() ficava inalcançável.
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) setEntered(true);
+      if (e.intersectionRatio >= 0.35) start();
+      else stop();
+    }, { threshold: [0, 0.35] });
     io.observe(el);
     return () => { io.disconnect(); stop(); };
   }, [el, length, delay]);
 
-  return [i, ref] as const;
+  return [i, ref, entered] as const;
 }

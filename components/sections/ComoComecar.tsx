@@ -289,9 +289,10 @@ export default function ComoComecar() {
             {Header}
           </div>
           <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-6 pb-14">
-          {/* faixa escura sob a mídia — fecha o palco em vez de devolver o creme
-              da section entre o banner e a borda inferior da viewport */}
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-ink" />
+          {/* base CLARA sob a mídia — a tira dissolve num creme (neutro-50) que casa
+              com o topo da section seguinte (A Roberta): os dois lados encontram-se no
+              mesmo creme, então o seam some (era bg-ink, que criava a tira escura morta). */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-14 bg-neutro-50" />
           <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
             {Tabs}
           </div>

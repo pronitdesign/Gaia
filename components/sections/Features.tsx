@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { useAutoCycle } from "@/lib/useAutoCycle";
 import { gsap } from "gsap";
@@ -11,6 +11,7 @@ import {
   IconClock,
   IconArrowUpRight,
 } from "@/components/ui/icons";
+import { MARINA, JOAO, CAIO, BIANCA, type Person } from "@/lib/people";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -24,17 +25,52 @@ gsap.registerPlugin(ScrollTrigger);
 
 // Cards ficam PARADOS — sem lift/parallax no hover. A vida vem de dentro,
 // de micro-interações autônomas que rodam sozinhas (ver mocks abaixo).
+/* ── Elevação ──────────────────────────────────────────────────────────────
+   Em tema escuro a sombra sozinha não levanta nada: o fundo da seção é #0A0C11
+   e sombra preta sobre quase-preto não tem contraste pra existir. Quem faz o
+   card virar objeto é o RIM LIGHT — a linha de 1px na quina de cima, que lê
+   como a luz da cena batendo na aresta. A sombra entra como peso, e no mobile
+   como separação entre cards empilhados.
+
+   Duas sombras e não uma, porque elas fazem trabalhos diferentes: a larga
+   (90px, quase toda espalhada) é a sombra ambiente, e a curta (30px) é a de
+   contato, que ancora o card no fundo. Só a larga = o card flutua sem chão;
+   só a curta = lê como adesivo colado. */
+const LIFT =
+  "shadow-[0_40px_90px_-32px_rgba(0,0,0,0.95),0_14px_30px_-14px_rgba(0,0,0,0.75),inset_0_1px_0_0_rgba(255,255,255,0.13)]";
+
+/* Preenchimento em gradiente, não chapa: #1B2130 no topo caindo pra #13171F na
+   base é a mesma tinta de antes (a média bate no #171C26 que já estava aqui),
+   só que agora ACESA POR CIMA. Chapa lisa não tem direção de luz, e é o que
+   fazia o card ler como retângulo recortado em vez de superfície. */
 const CARD =
-  "group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#101319]";
+  "group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.11] " +
+  "bg-gradient-to-b from-[#1B2130] to-[#13171F] " +
+  LIFT;
 
 const CARD_HERO =
-  "group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.06]";
+  "group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.09] " + LIFT;
+
+/* Rim light dos heróis — CAMADA, e não o `inset` que o LIFT já carrega.
+   Motivo medido, não teórico: `inset` box-shadow pinta na camada de fundo do
+   próprio card, e a textura é uma <img absolute inset-0> — filho posicionado
+   pinta DEPOIS do fundo do pai. A foto começa a 1px do topo do card, ou seja,
+   exatamente em cima da linha de luz, e a engolia inteira. O card escuro não
+   tem img, então lá o inset do LIFT funciona e esta peça não é usada.
+   Vai DEPOIS do véu (senão o escurecimento apaga a luz junto com a textura) e
+   antes do conteúdo, que é `relative` e portanto pinta acima de qualquer jeito. */
+const RIM =
+  "pointer-events-none absolute inset-0 rounded-[21px] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16)]";
 
 /* ── Vidro (receita do Como Começa) ─────────────────────────────────────── */
 const GLASS_BLUR = "backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+/* Preto/58→/40 e não /80→/66: em 80% de tinta preta o blur não tinha o que
+   refratar — o painel lia como recorte vazado, não como vidro sobre a cena.
+   O aro e o realce de topo sobem junto (0.22 / 0.10) pra a peça continuar
+   tendo aresta agora que o miolo é mais claro. */
 const GLASS_DARK =
-  "bg-gradient-to-b from-black/80 to-black/[0.66] " +
-  "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.92),inset_0_1px_0_0_rgba(255,255,255,0.16),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+  "bg-gradient-to-b from-black/[0.58] to-black/40 " +
+  "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.92),inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)]";
 const GLASS = `relative overflow-hidden ${GLASS_BLUR} ${GLASS_DARK}`;
 
 /* Vidro claro/fosco — deixa o floral atravessar (satélites do Prontuário).
@@ -61,7 +97,7 @@ function CardTitle({ children }: { children: ReactNode }) {
 
 function CardBody({ tone = "dark", children }: { tone?: "dark" | "hero"; children: ReactNode }) {
   return (
-    <p className={"mt-3 max-w-md font-body text-body " + (tone === "hero" ? "text-white/70" : "text-white/45")}>
+    <p className={"mt-3 max-w-md font-body text-body " + (tone === "hero" ? "text-white/70" : "text-white/55")}>
       {children}
     </p>
   );
@@ -93,17 +129,54 @@ function TrendArrow({ dir, className = "" }: { dir: "up" | "down"; className?: s
   );
 }
 
-function Avatar({ init, className = "" }: { init: string; className?: string }) {
+/* Retrato quando a pessoa tem foto, iniciais quando não tem — a mesma peça nos
+   dois casos, então o aro de luz e o raio não mudam de gramática no meio da
+   lista. O retrato ganha aro interno PRÓPRIO (inset ring) em vez do realce de
+   topo: sobre foto, um brilho só no topo lê como reflexo torto; o aro fechado
+   lê como a moldura que as outras peças de vidro do card já têm.
+   Decorativo — o nome vem escrito ao lado em toda chamada, então alt="". */
+function Avatar({ person, className = "" }: { person: Person; className?: string }) {
+  if (person.photo) {
+    return (
+      <span className={"relative shrink-0 overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] " + className}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={person.photo} alt="" aria-hidden className="h-full w-full object-cover" />
+      </span>
+    );
+  }
   return (
     <span className={"grid shrink-0 place-items-center rounded-full bg-white/15 font-title font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] " + className}>
-      {init}
+      {person.init}
     </span>
   );
 }
 
-// glow de marca atrás do vidro (cards sem textura)
-function Glow({ className = "", color = "rgba(138,105,216,0.28)" }: { className?: string; color?: string }) {
-  return <div aria-hidden className={"pointer-events-none absolute rounded-full blur-[70px] " + className} style={{ background: color }} />;
+/* Luz de cor atrás do vidro. Não é enfeite solto: os painéis do card são
+   backdrop-blur + saturate, e blur não tem o que borrar se atrás dele só existe
+   chapa lisa. O glow é O QUE O VIDRO REFRATA — tira ele e o painel vira
+   retângulo cinza, por mais blur que tenha. Por isso ele mora SEMPRE atrás do
+   painel (antes dele no fluxo), nunca por cima.
+
+   `blur` é prop porque o raio tem que acompanhar o tamanho da mancha: 70px numa
+   mancha de 320px lê como sujeira, não como luz. A régua é ~1/4 da largura.
+   Sem `-z`: o glow é irmão anterior do conteúdo, que é `relative` — a ordem do
+   fluxo já resolve, e z-index negativo aqui escaparia atrás do próprio card. */
+function Glow({
+  className = "",
+  color = "rgba(138,105,216,0.28)",
+  blur = 70,
+}: {
+  className?: string;
+  color?: string;
+  blur?: number;
+}) {
+  return (
+    <div
+      aria-hidden
+      className={"pointer-events-none absolute rounded-full " + className}
+      style={{ background: color, filter: `blur(${blur}px)` }}
+    />
+  );
 }
 
 /* ═══════════════ PLANO ALIMENTAR ═══════════════ */
@@ -181,7 +254,19 @@ function IconPlus({ className = "" }: { className?: string }) {
   );
 }
 
-function MealDeck({ front }: { front: number }) {
+/* `dealt` = o leque já abriu. Antes dele TODA carta desenha na posição da
+   frente: as três nascem empilhadas coladas e se abrem pros ranks reais
+   quando o card entra — dar as cartas é a assinatura de entrada deste card.
+   Nada disso é um estado novo: é o MESMO transform de 700ms do embaralhamento
+   saindo de um ponto de partida diferente, e o véu (que também é rank) escurece
+   as de trás no mesmo movimento em que elas recuam.
+   O rank REAL continua mandando no z-index mesmo com o leque fechado — senão
+   as três empatariam em z e a ordem do DOM decidiria, deixando a última carta
+   do array na frente até a abertura. Aí o leque leria como embaralhamento
+   (carta errada saindo da frente), não como baralho sendo aberto. Com o z
+   certo desde o frame 0, a carta da frente simplesmente não se mexe: as
+   outras duas é que saem de trás dela. */
+function MealDeck({ front, dealt }: { front: number; dealt: boolean }) {
   const n = PLANO_MEALS.length;
   return (
     // Altura fixa: o palco do baralho é quem dimensiona o card-herói, e ele
@@ -193,6 +278,7 @@ function MealDeck({ front }: { front: number }) {
       {PLANO_MEALS.map((m, i) => {
         const rank = (i - front + n) % n;
         const isFront = rank === 0;
+        const spread = dealt ? rank : 0; // leque fechado até o card entrar
         return (
           <div
             key={m.n}
@@ -203,7 +289,7 @@ function MealDeck({ front }: { front: number }) {
             // entre a foto mais à direita e a borda do herói.
             className="absolute bottom-0 left-0 right-[18px] transition-transform duration-[700ms] ease-gaia"
             style={{
-              transform: `translate(${rank * DECK_DX}px, ${rank * -DECK_DY}px) scale(${1 - rank * 0.028})`,
+              transform: `translate(${spread * DECK_DX}px, ${spread * -DECK_DY}px) scale(${1 - spread * 0.028})`,
               transformOrigin: "center bottom",
               zIndex: n - rank,
             }}
@@ -211,7 +297,7 @@ function MealDeck({ front }: { front: number }) {
             {/* corpo — pr abre a calha da foto, que é absoluta e mora fora
                 deste nó (o corpo tem overflow-hidden pro véu respeitar o raio;
                 a foto e o "+" precisam sangrar, então vivem no wrapper). */}
-            <div className="relative overflow-hidden rounded-[16px] bg-[#14181f] py-3.5 pl-4 pr-[104px] shadow-[0_18px_40px_-14px_rgba(0,0,0,0.9),inset_0_1px_0_0_rgba(255,255,255,0.10),inset_0_0_0_1px_rgba(255,255,255,0.07)] md:pr-[116px]">
+            <div className="relative overflow-hidden rounded-[16px] bg-[#1A2029] py-3.5 pl-4 pr-[104px] shadow-[0_18px_40px_-14px_rgba(0,0,0,0.9),inset_0_1px_0_0_rgba(255,255,255,0.10),inset_0_0_0_1px_rgba(255,255,255,0.07)] md:pr-[116px]">
               <p className="truncate font-title text-[15px] font-medium leading-tight text-white">{m.n}</p>
               {/* min-h de duas linhas: a carta é bottom-anchored, então texto
                   de altura variável faz ela crescer PRA CIMA e bater no
@@ -234,7 +320,7 @@ function MealDeck({ front }: { front: number }) {
               <span
                 aria-hidden
                 className="pointer-events-none absolute inset-0 bg-[#0A0C11] transition-opacity duration-[700ms] ease-gaia"
-                style={{ opacity: rank * 0.36 }}
+                style={{ opacity: spread * 0.36 }}
               />
             </div>
 
@@ -249,7 +335,7 @@ function MealDeck({ front }: { front: number }) {
               <span
                 aria-hidden
                 className="pointer-events-none absolute inset-0 bg-[#0A0C11] transition-opacity duration-[700ms] ease-gaia"
-                style={{ opacity: rank * 0.36 }}
+                style={{ opacity: spread * 0.36 }}
               />
             </span>
 
@@ -283,8 +369,27 @@ function MockPlano() {
     { k: "Gord", g: 47, pct: 22, c: "bg-sage-400" },
   ];
   // Um ciclo só (~3,6s) move o baralho E a sugestão — ver PLANO_SUGESTOES.
-  const [i, ref] = useAutoCycle(PLANO_MEALS.length, 3600);
+  const [i, ref, entered] = useAutoCycle(PLANO_MEALS.length, 3600);
   const s = PLANO_SUGESTOES[i];
+
+  // ASSINATURA — dar as cartas. O leque só abre 420ms depois do card entrar:
+  // é o tempo do painel de cima assentar (a transição do .gaia-parallax é de
+  // 600ms). Aberto junto, os dois movimentos acontecem no mesmo instante e o
+  // olho não sabe pra onde olhar; aberto depois, a cena tem duas batidas —
+  // a ficha da Marina pousa, e AÍ o baralho se abre embaixo dela.
+  const [dealt, setDealt] = useState(false);
+  useEffect(() => {
+    if (!entered) return;
+    // Sem movimento o baralho nasce aberto — o atraso aqui é encenação, e
+    // encenação sem animação é só a cena chegando errada e tarde.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDealt(true);
+      return;
+    }
+    const t = window.setTimeout(() => setDealt(true), 420);
+    return () => window.clearTimeout(t);
+  }, [entered]);
+
   return (
     // pb: o baralho agora mora no rodapé, e o "+" da carta da frente sangra
     // 8px abaixo do palco. Peça absoluta que sangra não entra na altura do
@@ -296,7 +401,7 @@ function MockPlano() {
           painel ser o primeiro nó do fluxo (sem margem no topo) são o par que
           faz o tuck: este chip precisa de OUTRA peça na frente pra continuar
           sendo algo que espia em vez de um card órfão. */}
-      <div style={px(1.35, -7)} className={"gaia-parallax absolute -left-2 -top-3 z-0 w-[142px] rounded-[13px] p-3 " + GLASS + " " + FLOAT}>
+      <div data-enter-delay={200} style={px(1.35, -7)} className={"gaia-parallax gaia-from-left absolute -left-2 -top-3 z-0 w-[142px] rounded-[13px] p-3 " + GLASS + " " + FLOAT}>
         <p className="font-body text-[10.5px] text-white/50">Adesão</p>
         <div className="flex items-baseline gap-1.5">
           <span className="font-title text-[17px] font-medium tabular-nums text-white">92%</span>
@@ -310,9 +415,9 @@ function MockPlano() {
           duas coisas juntas no meio brigavam. Aqui a lista; embaixo, solto,
           o baralho. */}
       <div className="relative">
-        <div style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS + " " + FLOAT}>
+        <div data-enter-delay={0} style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS + " " + FLOAT}>
           <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
-            <Avatar init="MA" className="h-9 w-9 text-[13px]" />
+            <Avatar person={MARINA} className="h-9 w-9 text-[13px]" />
             <div className="min-w-0 flex-1">
               <p className="font-title text-[15px] font-medium text-white">Plano · Marina</p>
               <p className="font-body text-[11.5px] text-white/50">Seg a sex · 3 refeições</p>
@@ -368,7 +473,7 @@ function MockPlano() {
             ela cairia em cima do "+" e da foto da carta da frente. Presa na
             quina do painel ela fica na junção painel/baralho, perto do prato
             de que está falando. */}
-        <div style={px(1.65, 5)} className={"gaia-parallax absolute -bottom-5 -right-3 z-20 w-[186px] rounded-[14px] p-3 " + GLASS + " " + FLOAT}>
+        <div data-enter-delay={780} style={px(1.65, 5)} className={"gaia-parallax gaia-land absolute -bottom-5 -right-3 z-20 w-[186px] rounded-[14px] p-3 " + GLASS + " " + FLOAT}>
           <GaiaTag>sugestão</GaiaTag>
           <div key={i} className="gaia-fade">
             <p className="mt-1.5 font-body text-[12.5px] font-medium text-white/90">{s.t}</p>
@@ -388,8 +493,8 @@ function MockPlano() {
           inclinar tudo faria a quina do "+" cair torta. O diagonal da pilha já
           dá o desalinho. O mt-10 é a folga que a sugestão precisa — ela desce
           20px abaixo da quina do painel. */}
-      <div style={px(0.45)} className="gaia-parallax relative z-[11] mt-10">
-        <MealDeck front={i} />
+      <div data-enter-delay={120} style={px(0.45)} className="gaia-parallax relative z-[11] mt-10">
+        <MealDeck front={i} dealt={dealt} />
       </div>
     </div>
   );
@@ -413,28 +518,55 @@ function MockQuestionarios() {
     { k: "PSQI", n: "8", of: "/ 21 pts", msg: "Sono ruim há 3 semanas — pode estar puxando a fome.", warn: true },
     { k: "BSQ", n: "82", of: "/ 204 pts", msg: "Insatisfação corporal moderada. Acompanhar de perto.", warn: false },
   ];
-  const [i, ref] = useAutoCycle(insights.length, 3400);
+  const [i, ref, entered] = useAutoCycle(insights.length, 3400);
   const ins = insights[i];
   return (
     <div ref={ref} className="relative mt-8 flex-1 px-7 pb-7 md:px-8">
+      {/* ASSINATURA — a Gaia lê e conclui. Os sete instrumentos entram um a um
+          de baixo, cada um com seu check dando tick logo atrás, e SÓ ENTÃO o
+          Insight pousa por cima (ver o gaia-land lá embaixo). É a promessa do
+          card em ordem: primeiro a leitura, depois a conclusão. Se o Insight
+          chegasse junto com a lista, o card diria as duas coisas ao mesmo
+          tempo e não diria nenhuma. */}
       {/* lista de instrumentos — de fundo. Único mock sem gaia-parallax até
           aqui; recebe a mesma receita de entrada do MockExames/MockAntropometria. */}
-      <div style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
+      <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
         <div className="mb-1 flex items-baseline justify-between">
           <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
           <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
         </div>
+        {/* A entrada mora num WRAPPER e não na própria linha, e isso é
+            obrigatório, não estilo: gaia-meal-rise roda com fill-mode `both`,
+            que gruda o estado final (`opacity: 1`) no nó PRA SEMPRE depois de
+            terminar — e animação vence declaração comum na cascata. Na linha,
+            ela mataria o opacity-40 de quem não é o instrumento da vez e o
+            acender/apagar do ciclo nunca mais aconteceria. Separadas, cada nó
+            tem um dono só: o wrapper monta, a linha acende.
+            O divide-y é do pai e cai no filho direto — que agora é o wrapper,
+            então a régua entra junto com a linha em vez de aparecer antes. */}
         <div className="divide-y divide-white/[0.06]">
-          {instruments.map((it) => {
+          {instruments.map((it, idx) => {
             const on = it.k === ins.k;
             return (
-              <div key={it.k} className={"flex items-center gap-2.5 py-2 transition-opacity duration-500 " + (on ? "opacity-100" : "opacity-40")}>
-                <span className={"grid h-5 w-5 place-items-center rounded-full shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] transition-colors duration-500 " + (on ? "bg-brand" : "bg-white/12")}>
-                  <IconCheck className="h-3 w-3 text-white" />
-                </span>
-                <span className="font-body text-[12.5px] font-medium text-white/90">{it.k}</span>
-                <span className="hidden truncate font-body text-[11.5px] text-white/45 sm:block">{it.full}</span>
-                <span className="ml-auto font-body text-[11px] tabular-nums text-white/55">{it.s}</span>
+              <div key={it.k} className={entered ? "gaia-meal-rise" : "opacity-0"} style={{ animationDelay: `${120 + idx * 60}ms` }}>
+                <div className={"flex items-center gap-2.5 py-2 transition-opacity duration-500 " + (on ? "opacity-100" : "opacity-40")}>
+                  {/* tick 140ms atrás da linha: o quadro chega, o check marca.
+                      Juntos viram um borrão só; o atraso é o que faz ler como
+                      a Gaia pontuando o instrumento que acabou de ler. */}
+                  <span
+                    className={
+                      "grid h-5 w-5 place-items-center rounded-full shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] transition-colors duration-500 " +
+                      (on ? "bg-brand" : "bg-white/12") +
+                      (entered ? " gaia-tick" : " opacity-0")
+                    }
+                    style={{ animationDelay: `${260 + idx * 60}ms` }}
+                  >
+                    <IconCheck className="h-3 w-3 text-white" />
+                  </span>
+                  <span className="font-body text-[12.5px] font-medium text-white/90">{it.k}</span>
+                  <span className="hidden truncate font-body text-[11.5px] text-white/45 sm:block">{it.full}</span>
+                  <span className="ml-auto font-body text-[11px] tabular-nums text-white/55">{it.s}</span>
+                </div>
               </div>
             );
           })}
@@ -445,7 +577,7 @@ function MockQuestionarios() {
           carrega a entrada (gaia-parallax escreve transform); o miolo carrega
           a troca de conteúdo (key+gaia-pop também escreve transform) — as duas
           classes NUNCA no mesmo nó, senão uma pisa na transform da outra. */}
-      <div style={px(1.5, 4)} className="gaia-parallax absolute bottom-5 left-5 z-20 w-[250px] md:left-8">
+      <div data-enter-delay={800} style={px(1.5, 4)} className="gaia-parallax gaia-land absolute bottom-5 left-5 z-20 w-[250px] md:left-8">
         <div key={i} className={"gaia-pop rounded-[16px] p-4 " + GLASS + " " + FLOAT}>
           <div className="flex items-center justify-between">
             <GaiaTag>Insight · {ins.k}</GaiaTag>
@@ -528,7 +660,13 @@ function MockAntropometria() {
   // de ler. Enquanto os outros mocks trocam CONTEÚDO (paciente, insight,
   // linha), aqui o GRÁFICO INTEIRO morfa de uma série pra outra — gramática
   // nova, nenhum outro card repete.
-  const [tab, ref] = useAutoCycle(ANTHRO_SERIES.length, 3800);
+  // ASSINATURA — a evolução se plota. Este card é um gráfico de evolução no
+  // tempo, então a entrada dele é a própria evolução acontecendo: a cortina
+  // (.gaia-draw no <svg>) corre da esquerda pra direita e a linha, a área e a
+  // grade nascem juntas sob ela, da consulta mais velha pra mais nova. A caixa
+  // e os rótulos dos meses NÃO entram na cortina de propósito: eles são o
+  // instrumento, e instrumento já estava lá — quem se desenha é o dado.
+  const [tab, ref, entered] = useAutoCycle(ANTHRO_SERIES.length, 3800);
   const s = ANTHRO_SERIES[tab];
   const coords = ANTHRO_COORDS[tab];
   const [lastX, lastY] = coords[coords.length - 1];
@@ -560,7 +698,7 @@ function MockAntropometria() {
     <div ref={ref} className="mt-8 flex-1 px-7 pb-7 md:px-8 md:pb-8">
       <div style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
-          <Avatar init="MA" className="h-8 w-8 text-[12px]" />
+          <Avatar person={MARINA} className="h-8 w-8 text-[12px]" />
           <div className="min-w-0 flex-1">
             <p className="font-title text-[13px] font-medium text-white/85">{s.tab} · Marina</p>
             <p className="font-body text-[9.5px] uppercase tracking-[0.08em] text-white/40">6 consultas · mar–ago</p>
@@ -595,7 +733,7 @@ function MockAntropometria() {
           <span key={"top" + tab} className="gaia-fade absolute right-2 top-1.5 z-10 font-body text-[9px] tabular-nums text-white/30">{s.top}</span>
           <span key={"bottom" + tab} className="gaia-fade absolute bottom-5 right-2 z-10 font-body text-[9px] tabular-nums text-white/30">{s.bottom}</span>
 
-          <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+          <svg viewBox="0 0 100 40" preserveAspectRatio="none" className={"gaia-draw absolute inset-0 h-full w-full " + (entered ? "is-drawn" : "")}>
             <defs>
               <linearGradient id="anthroFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#C1A9D3" stopOpacity="0.35" />
@@ -629,13 +767,25 @@ function MockAntropometria() {
 
           {/* Última medição pulsa sem disputar o número principal — e
               acompanha a nova posição Y a cada troca de série via transition
-              CSS em left/top (mesma gramática dos marcadores do MockExames). */}
+              CSS em left/top (mesma gramática dos marcadores do MockExames).
+              Ela NÃO é filha do <svg>, então a cortina não a esconde: sem o
+              pop atrasado abaixo ela ficaria pulsando sozinha na ponta direita
+              da caixa apontando pra um gráfico que ainda não chegou lá. O
+              atraso é medido: a cortina leva 1,2s com ease-in-out e este ponto
+              vive a 92% da régua, ou seja, ela passa por aqui perto dos 940ms.
+              O "agora" pousa logo depois que a linha o alcança. */}
           <span
             aria-hidden
             className="pointer-events-none absolute transition-[left,top] duration-[800ms] ease-gaia"
             style={{ left: `${lastX}%`, top: `${(lastY / 40) * 100}%`, transform: "translate(-50%,-50%)" }}
           >
-            <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+            <span
+              className={
+                "relative flex h-2.5 w-2.5 items-center justify-center transition-[opacity,transform] duration-500 ease-gaia motion-reduce:transition-none " +
+                (entered ? "scale-100 opacity-100" : "scale-0 opacity-0")
+              }
+              style={{ transitionDelay: "1000ms" }}
+            >
               <span className="absolute h-2.5 w-2.5 rounded-full bg-[#C1A9D3]/60 motion-safe:animate-ping" />
               <span className="h-2 w-2 rounded-full bg-[#C1A9D3] ring-2 ring-[#0A0C11]" />
             </span>
@@ -671,40 +821,57 @@ function MockAntropometria() {
 /* ═══════════════ EXAMES DE SANGUE ═══════════════ */
 type Flag = "up" | "down" | null;
 type ExamRow = { k: string; v: string; u: string; ref: string; band: [number, number]; pos: number; flag: Flag };
+type Patient = { who: Person; extr: number; rows: ExamRow[] };
 
 function MockExames() {
   // Micro-interação: o laudo troca de paciente sozinho a cada ~3s. Os
   // marcadores DESLIZAM pra nova posição (transição de `left`), a faixa de
   // referência ajusta, o valor e o flag mudam — mostrando a variação de cada
   // pessoa. As 3 linhas são keyadas por índice pra o mesmo nó animar.
-  const patients: { name: string; extr: number; rows: ExamRow[] }[] = [
-    { name: "Marina Alves", extr: 14, rows: [
+  const patients: Patient[] = [
+    { who: MARINA, extr: 14, rows: [
       { k: "Hemoglobina", v: "13,8", u: "g/dL", ref: "12–16", band: [28, 82], pos: 46, flag: null },
       { k: "Vitamina D", v: "18", u: "ng/mL", ref: "30–100", band: [44, 96], pos: 13, flag: "down" },
       { k: "TSH", v: "5,9", u: "µUI/mL", ref: "0,4–4,5", band: [14, 56], pos: 84, flag: "up" },
     ] },
-    { name: "Rafael Nunes", extr: 11, rows: [
+    { who: JOAO, extr: 11, rows: [
       { k: "Glicose", v: "104", u: "mg/dL", ref: "70–99", band: [22, 58], pos: 71, flag: "up" },
       { k: "Ferritina", v: "92", u: "ng/mL", ref: "30–400", band: [30, 94], pos: 41, flag: null },
       { k: "HDL", v: "37", u: "mg/dL", ref: "40–60", band: [40, 80], pos: 22, flag: "down" },
     ] },
-    { name: "Bianca Souza", extr: 16, rows: [
+    { who: BIANCA, extr: 16, rows: [
       { k: "Colesterol", v: "182", u: "mg/dL", ref: "< 190", band: [18, 72], pos: 54, flag: null },
       { k: "Vit. B12", v: "205", u: "pg/mL", ref: "200–900", band: [42, 96], pos: 25, flag: "down" },
       { k: "TSH", v: "2,1", u: "µUI/mL", ref: "0,4–4,5", band: [14, 56], pos: 43, flag: null },
     ] },
   ];
-  const [i, ref] = useAutoCycle(patients.length, 3200);
+  // ASSINATURA — as agulhas assentam. O painel entra pela ESQUERDA e cada
+  // marcador varre de 0% até o seu valor, um atrás do outro, como o ponteiro
+  // de um instrumento buscando a medida. É o mesmo transition-[left] de 900ms
+  // que o card já usa pra trocar de paciente — a entrada não inventou física
+  // nova, só começou a varredura da origem da régua em vez do valor anterior.
+  const [i, ref, entered] = useAutoCycle(patients.length, 3200);
   const p = patients[i];
   return (
     <div ref={ref} className="mt-8 flex-1 px-7 pb-7 md:px-8 md:pb-8">
-      <div style={px(0.32)} className={"gaia-parallax rounded-[16px] p-4 " + GLASS}>
+      <div style={px(0.32)} className={"gaia-parallax gaia-from-left rounded-[16px] p-4 " + GLASS}>
         <div className="mb-3 flex items-center justify-between">
+          {/* O rosto entra DEPOIS do chip PDF, não no lugar dele: o chip é a
+              promessa do card ("suba o PDF do laboratório") e o rosto é de
+              quem é o laudo. A `key` mora no wrapper do par rosto+nome pra os
+              dois trocarem no mesmo fade — o rosto entrando antes do nome
+              lia como troca de paciente pela metade. */}
           <span className="inline-flex items-center gap-2 font-body text-[12px] font-medium text-white/70">
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-white/10 text-[10px] font-semibold text-white/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">PDF</span>
-            <span>Laudo · <span key={p.name} className="gaia-fade tabular-nums text-white/85">{p.name}</span></span>
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/10 text-[10px] font-semibold text-white/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">PDF</span>
+            <span className="inline-flex items-center gap-1.5">
+              Laudo ·
+              <span key={p.who.name} className="gaia-fade inline-flex items-center gap-1.5">
+                <Avatar person={p.who} className="h-5 w-5 text-[8.5px]" />
+                <span className="text-white/85">{p.who.name}</span>
+              </span>
+            </span>
           </span>
-          <GaiaTag>extraiu {p.extr} marcadores</GaiaTag>
+          <GaiaTag className="shrink-0">extraiu {p.extr} marcadores</GaiaTag>
         </div>
         <div className="space-y-3">
           {p.rows.map((r, idx) => (
@@ -726,7 +893,22 @@ function MockExames() {
               </div>
               <div className="relative mt-2 h-1.5 rounded-full bg-white/[0.09]">
                 <span data-bar className="absolute inset-y-0 rounded-full bg-sage-400/35 transition-[left,width] duration-[900ms] ease-gaia" style={{ left: `${r.band[0]}%`, width: `${r.band[1] - r.band[0]}%`, transformOrigin: "left center" }} />
-                <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black/60 transition-[left,background-color] duration-[900ms] ease-gaia" style={{ left: `${r.pos}%`, background: r.flag ? "#D6A04E" : "#A6B58F" }} />
+                {/* O escalonamento (0/90/180ms) é PERMANENTE, não só da
+                    entrada: um delay que só valesse na chegada teria que ser
+                    limpo depois, senão atrasaria a troca de paciente do ciclo
+                    pra sempre. Constante, ele vira característica do card — as
+                    agulhas sempre buscam a medida uma atrás da outra — e a
+                    entrada continua sendo o gesto grande sem precisar de
+                    exceção nenhuma: aqui elas varrem a régua INTEIRA a partir
+                    do zero, e no ciclo só andam de um valor pro vizinho. */}
+                <span
+                  className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black/60 transition-[left,background-color] duration-[900ms] ease-gaia motion-reduce:transition-none"
+                  style={{
+                    left: entered ? `${r.pos}%` : "0%",
+                    background: r.flag ? "#D6A04E" : "#A6B58F",
+                    transitionDelay: `${idx * 90}ms`,
+                  }}
+                />
               </div>
               <div className="mt-1 text-right font-body text-[10px] tabular-nums text-white/30">ref. {r.ref}</div>
             </div>
@@ -744,17 +926,23 @@ function MockAgenda() {
   // paciente, duração/formato à direita. Micro-interação: uma consulta por
   // vez fica "ativa" (a cada ~3s) — quando ela é teleconsulta, a Gaia mostra
   // o link já criado. Cor só distingue formato: roxo = tele, sage = presencial.
-  const events = [
-    { t: "08:30", n: "Marina Alves", dur: "40 min", tele: true },
-    { t: "09:40", n: "Rafael Nunes", dur: "50 min", tele: false },
-    { t: "11:00", n: "Bianca Souza", dur: "30 min", tele: true },
-    { t: "12:00", n: "Diego Farias", dur: "45 min", tele: false },
+  const events: { t: string; who: Person; dur: string; tele: boolean }[] = [
+    { t: "08:30", who: MARINA, dur: "40 min", tele: true },
+    { t: "09:40", who: JOAO, dur: "50 min", tele: false },
+    { t: "11:00", who: BIANCA, dur: "30 min", tele: true },
+    { t: "12:00", who: CAIO, dur: "45 min", tele: false },
   ];
-  const [active, ref] = useAutoCycle(events.length, 3000);
+  // ASSINATURA — o dia se preenche. O painel entra pela DIREITA (o Exames, ao
+  // lado dele na mesma coluna, entra pela esquerda: as duas peças abrem a
+  // coluna como um par, e não como duas cópias do mesmo gesto). As consultas
+  // entram da esquerda em cascata, de cima pra baixo, e a espinha colorida de
+  // cada uma cresce logo atrás — a agenda do dia sendo escrita na ordem em que
+  // ela acontece.
+  const [active, ref, entered] = useAutoCycle(events.length, 3000);
   const cur = events[active];
   return (
     <div ref={ref} className="mt-5 flex-1 px-7 pb-7 md:px-8 md:pb-8">
-      <div style={px(0.32)} className={"gaia-parallax rounded-[16px] p-4 " + GLASS}>
+      <div style={px(0.32)} className={"gaia-parallax gaia-from-right rounded-[16px] p-4 " + GLASS}>
         <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
           <div className="min-w-0 flex-1">
             <p className="font-title text-[15px] font-medium leading-tight text-white">Hoje · seg, 14</p>
@@ -765,28 +953,45 @@ function MockAgenda() {
           </Pill>
         </div>
 
+        {/* Wrapper carrega a entrada, linha carrega o "agora" — mesma razão do
+            MockQuestionarios: gaia-row-slide roda com fill-mode `both` e gruda
+            `opacity: 1` no nó pra sempre; na linha ela mataria o opacity-45 e
+            a consulta ativa nunca mais se destacaria das outras. */}
         <div className="divide-y divide-white/[0.08]">
           {events.map((ev, idx) => {
             const on = idx === active;
             return (
-              <div
-                key={idx}
-                className={
-                  "flex items-center gap-3 rounded-[10px] px-2 py-1 transition-colors duration-500 ease-gaia " +
-                  (on ? "bg-white/[0.06] opacity-100" : "opacity-45")
-                }
-              >
-                <span
-                  className={"h-6 w-[3px] shrink-0 rounded-full transition-colors duration-500 ease-gaia " + (ev.tele ? "bg-brand" : "bg-sage-400")}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-body text-[11px] tabular-nums text-white/40">{ev.t}</span>
-                    <span className="font-body text-[12.5px] font-medium text-white/90">{ev.n}</span>
-                    {on && <Pill className="!px-1.5 !py-0.5 text-[11px] text-white/60">agora</Pill>}
+              <div key={idx} className={entered ? "gaia-row-slide" : "opacity-0"} style={{ animationDelay: `${180 + idx * 80}ms` }}>
+                <div
+                  className={
+                    "flex items-center gap-3 rounded-[10px] px-2 py-1 transition-colors duration-500 ease-gaia " +
+                    (on ? "bg-white/[0.06] opacity-100" : "opacity-45")
+                  }
+                >
+                  {/* A espinha cresce 140ms depois da linha chegar. Ela é o
+                      dado (roxo = tele, sage = presencial), e dado que aparece
+                      junto com o quadro que o contém não é lido como dado. */}
+                  <span
+                    className={
+                      "h-6 w-[3px] shrink-0 rounded-full transition-colors duration-500 ease-gaia " +
+                      (ev.tele ? "bg-brand" : "bg-sage-400") +
+                      (entered ? " gaia-spine" : " scale-y-0")
+                    }
+                    style={{ animationDelay: `${320 + idx * 80}ms` }}
+                  />
+                  {/* O rosto fica DEPOIS da espinha: ela codifica formato
+                      (roxo = tele, sage = presencial) e precisa continuar sendo
+                      a primeira coluna, alinhada de linha em linha. */}
+                  <Avatar person={ev.who} className="h-6 w-6 text-[9px]" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-body text-[11px] tabular-nums text-white/40">{ev.t}</span>
+                      <span className="truncate font-body text-[12.5px] font-medium text-white/90">{ev.who.name}</span>
+                      {on && <Pill className="shrink-0 !px-1.5 !py-0.5 text-[11px] text-white/60">agora</Pill>}
+                    </div>
                   </div>
+                  <span className="shrink-0 font-body text-[11px] tabular-nums text-white/50">{ev.dur}</span>
                 </div>
-                <span className="shrink-0 font-body text-[11px] tabular-nums text-white/50">{ev.dur}</span>
               </div>
             );
           })}
@@ -885,17 +1090,25 @@ function CalibragemCard() {
   );
 }
 
+/* ASSINATURA do Prontuário — as peças convergem. Os satélites vêm de FORA e
+   fecham em volta do phone: o cluster esquerdo entra pela esquerda, o direito
+   pela direita, quase juntos (delays de 0–140ms, não a cascata larga dos
+   outros cards). É a promessa do card encenada — "cada paciente em oito abas,
+   tudo numa tela": as partes soltas da consulta se juntando em torno de uma
+   coisa só. Por isso o gesto é convergência e não cascata: cascata contaria
+   uma lista, e o assunto aqui é reunião. */
+
 /* Cluster esquerdo — espia atrás da borda esquerda do phone (lg+). */
 function ProntuarioLeft() {
   return (
     <div className="pointer-events-none absolute left-[3%] top-1/2 hidden w-[214px] -translate-y-1/2 flex-col gap-3.5 lg:flex xl:left-[6%]">
-      <span style={px(1.2, -4)} className={"gaia-parallax inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1.5 font-body text-[11.5px] font-medium text-white/85 " + GLASS_FROST + " " + FLOAT}>
+      <span data-enter-delay={60} style={px(1.2, -4)} className={"gaia-parallax gaia-converge-l inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1.5 font-body text-[11.5px] font-medium text-white/85 " + GLASS_FROST + " " + FLOAT}>
         <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> 5 sugestões da Gaia
       </span>
-      <div style={px(1.55, 5)} className={"gaia-parallax rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={0} style={px(1.55, 5)} className={"gaia-parallax gaia-converge-l rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <span style={px(1.35, -6)} className={"gaia-parallax inline-flex items-center gap-1.5 self-start rounded-full px-3.5 py-1.5 font-title text-[12.5px] font-semibold text-white " + GLASS_FROST + " " + FLOAT}>
+      <span data-enter-delay={120} style={px(1.35, -6)} className={"gaia-parallax gaia-converge-l inline-flex items-center gap-1.5 self-start rounded-full px-3.5 py-1.5 font-title text-[12.5px] font-semibold text-white " + GLASS_FROST + " " + FLOAT}>
         <IconSparkles className="h-3.5 w-3.5 text-roxo-200" /> Gaia
       </span>
     </div>
@@ -906,10 +1119,10 @@ function ProntuarioLeft() {
 function ProntuarioRight() {
   return (
     <div className="pointer-events-none absolute right-[3%] top-1/2 hidden w-[240px] -translate-y-1/2 flex-col gap-3.5 lg:flex xl:right-[6%]">
-      <div style={px(1.5, 4)} className={"gaia-parallax rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={40} style={px(1.5, 4)} className={"gaia-parallax gaia-converge-r rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div style={px(1.7, -5)} className={"gaia-parallax self-end rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={140} style={px(1.7, -5)} className={"gaia-parallax gaia-converge-r self-end rounded-[15px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -920,13 +1133,17 @@ function ProntuarioRight() {
 function ProntuarioStacked() {
   return (
     <div className="mt-7 flex flex-col gap-3 lg:hidden">
-      <div className={"w-[214px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      {/* px(0): entram, mas não seguem o cursor nem tortas. Sem phone no meio
+          não há convergência pra encenar — o que sobra da assinatura é a
+          chegada pela esquerda, alinhada com a pilha. E dedo não tem hover:
+          depth aqui seria peso de will-change sem contrapartida. */}
+      <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left w-[214px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <div className={"w-[240px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-left w-[240px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div className={"w-[200px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-left w-[200px] rounded-[14px] p-3.5 " + GLASS_FROST + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -972,6 +1189,7 @@ export default function Features() {
   useEffect(() => {
     const cards = gsap.utils.toArray<HTMLElement>("[data-card]", root.current);
     const observers: IntersectionObserver[] = [];
+    const timers: number[] = [];
     cards.forEach((card) => {
       const layers = gsap.utils.toArray<HTMLElement>(".gaia-parallax", card);
       if (!layers.length) return;
@@ -979,7 +1197,19 @@ export default function Features() {
         (entries, obs) => {
           entries.forEach((e) => {
             if (!e.isIntersecting) return;
-            layers.forEach((el, i) => window.setTimeout(() => el.classList.add("is-in"), i * 90));
+            // O atraso é POR PEÇA (data-enter-delay), com o i*90 de sempre
+            // como padrão. Duas razões, as duas medidas:
+            // 1. Cada card tem uma ordem de montagem própria — o painel
+            //    primeiro, a peça que CONCLUI a cena (Insight, sugestão) por
+            //    último e de longe. Ordem de DOM não é ordem de leitura.
+            // 2. Há camadas que só existem num breakpoint. No Prontuário os
+            //    satélites empilhados do mobile vêm ANTES dos clusters no
+            //    JSX: com i*90 cru, três nós invisíveis comiam as primeiras
+            //    vagas e o desktop só começava a montar aos 270ms.
+            layers.forEach((el, i) => {
+              const d = Number(el.dataset.enterDelay ?? i * 90);
+              timers.push(window.setTimeout(() => el.classList.add("is-in"), d));
+            });
             obs.disconnect();
           });
         },
@@ -988,7 +1218,10 @@ export default function Features() {
       io.observe(card);
       observers.push(io);
     });
-    return () => observers.forEach((io) => io.disconnect());
+    return () => {
+      observers.forEach((io) => io.disconnect());
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   }, []);
 
   return (
@@ -1000,14 +1233,20 @@ export default function Features() {
             Recursos
           </span>
           <h2 data-reveal className="text-balance font-title text-h2 font-medium text-neutro-0 md:text-h1">
-            Tudo que a anamnese sempre <span className="italic text-white/60">precisou ser.</span>
+            Tudo que a consulta precisa, <span className="italic text-white/60">num lugar só.</span>
           </h2>
         </header>
 
         <div data-grid className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-2">
           {/* A — Antropometria (dark, vidro único) */}
           <article data-card className={CARD + " min-h-[440px] lg:col-start-1 lg:row-start-1"}>
-            <Glow className="left-[-10%] top-[30%] h-64 w-64" color="rgba(122,144,174,0.22)" />
+            {/* Duas luzes, e a cor não é aleatória: o roxo é a mesma família do
+                #C1A9D3 que desenha a linha do gráfico, então o vidro refrata a
+                cor do próprio dado que ele mostra. O azul frio na quina oposta
+                é o contraluz — uma cor só no card faz a luz ler como filtro
+                chapado por cima; duas em quinas opostas dão direção. */}
+            <Glow className="left-[-14%] top-[34%] h-80 w-80" color="rgba(138,105,216,0.32)" blur={95} />
+            <Glow className="right-[-16%] top-[-10%] h-64 w-64" color="rgba(122,144,174,0.22)" blur={80} />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
                 <CardTitle>Antropometria</CardTitle>
@@ -1021,7 +1260,14 @@ export default function Features() {
           <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/textures/questionarios-verde.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,10,0.42)_0%,rgba(10,14,10,0.2)_42%,rgba(10,14,10,0.34)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,10,0.3)_0%,rgba(10,14,10,0.1)_42%,rgba(10,14,10,0.24)_100%)]" />
+            {/* Roxo sobre textura VERDE, de propósito: luz verde sobre folha
+                verde não existe — some na textura. O roxo é a cor da Gaia e o
+                card de Insight (que é uma leitura dela) pousa bem aqui em cima,
+                então a luz explica de quem é a voz. Entra DEPOIS do véu: antes
+                dele o escurecimento apagaria a luz junto com a textura. */}
+            <Glow className="bottom-[-4%] left-[-10%] h-80 w-80" color="rgba(138,105,216,0.30)" blur={95} />
+            <span aria-hidden className={RIM} />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
                 <CardTitle>Questionários</CardTitle>
@@ -1035,7 +1281,8 @@ export default function Features() {
           <article data-card className={CARD_HERO + " lg:col-start-1 lg:row-start-2"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/textures/plano-pepino.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,12,0.78)_0%,rgba(6,12,12,0.58)_46%,rgba(6,12,12,0.72)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,12,0.6)_0%,rgba(6,12,12,0.38)_46%,rgba(6,12,12,0.54)_100%)]" />
+            <span aria-hidden className={RIM} />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-9 md:pt-9">
                 <CardTitle>Plano alimentar</CardTitle>
@@ -1050,7 +1297,14 @@ export default function Features() {
             <article data-card className={CARD_HERO + " min-h-[360px] flex-1"}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/textures/exames-ambar.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,9,6,0.76)_0%,rgba(12,9,6,0.54)_42%,rgba(12,9,6,0.7)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,9,6,0.58)_0%,rgba(12,9,6,0.34)_42%,rgba(12,9,6,0.52)_100%)]" />
+              {/* Sem Glow AQUI, e é decisão, não esquecimento: a textura deste
+                  card já É uma fonte de luz (os bokeh quentes fora de foco).
+                  Somar âmbar sobre âmbar não deu profundidade — deu lavagem: o
+                  card virou o ponto mais claro do bento e puxou o olho pra
+                  longe do laudo, que é o assunto. Luz de cor serve pra dar ao
+                  vidro o que refratar; onde a foto já entrega isso, ela sobra. */}
+              <span aria-hidden className={RIM} />
               <div className="relative flex h-full flex-col">
                 <div className="px-7 pt-7 md:px-8 md:pt-8">
                   <CardTitle>Exames de sangue</CardTitle>
@@ -1061,7 +1315,11 @@ export default function Features() {
             </article>
 
             <article data-card className={CARD + " min-h-[360px] flex-1"}>
-              <Glow className="left-[-8%] bottom-[10%] h-56 w-56" color="rgba(122,144,174,0.22)" />
+              {/* Roxo e sage porque são as duas cores que a própria agenda usa
+                  na espinha das linhas (roxo = tele, sage = presencial): a luz
+                  do card é a legenda dele, desfocada. */}
+              <Glow className="bottom-[4%] left-[-12%] h-72 w-72" color="rgba(138,105,216,0.28)" blur={88} />
+              <Glow className="right-[-14%] top-[2%] h-56 w-56" color="rgba(139,158,111,0.20)" blur={75} />
               <div className="relative flex h-full flex-col">
                 <div className="px-7 pt-7 md:px-8 md:pt-8">
                   <CardTitle>Agenda</CardTitle>
@@ -1078,10 +1336,16 @@ export default function Features() {
           <article data-card className={CARD_HERO + " lg:col-span-6"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/textures/petala.jpg" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            {/* escurecimento base — mantém o fundo escuro e coerente com o Features */}
+            {/* Escurecimento base — mantém o fundo escuro e coerente com o Features.
+                NÃO acompanha o alívio que os outros heróis levaram: a pétala é a
+                única textura CLARA do bento, e aqui os satélites são GLASS_FROST
+                (tinta branca). Véu mais leve = fundo mais claro = vidro branco
+                sobre claro, e "adesão 68%" some. Nos heróis escuros o alívio
+                revela a textura; neste ele apaga o texto. */}
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,12,0.62)_0%,rgba(6,10,12,0.34)_46%,rgba(6,10,12,0.5)_100%)]" />
             {/* assento radial atrás do phone — dá contraste ao aparelho centralizado */}
             <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 hidden h-[620px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(4,8,10,0.66)_0%,rgba(4,8,10,0.32)_52%,transparent_74%)] lg:block" />
+            <span aria-hidden className={RIM} />
 
             {/* min-h preserva a altura visual do palco agora que a Marina vive na
                 tela do iPhone (ver PhoneScreen) que a ScrollPhone sobrepõe aqui. */}

@@ -5,6 +5,12 @@ import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Badge } from "@/components/ui/Badge";
+import {
+  IconShield,
+  IconUserPlus,
+  IconArrowUpRight,
+  IconCheck,
+} from "@/components/ui/icons";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -69,7 +75,7 @@ const LIRIO = "/lirio-roberta.png";
 // translúcido (mesma família do GLASS_FROST do Features) — legível sobre a pétala
 // escura: tinta branca a 8%, aro de luz interno no topo e sombra funda.
 const PROOF_CARD =
-  "rounded-2xl border border-white/15 bg-white/[0.08] px-5 py-4 backdrop-blur-xl backdrop-saturate-150 shadow-[0_30px_70px_-24px_rgba(0,0,0,0.78),inset_0_1px_0_0_rgba(255,255,255,0.28),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+  "rounded-2xl border border-white/15 bg-white/[0.08] backdrop-blur-xl backdrop-saturate-150 shadow-[0_30px_70px_-24px_rgba(0,0,0,0.78),inset_0_1px_0_0_rgba(255,255,255,0.28),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
 
 // Números da prova — ledger. `to` numérico dispara count-up; `static` fica fixo.
 const STATS = [
@@ -266,22 +272,182 @@ function ProofCard({
   mark,
   big,
   sub,
+  size = "sm",
   className = "",
 }: {
   mark?: boolean;
   big: string;
   sub: string;
+  size?: "sm" | "lg";
   className?: string;
 }) {
+  const lg = size === "lg";
   return (
-    <div data-proof className={`${PROOF_CARD} ${className}`}>
+    <div
+      data-proof
+      className={`${PROOF_CARD} ${lg ? "relative flex flex-col justify-end px-7 py-6 md:px-8 md:py-7" : "px-5 py-4"} ${className}`}
+    >
       {mark && (
-        <span className="mb-2 block font-title text-[1.05rem] leading-none text-roxo-300">✦</span>
+        <span
+          className={`block font-title leading-none text-roxo-300 ${lg ? "absolute left-7 top-6 text-[1.4rem] md:left-8 md:top-7" : "mb-2 text-[1.05rem]"}`}
+        >
+          ✦
+        </span>
       )}
-      <div className="font-title text-[1.9rem] font-medium leading-none tracking-[-0.02em] text-neutro-0">
-        {big}
+      <div>
+        <div
+          className={`font-title font-medium leading-none tracking-[-0.02em] text-neutro-0 ${lg ? "text-[clamp(2.6rem,3.6vw,3.6rem)]" : "text-[1.9rem]"}`}
+        >
+          {big}
+        </div>
+        <div
+          className={`font-body leading-snug text-white/60 ${lg ? "mt-3 text-[15px]" : "mt-2 text-[12.5px]"}`}
+        >
+          {sub}
+        </div>
       </div>
-      <div className="mt-2 font-body text-[12.5px] leading-snug text-white/60">{sub}</div>
+    </div>
+  );
+}
+
+/** Chip de vidro fosco — pílula pequena pra especialidades/tags dentro dos cards. */
+function GlassChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-body text-[11.5px] font-medium text-white/75">
+      {children}
+    </span>
+  );
+}
+
+/** Ícone circular em vidro — casca comum do header dos dois cards (como o círculo do
+ *  ref "Heart rate"). A cor do ícone vem do text-color passado. */
+function IconOrb({ children, tint }: { children: React.ReactNode; tint: string }) {
+  return (
+    <span
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)] ${tint}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** CARD 1 — Credencial. Identidade: autoridade acadêmica. Header com selo, título
+ *  serifado grande, chips de especialidade. Glow roxo no canto pra assinatura de cor. */
+function CredentialCard({ className = "" }: { className?: string }) {
+  return (
+    <div
+      data-proof
+      className={`${PROOF_CARD} relative flex flex-col justify-between overflow-hidden px-7 py-6 md:px-8 md:py-7 ${className}`}
+    >
+      {/* assinatura de cor — luz roxa difusa no canto superior-direito */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-roxo-400/25 blur-3xl"
+      />
+      {/* header */}
+      <div className="flex items-center gap-3">
+        <IconOrb tint="text-roxo-200">
+          <IconShield className="h-5 w-5" />
+        </IconOrb>
+        <div className="leading-tight">
+          <div className="font-body text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
+            Formação
+          </div>
+          <div className="font-body text-[13px] text-roxo-200">titulação acadêmica</div>
+        </div>
+      </div>
+      {/* título */}
+      <div>
+        <div className="font-title text-[clamp(2.3rem,3vw,3.1rem)] font-medium leading-none tracking-[-0.02em] text-neutro-0">
+          Mestre
+        </div>
+        <div className="mt-1.5 font-body text-[15px] text-white/65">em Nutrição</div>
+      </div>
+      {/* chips de especialidade */}
+      <div className="flex flex-wrap gap-2">
+        <GlassChip>Comportamento Alimentar</GlassChip>
+        <GlassChip>
+          <IconCheck className="h-3 w-3 text-roxo-300" />
+          Especialista
+        </GlassChip>
+      </div>
+    </div>
+  );
+}
+
+// Barras do mini-gráfico de crescimento (card 2) — trajetória ascendente = "cada turma
+// forma mais gente". Alguns índices ganham cor de marca pros picos, resto em branco fosco.
+const IMPACT_BARS = [22, 30, 26, 38, 34, 46, 42, 56, 50, 64, 58, 72, 68, 84, 78, 94];
+const IMPACT_ACCENTS: Record<number, string> = {
+  1: "rgba(166,186,213,0.9)", // azul-300
+  4: "rgba(193,169,211,0.9)", // roxo-300
+  7: "rgba(138,105,216,0.95)", // brand
+  10: "rgba(166,186,213,0.9)",
+  12: "rgba(193,169,211,0.9)",
+  15: "rgba(138,105,216,0.95)",
+};
+
+/** CARD 2 — Alcance. Identidade: métrica viva. Header com selo "crescendo", número
+ *  grande, mini bar-chart de crescimento e rodapé com métricas de apoio. Glow azul. */
+function ImpactCard({ className = "" }: { className?: string }) {
+  return (
+    <div
+      data-proof
+      className={`${PROOF_CARD} relative flex flex-col justify-between overflow-hidden px-7 py-6 md:px-8 md:py-7 ${className}`}
+    >
+      {/* assinatura de cor — luz azul difusa no canto superior-esquerdo */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-12 -top-12 h-36 w-36 rounded-full bg-azul-400/20 blur-3xl"
+      />
+      {/* header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <IconOrb tint="text-azul-200">
+            <IconUserPlus className="h-5 w-5" />
+          </IconOrb>
+          <div className="leading-tight">
+            <div className="font-body text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
+              Alcance
+            </div>
+            <div className="font-body text-[13px] text-azul-200">formação contínua</div>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-sage-400/20 px-2.5 py-1 font-body text-[10.5px] font-medium text-sage-300">
+          <IconArrowUpRight className="h-3 w-3" />
+          crescendo
+        </span>
+      </div>
+      {/* número + label */}
+      <div className="flex items-end gap-2.5">
+        <span className="font-title text-[clamp(2.6rem,3.5vw,3.5rem)] font-medium leading-none tracking-[-0.02em] text-neutro-0">
+          +20
+        </span>
+        <span className="pb-1 font-body text-[13px] leading-tight text-white/60">
+          profissionais
+          <br />
+          formados
+        </span>
+      </div>
+      {/* mini bar-chart de crescimento */}
+      <div className="flex h-11 items-end gap-[3px]">
+        {IMPACT_BARS.map((h, i) => (
+          <span
+            key={i}
+            className="flex-1 rounded-full"
+            style={{ height: `${h}%`, background: IMPACT_ACCENTS[i] ?? "rgba(255,255,255,0.26)" }}
+          />
+        ))}
+      </div>
+      {/* rodapé — métricas de apoio */}
+      <div className="flex items-center gap-5 border-t border-white/10 pt-3 font-body text-[12px] text-white/55">
+        <span>
+          <b className="font-semibold text-white/85">3</b> clínicas
+        </span>
+        <span>
+          <b className="font-semibold text-white/85">+1M</b> seguidores
+        </span>
+      </div>
     </div>
   );
 }
@@ -349,6 +515,7 @@ export default function ARoberta() {
   const pin = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
+  const topMask = useRef<HTMLDivElement>(null);
   const wordL = useRef<HTMLSpanElement>(null);
   const wordR = useRef<HTMLSpanElement>(null);
   const editorial = useRef<HTMLDivElement>(null);
@@ -357,6 +524,7 @@ export default function ARoberta() {
   const ticker = useRef<HTMLDivElement>(null);
   const cutout = useRef<HTMLDivElement>(null);
   const proof = useRef<HTMLDivElement>(null);
+  const flora = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<"pinned" | "stacked">("stacked");
 
@@ -417,6 +585,10 @@ export default function ARoberta() {
         el.style.borderRadius = `${(1 - p) * 26}px`;
         el.style.filter =
           p < 1 ? `drop-shadow(0 22px 45px rgba(58,72,94,${0.18 * (1 - p)}))` : "none";
+        // Máscara clara do topo: costura com o creme de Como Começar só no início
+        // (p=0, onde o corte aparece). Conforme o retrato cresce pro full-bleed ela
+        // apaga (1→0), pra não deixar faixa clara sobre a foto cinematográfica.
+        if (topMask.current) topMask.current.style.opacity = String(1 - p);
       };
 
       gsap.set(editorial.current, { autoAlpha: 0, y: 44 });
@@ -442,7 +614,7 @@ export default function ARoberta() {
       // sentido sobre a foto cheia. Wrapper apaga tudo; lírio entra com scale-in
       // ancorado no canto (0% 100%), cards sobem com stagger.
       gsap.set(proof.current, { autoAlpha: 0 });
-      gsap.set("[data-lily]", { autoAlpha: 0, scale: 1.06, transformOrigin: "0% 100%" });
+      gsap.set(flora.current, { autoAlpha: 0 });
       gsap.set("[data-proof]", { autoAlpha: 0, y: 28 });
 
       // Entrada — cada palavra sobe com blur-to-sharp (stagger); o card surge junto.
@@ -504,7 +676,7 @@ export default function ARoberta() {
         )
         // Beat 3 (cont.) — lírio e cards de prova materializam no canto inferior-esquerdo.
         .to(proof.current, { autoAlpha: 1, ease: "none", duration: 0.15 }, 0.98)
-        .to("[data-lily]", { autoAlpha: 1, scale: 1, ease: "power2.out", duration: 0.6 }, 0.98)
+        .to(flora.current, { autoAlpha: 1, ease: "power2.out", duration: 0.5 }, 0.98)
         .to(
           "[data-proof]",
           { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.55, stagger: 0.12 },
@@ -529,9 +701,22 @@ export default function ARoberta() {
   );
 
   return (
-    <section ref={root} id="a-roberta" className="relative overflow-hidden bg-neutro-50">
+    <section
+      ref={root}
+      id="a-roberta"
+      className="relative z-10 bg-neutro-50"
+      // overflow-x: clip corta o sangramento lateral dos lírios (sem scroll horizontal,
+      // já que não há overflow-x global no body); overflow-y: visible libera o lírio a
+      // ATRAVESSAR a borda inferior pra dentro do Features. z-10 garante que ele pinte
+      // por cima do Features (que é sibling posterior, opaco). Antes: overflow-hidden.
+      style={{ overflowX: "clip", overflowY: "visible" }}
+    >
       {mode === "pinned" ? (
-        <div ref={pin} className="relative h-screen overflow-hidden">
+        <div
+          ref={pin}
+          className="relative h-screen"
+          style={{ overflowX: "clip", overflowY: "visible" }}
+        >
           <Afluente veil={false} />
 
           {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo
@@ -550,15 +735,18 @@ export default function ARoberta() {
             style={{ backgroundImage: NOISE_BG, backgroundSize: "180px 180px" }}
           />
 
-          {/* Transição da section escura de cima (ComoComecar fecha em neutro-800):
-              começa nessa mesma cor no topo e desmaia no rosa da orquídea — costura o
-              seam entre o escuro e o rosa sem corte seco. */}
+          {/* Costura com a section CLARA de cima (Como Começar agora fecha em creme):
+              começa no MESMO creme (neutro-50 = #FAF9F5) no topo e desmaia no rosa da
+              orquídea — os dois lados encontram-se no creme, então não há corte. A
+              máscara é clara só no início (p=0); conforme o retrato vira full-bleed ela
+              apaga (opacity 1→0 em applyP) pra não deixar faixa clara sobre a foto. */}
           <div
+            ref={topMask}
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 z-[22] h-44"
+            className="pointer-events-none absolute inset-x-0 top-0 z-[22] h-56"
             style={{
               background:
-                "linear-gradient(to bottom, #2B2E3A 0%, rgba(43,46,58,0.55) 42%, transparent 100%)",
+                "linear-gradient(to bottom, #FAF9F5 0%, rgba(250,249,245,0.82) 32%, rgba(250,249,245,0.4) 60%, transparent 100%)",
             }}
           />
 
@@ -637,27 +825,13 @@ export default function ARoberta() {
               Nasce no beat final (foto já cheia). Wrapper z-[28]: acima do scrim (z-27)
               e do recorte (z-26), abaixo do editorial (z-30, que fica na direita). */}
           <div ref={proof} aria-hidden className="pointer-events-none absolute inset-0 z-[28]">
-            {/* lírio vinho sangrando no canto — corpo no baixo-esquerda, pétalas pro centro */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              data-lily
-              src={LIRIO}
-              alt=""
-              className="absolute bottom-[-5%] left-[-3%] w-[clamp(300px,32vw,540px)] select-none drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
-            />
-            {/* card 1 — credencial (superior-esquerda) */}
-            <ProofCard
-              mark
-              big="Mestre"
-              sub="em Nutrição"
-              className="absolute left-[6%] top-[39%] z-[29] w-[190px]"
-            />
-            {/* card 2 — número (inferior-esquerda, avançando pro centro) */}
-            <ProofCard
-              big="+20"
-              sub="profissionais formados"
-              className="absolute left-[20%] top-[62%] z-[29] w-[200px]"
-            />
+            {/* cards em glass nas coordenadas EXATAS do Figma (node 195-530, frame
+                885×516). Rectangle 1 = 68,230 / 214×122 → %; Rectangle 2 = 218,294 /
+                231×188 → %. Mapeados como fração do full-bleed (100vw × 100vh). */}
+            {/* card 1 — Credencial (Rectangle 1). min-h pra nunca cortar o conteúdo. */}
+            <CredentialCard className="absolute left-[7.7%] top-[42%] z-[29] min-h-[30%] w-[24.2%]" />
+            {/* card 2 — Alcance (Rectangle 2, sobrepondo o card 1) */}
+            <ImpactCard className="absolute left-[24.6%] top-[56%] z-[29] min-h-[31%] w-[26.1%]" />
           </div>
 
           {/* editorial — ancorado na base, sobre o scrim escuro (texto claro) */}
@@ -666,6 +840,32 @@ export default function ARoberta() {
             className="absolute inset-x-0 bottom-0 z-30 pb-10 md:pb-14"
           >
             <Editorial onDark />
+          </div>
+
+          {/* LÍRIOS EM PRIMEIRO PLANO — z-40, ACIMA de tudo (foto, cards, editorial):
+              desfocados (blur) pra ler como flores fora de foco na frente da lente. A
+              section é vista "através" delas → profundidade. Dois cantos opostos
+              emolduram a cena; o de cima é espelhado/girado e mais desfocado (mais
+              "longe") pra não parecer clone. Entram junto com a prova (beat 0.98). */}
+          <div ref={flora} aria-hidden className="pointer-events-none absolute inset-0 z-40">
+            {/* baixo-esquerda (Figma Frame 16) — vaza pra baixo, ATRAVESSANDO a borda
+                da section pra dentro do Features (habilitado pelo overflow-y visible
+                + z-10 na section). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={LIRIO}
+              alt=""
+              className="absolute bottom-[-20%] left-[-9%] w-[clamp(340px,38vw,600px)] select-none blur-[4px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.55)]"
+            />
+            {/* topo-direita (Figma Frame 17) — espelhado/girado, mais desfocado (mais
+                "longe"), sangrando pra cima e pra direita. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={LIRIO}
+              alt=""
+              className="absolute top-[-22%] right-[-12%] w-[clamp(320px,34vw,560px)] select-none opacity-90 blur-[7px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+              style={{ transform: "scaleX(-1) rotate(18deg)" }}
+            />
           </div>
         </div>
       ) : (
@@ -695,13 +895,21 @@ export default function ARoberta() {
               className="pointer-events-none absolute inset-x-0 bottom-0 z-[16] h-1/2"
               style={{ background: PORTRAIT_SCRIM_LIGHT }}
             />
-            {/* lírio vinho no canto — mesmo cutout do desktop */}
+            {/* lírios em primeiro plano — desfocados pra dar profundidade, em dois cantos */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={LIRIO}
               alt=""
               aria-hidden
-              className="pointer-events-none absolute bottom-[-4%] left-[-6%] z-[17] w-[clamp(190px,52vw,300px)] select-none drop-shadow-[0_24px_50px_rgba(0,0,0,0.45)]"
+              className="pointer-events-none absolute bottom-[-5%] left-[-8%] z-[19] w-[clamp(190px,52vw,300px)] select-none blur-[3px] drop-shadow-[0_24px_50px_rgba(0,0,0,0.45)]"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={LIRIO}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute top-[-8%] right-[-10%] z-[19] w-[clamp(150px,40vw,240px)] select-none opacity-90 blur-[5px] drop-shadow-[0_24px_50px_rgba(0,0,0,0.4)]"
+              style={{ transform: "scaleX(-1) rotate(18deg)" }}
             />
             {/* cards de prova, empilhados no alto-esquerda da foto */}
             <div className="pointer-events-none absolute left-4 top-[26%] z-[18] flex flex-col gap-3">

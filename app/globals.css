@@ -223,11 +223,12 @@
    dos satélites. Repouso = fora de vista (deslocado, menor, invisível).   */
 .gaia-parallax {
   transform: translate3d(
-      calc(var(--mx, 0) * var(--depth, 0) * 1px),
+      calc(var(--mx, 0) * var(--depth, 0) * 1px + var(--enter-x, 0px)),
       calc(var(--my, 0) * var(--depth, 0) * 1px + var(--enter, 16px)),
       0
     )
-    rotate(var(--rot, 0deg)) scale(var(--escala, 0.96));
+    rotate(calc(var(--rot, 0deg) + var(--enter-rot, 0deg)))
+    scale(var(--escala, 0.96));
   opacity: 0;
   transition:
     transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
@@ -236,8 +237,106 @@
 }
 .gaia-parallax.is-in {
   --enter: 0px;
+  --enter-x: 0px;
+  --enter-rot: 0deg;
   --escala: 1;
   opacity: 1;
+}
+
+/* ── Vetor de entrada — a assinatura de cada card ──────────────────────────
+   O .gaia-parallax acima é a FÍSICA (curva, fade, escala, 0,6s). Estas
+   classes trocam só DE ONDE a peça vem. Sem classe = o repouso de sempre,
+   16px abaixo. É de propósito que sejam poucas e que compartilhem a mesma
+   curva: as seis assinaturas do bento têm que ler como a mesma mão vista de
+   ângulos diferentes, não como seis animações disputando a cena.
+
+   Classe e não style inline, e isso não é preferência: `.is-in` precisa ZERAR
+   estas vars pra peça chegar, e inline vence classe na cascata — um
+   style="--enter-x:-30px" sobreviveria ao is-in e a peça ficaria parada 30px
+   fora do lugar pra sempre. Por classe, is-in (0,2,0) ganha destas (0,1,0).
+   É também o motivo de --depth/--rot continuarem inline: is-in não os toca. */
+.gaia-from-left {
+  --enter: 4px;
+  --enter-x: -30px;
+  --enter-rot: -2deg;
+}
+.gaia-from-right {
+  --enter: 4px;
+  --enter-x: 30px;
+  --enter-rot: 2deg;
+}
+/* Pousa — vem de mais longe, mais torto e menor. É pra peça que FECHA a cena
+   (o Insight, a sugestão da Gaia): ela chega depois de todo o resto e precisa
+   ser vista chegando, senão a conclusão do card lê como parte do fundo. */
+.gaia-land {
+  --enter: 24px;
+  --enter-x: -16px;
+  --enter-rot: -6deg;
+  --escala: 0.86;
+}
+/* Convergem — os satélites do Prontuário fecham em volta do phone. O sinal
+   oposto do X por cluster é o que faz o movimento ler como "se juntando" em
+   vez de "deslizando pro mesmo lado". */
+.gaia-converge-l {
+  --enter: 0px;
+  --enter-x: -54px;
+  --enter-rot: -6deg;
+  --escala: 0.9;
+}
+.gaia-converge-r {
+  --enter: 0px;
+  --enter-x: 54px;
+  --enter-rot: 6deg;
+  --escala: 0.9;
+}
+
+/* Traçado — o gráfico da Antropometria se plota da esquerda pra direita
+   quando o card entra. Cortina em clip-path e NÃO stroke-dashoffset: a
+   polyline usa vector-effect:non-scaling-stroke dentro de um viewBox com
+   preserveAspectRatio="none", e nesse par o tracejado é medido em espaço de
+   TELA enquanto getTotalLength() devolve unidades do viewBox — como a régua X
+   estica ~3,8× e a Y ~3,2×, os dois números não batem e o traço terminaria no
+   meio do caminho. A cortina não depende de medida nenhuma, e de quebra
+   revela a área e a grade junto com a linha: lê como o gráfico sendo plotado,
+   não como um traço solto correndo no vazio.
+   Vai no SVG e não no box: a caixa é o instrumento e já estava lá; quem se
+   desenha é o dado. */
+.gaia-draw {
+  clip-path: inset(0% 100% 0% 0%);
+  transition: clip-path 1.2s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.gaia-draw.is-drawn {
+  clip-path: inset(0% 0% 0% 0%);
+}
+
+/* Linha entrando pela esquerda — a Agenda preenchendo o dia. */
+@keyframes gaia-row-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.gaia-row-slide {
+  animation: gaia-row-slide 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Espinha crescendo de cima pra baixo — a mesma barra que codifica o formato
+   da consulta (roxo = tele, sage = presencial), desenhada em vez de dada. */
+@keyframes gaia-spine {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.gaia-spine {
+  transform-origin: top center;
+  animation: gaia-spine 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Pop/fade — conteúdo que troca sozinho (paciente, insight, sugestão).
@@ -319,10 +418,22 @@
     transform: scaleX(1);
   }
   .gaia-pop,
-  .gaia-fade {
+  .gaia-fade,
+  .gaia-meal-rise,
+  .gaia-tick,
+  .gaia-row-slide,
+  .gaia-spine {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+  /* Sem cortina: o gráfico nasce plotado. `entered` sobe na hora sob
+     reduced-motion (ver useAutoCycle), então sem isto a cortina rodaria
+     igual — é ELA que precisa ser desligada, não o gatilho. */
+  .gaia-draw,
+  .gaia-draw.is-drawn {
+    clip-path: none;
+    transition: none;
   }
   .gaia-badge-sheen,
   .gaia-badge-halo,

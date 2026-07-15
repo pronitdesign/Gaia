@@ -26,6 +26,7 @@ também é pointer-events-none).
 import { useLayoutEffect, useRef } from "react";
 import { useAutoCycle } from "@/lib/useAutoCycle";
 import { IconCheck } from "@/components/ui/icons";
+import { MARINA, JOAO, ANA, PEDRO, type Person } from "@/lib/people";
 
 export type PhoneScreenVariant = "prontuario" | "inicio";
 
@@ -107,11 +108,11 @@ function BottomNav({ activeIndex, dark }: { activeIndex: 0 | 1 | 2; dark?: boole
    Réplica de /phone-screen.png: fundo claro, card roxo de próxima consulta,
    lista de pacientes recentes. Estática — é a tela de pouso, sem ciclo. */
 function InicioScreen() {
-  const patients = [
-    { init: "MA", name: "Marina Alves", sub: "Anamnese hoje" },
-    { init: "JS", name: "João Silva", sub: "Ontem" },
-    { init: "AC", name: "Ana Costa", sub: "3 dias atrás" },
-    { init: "PL", name: "Pedro Lima", sub: "5 dias atrás" },
+  const patients: { who: Person; sub: string }[] = [
+    { who: MARINA, sub: "Anamnese hoje" },
+    { who: JOAO, sub: "Ontem" },
+    { who: ANA, sub: "3 dias atrás" },
+    { who: PEDRO, sub: "5 dias atrás" },
   ];
   return (
     <div className="flex h-full w-full flex-col bg-neutro-50">
@@ -143,12 +144,23 @@ function InicioScreen() {
           logo abaixo do último paciente. */}
       <div className="mx-7 mt-3 flex flex-1 flex-col gap-2.5">
         {patients.map((p) => (
-          <div key={p.name} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3.5 shadow-soft">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-azul-100 font-title text-[13px] font-semibold text-azul-800">
-              {p.init}
-            </span>
+          <div key={p.who.name} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3.5 shadow-soft">
+            {/* Aro escuro (preto/6), não o branco das peças do Features: esta
+                tela é clara, e o aro tem que separar o retrato do card branco
+                atrás dele — luz sobre luz não vira aresta. Quem não tem foto
+                cai nas iniciais em azul-100, que é o padrão da tela. */}
+            {p.who.photo ? (
+              <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.who.photo} alt="" aria-hidden className="h-full w-full object-cover" />
+              </span>
+            ) : (
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-azul-100 font-title text-[13px] font-semibold text-azul-800">
+                {p.who.init}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="truncate font-title text-[15.5px] font-medium text-neutro-800">{p.name}</p>
+              <p className="truncate font-title text-[15.5px] font-medium text-neutro-800">{p.who.name}</p>
               <p className="font-body text-[12px] text-neutro-500">{p.sub}</p>
             </div>
             <ChevronRight className="h-3 w-3 shrink-0 text-neutro-400" />
@@ -416,11 +428,16 @@ function ProntuarioScreen() {
 
         {/* card da paciente */}
         <div className={"mx-6 mt-4 flex items-center gap-3 rounded-[18px] p-3.5 " + GLASS}>
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-white/15 font-title text-[15px] font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]">
-            MA
+          {/* Squircle (13px), e não o círculo da tela de Início: aqui o retrato
+              é vizinho dos chips e do card de vidro, que são todos de canto
+              arredondado — um círculo no meio deles lia como peça de outra
+              tela. Mesmo raio do avatar de iniciais que estava aqui antes. */}
+          <span className="h-11 w-11 shrink-0 overflow-hidden rounded-[13px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={MARINA.photo} alt="" aria-hidden className="h-full w-full object-cover" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-title text-[15.5px] font-medium text-white">Marina Alves</p>
+            <p className="truncate font-title text-[15.5px] font-medium text-white">{MARINA.name}</p>
             <p className="font-body text-[11.5px] text-white/50">34 anos · última consulta hoje</p>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 font-body text-[11px] font-medium text-sage-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">

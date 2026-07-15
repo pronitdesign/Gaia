@@ -453,11 +453,16 @@ export default function CTAFinal() {
           {/* z-20 · CTA — entre o vídeo (z-0) e a Roberta (z-30): é ESSA ordem que
             faz o texto passar por trás dela. A camada segue full-screen; quem
             viaja é o bloco de dentro. */}
+          {/* `pb-[8vh]` sobe o bloco 4vh acima do centro óptico. Não é gosto: o
+            footer entra com `-mt-[16vh]` e a dissolvência dele lambe o pé do
+            palco — centrado de verdade, a microcopy assentava dentro da emenda.
+            Subindo, o bloco fica na faixa alta da coluna roxa, que é onde ela
+            é mais larga (o braço dela avança conforme desce). */}
           <div
             className={
               still
-                ? "relative z-20 flex flex-1 items-center justify-end px-[3vw]"
-                : "absolute inset-0 z-20 flex items-center justify-end px-[3vw]"
+                ? "relative z-20 flex flex-1 items-center justify-end px-[3vw] pb-[8vh]"
+                : "absolute inset-0 z-20 flex items-center justify-end px-[3vw] pb-[8vh]"
             }
           >
             {/* AO LADO DO TABLET, não acima dela. Com a cena full-bleed a cabeça
@@ -466,43 +471,141 @@ export default function CTAFinal() {
               vertical = na altura do tablet. A borda direita do bloco encosta no
               tablet de propósito: o tablet vem no recorte (z-30), então ele
               come a beirada do texto — profundidade, e é o "passa por trás". */}
+            {/* A LARGURA É O QUE FAZ A SOBREPOSIÇÃO, E ELA SE MEDE EM vh.
+              Contra-intuitivo, então vale a conta. A borda direita do bloco é
+              fixa (`px-[3vw]`); quem se move é a silhueta dela. A foto é 1.79:1
+              com `object-cover` ancorado à direita (ver MEDIA): enquanto o
+              aspecto da viewport for MENOR que 1.79, o cover é puxado pela
+              ALTURA — a largura desenhada vira vh×1.79 e a borda dela passa a
+              depender de vh, não de vw. Somando o `scale-110` e o
+              `-translate-x-[5%]` (que entram como `translate ∘ scale` em torno
+              do centro), a distância da borda dela até a direita da tela sai:
+
+                  R = 1.1 · 1.79 · (1−fx) · vh − 0.05 · vw
+
+              onde fx é onde ela está DENTRO do arquivo. Medindo R com o alpha
+              do recorte amostrado em canvas (mesma régua da pilha de cards) e
+              resolvendo pra constante em cinco viewports:
+                · 1920×1080 → R=559 → C=0.607
+                · 1600×940  → R=484 → C=0.600
+                · 1512×982  → R=505 → C=0.591
+                · 1440×900  → R=463 → C=0.594
+                · 1280×800  → R=412 → C=0.595
+              C fecha em ~0.597 em todos — o modelo vale, e a dispersão é só a
+              silhueta dela não ser vertical (R é lido na altura da 1ª linha,
+              que se move com vh). Note 1440 e 1280: aspecto idêntico, R
+              diferente em px e IGUAL em vw (32.2vw nos dois). É a prova de que
+              o par (vh,vw) manda e a largura sozinha não diz nada.
+
+              Daí a largura: pra ela morder `bite` px da tinta,
+                  W = R + bite − 0.03·vw  =  0.597·vh − 0.08·vw + bite
+              Com bite=22px a mordida sai entre 12 e 27px de 1280 a 1920 —
+              constante, que é o que nenhum valor fixo consegue. O `min(27vw,
+              390px)` que havia aqui é justo o contrário: a 1920 o cap de 390
+              travava e sobrava um VÃO de 45px (os planos nem se tocavam), e a
+              1600 ele mal pegava e mordia 20px. A sobreposição era acidente de
+              cap, não decisão.
+
+              O PREÇO: o texto é alinhado à esquerda, então TODA linha começa na
+              borda que ela morde. 22px é o naco que cabe antes da primeira
+              haste — subir isso começa a comer letra.
+
+              LIMITE CONHECIDO: acima de 1.79 de aspecto (ultrawide) o cover
+              vira puxado pela LARGURA e este modelo não vale mais — R passa a
+              ser 0.334·vw e o bloco fica sem sobreposição, só encostado. Não
+              trato: degrada pra vão, não pra letra comida. Remedir se a foto ou
+              o MEDIA mudarem — `scale-110`/`object-[100%_50%]` estão na conta. */}
+            {/* O GATE É PROPORÇÃO, NÃO LARGURA — mesma regra da pilha de cards,
+              pelo mesmo motivo. Abaixo de 4/3 ela simplesmente NÃO ESTÁ NO
+              QUADRO: o cover ancorado à direita corta tudo menos o fundo, então
+              não há silhueta pra sobrepor e a coluna estreita perde a razão de
+              existir. `md:` não serve — iPad retrato tem 820px de largura (passa
+              em `md`) e aspecto 0.69 (ela sumiu). Aqui embaixo o bloco é o que
+              deveria ter sido sempre: largura cheia, medida de leitura no
+              `max-w`. Isso conserta de passagem um bug antigo — com `27vw` o
+              bloco tinha 105px num iPhone e "consulta"/"diferente." sangravam
+              pra fora da tela. (A CENA no mobile continua sem ela; é outro
+              assunto, não mexi.) */}
             <div
               ref={ctaBlock}
-              className="w-[min(27vw,390px)] text-left"
+              className="w-full max-w-[32rem] text-left [@media(min-aspect-ratio:4/3)]:w-[clamp(320px,calc(59.7vh-8vw+22px),560px)] [@media(min-aspect-ratio:4/3)]:max-w-none"
             >
-              {/* GRANDE. A coluna livre à direita do tablet tem ~419px, então o
-                tamanho vem do corpo da fonte + quebra natural, não das quebras
-                originais ("Sua próxima consulta" numa linha só exigiria 36px pra
-                caber). Aqui a linha quebra sozinha na coluna e o texto respira
-                em ~49px. `text-balance` distribui as linhas em vez de deixar
-                uma órfã. */}
-              <h2 className="text-balance font-title text-[clamp(1.75rem,3.4vw,3rem)] font-medium leading-[1.04] tracking-[-0.02em] text-white">
-                Sua próxima consulta pode começar{" "}
-                <span className="italic text-roxo-300">diferente.</span>
-              </h2>
-
-              {/* O botão toma a LARGURA DA COLUNA em vez de ser um pill solto:
-                é o que tira o ar de mixuruca. Ancorado na mesma medida da
-                headline, ele vira a base do bloco — não um detalhe boiando ao
-                lado dela. Altura e corpo sobem junto (h-14 / 15px), e a seta vai
-                pro fim com `ml-auto` pra empurrar o texto e ocupar a barra. */}
-              <div className="relative mt-8">
+              {/* EYEBROW — o fio é quem sobrepõe de verdade. Ele sai do bloco
+                pra esquerda (`right-full`) e vai morrer por baixo do tablet, em
+                degradê: some dissolvendo em vez de bater num corte reto. É a
+                peça que custa zero legibilidade — nenhuma letra mora nela — e
+                por isso é ela que pode avançar 7vw pra dentro dela. */}
+              <div className="relative pl-1">
                 <span
                   aria-hidden
-                  className="gaia-cta-breathe pointer-events-none absolute -inset-5 -z-10 rounded-full bg-[radial-gradient(circle,rgba(138,105,216,0.65),transparent_70%)] blur-2xl"
+                  className="absolute top-1/2 right-full mr-4 h-px w-[7vw] bg-[linear-gradient(to_left,rgba(255,255,255,0.45),transparent)]"
+                />
+                <span className="font-body text-[11px] font-medium uppercase tracking-[0.28em] text-white/55">
+                  Pronta pra começar?
+                </span>
+              </div>
+
+              {/* GRANDE DE VERDADE. O tamanho vem do corpo da fonte + quebra
+                natural na coluna, não de quebras escritas na mão. A 4.2vw ela
+                fecha em ~64px e quebra em 3 linhas, que é o que enche a caixa
+                em vez de boiar nela. Régua awwwards: leading abaixo de 1
+                (`0.98` — as linhas se tocam e viram um bloco, não uma lista),
+                tracking negativo forte (`-0.035em`, que só fecha bem NESSE
+                corpo; em 28px no mobile o mesmo valor colaria as hastes — daí o
+                clamp cuidar do corpo e o tracking ficar no limite do aceitável
+                pro menor deles) e o itálico como única quebra de registro.
+                `pl-1` alinha a haste da caixa alta com o eyebrow: a serifa tem
+                sidebearing próprio e sem isso o "S" recua sozinho. */}
+              <h2 className="mt-6 text-balance pl-1 font-title text-[clamp(2rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
+                Sua próxima consulta pode ser{" "}
+                <span className="font-normal italic text-roxo-300">
+                  diferente.
+                </span>
+              </h2>
+
+              {/* SUB — registro oposto ao da headline de propósito: sans, corpo
+                pequeno, leading larga, branco a 60%. É o vale entre o pico da
+                headline e o peso do botão; no mesmo registro dos dois viraria
+                mais uma linha da headline. `max-w` em `ch` porque quem manda
+                aqui é a medida de leitura, não a coluna. */}
+              <p className="mt-5 max-w-[36ch] pl-1 font-body text-[15px] leading-[1.6] text-white/60">
+                Comece hoje e sinta a diferença já no próximo atendimento.
+              </p>
+
+              {/* BOTÃO — pill que abraça o texto (`w-fit`), não uma barra na
+                medida da coluna. Com `w-full` ele virava a base do bloco e
+                competia com a headline pelo mesmo eixo: dois retângulos da mesma
+                largura empilhados. Solto, ele volta a ser um objeto — e o rag da
+                headline por cima dele passa a ser a composição, não um acidente.
+                O `w-fit` no wrapper é pré-requisito do glow: `-inset-4` resolve
+                contra ESTA caixa, e num wrapper de largura cheia o halo pintaria
+                a coluna inteira em vez do pill.
+
+                O TOM É O PONTO. `bg-brand` (#8A69D8) é lavanda sobre uma cena
+                que é lavanda — o wash de marca, a aurora e o backdrop todos
+                moram na mesma faixa, então o CTA se dissolvia no fundo justo na
+                hora de ser clicado. Branco sobre `ink` é o par de maior contraste
+                que a paleta já tem (~16:1, AAA), e é o único elemento branco
+                sólido da cena: ele não compete com nada. A marca não sai — ela
+                fica no GLOW, que segue lavanda e agora lê como luz da marca
+                batendo no pill em vez de mais um roxo sobre roxo.
+                É desvio consciente do botão do DS (Figma 17-38): o padrão
+                pressupõe fundo claro, e esta é a única section que o contradiz. */}
+              {/* `ml-1` casa com o `pl-1` do texto: sem ele o pill nasce 4px à
+                esquerda da tinta da headline e a coluna perde o prumo. */}
+              <div className="relative ml-1 mt-10 w-fit">
+                <span
+                  aria-hidden
+                  className="gaia-cta-breathe pointer-events-none absolute -inset-4 -z-10 rounded-full bg-[radial-gradient(circle,rgba(138,105,216,0.85),transparent_70%)] blur-2xl"
                 />
                 <a
                   href="#comecar"
-                  className="group flex h-14 w-full items-center gap-2 rounded-full bg-brand pl-7 pr-5 font-body text-[15px] font-medium tracking-[-0.01em] text-white shadow-[0_10px_34px_-8px_rgba(138,105,216,0.7)] outline-none transition-all duration-200 ease-gaia hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-[0_16px_44px_-8px_rgba(138,105,216,0.85)] focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016] active:translate-y-0"
+                  className="group inline-flex h-14 items-center gap-3 rounded-full bg-neutro-0 pl-8 pr-6 font-body text-[15px] font-medium tracking-[-0.01em] text-ink shadow-[0_10px_34px_-8px_rgba(0,10,26,0.55)] outline-none transition-all duration-200 ease-gaia hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_18px_48px_-10px_rgba(0,10,26,0.75)] focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016] active:translate-y-0"
                 >
                   Começar grátis
-                  <IconArrowUpRight className="ml-auto h-[18px] w-[18px] transition-transform duration-200 ease-gaia group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  <IconArrowUpRight className="h-[18px] w-[18px] transition-transform duration-200 ease-gaia group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </a>
               </div>
-              {/* microcopy: tira o peso da decisão logo abaixo do botão */}
-              <p className="mt-4 font-body text-[13px] leading-relaxed text-white/50">
-                Grátis para começar. Sem cartão.
-              </p>
             </div>
 
             {/* A PILHA — contrapeso do CTA, que sozinho na coluna direita deixa
@@ -541,12 +644,24 @@ export default function CTAFinal() {
               servem: 1280×854 e 1512×982 têm largura parecida e vazios
               completamente diferentes.
 
-              38/25 = 1.52 foi medido pra pilha ANTIGA, no topo. Aqui embaixo o
-              corte é mais fundo por definição, e o gate deixa de ser "quanto
-              texto sobrevive" pra ser "sobra terço esquerdo?". Mantido como
-              piso: abaixo de 1.52 o recorte avança tanto que o braço come o
-              conteúdo, não só a moldura — aí a pilha some inteira em vez de
-              virar sopa. Vale remedir se a foto ou o MEDIA mudarem. */}
+              12/7 = 1.714, e ele SUBIU de 1.52 porque a pilha desceu. Aquele
+              1.52 media a boca da cunha, no topo, onde o vazio é largo; aqui
+              embaixo, na altura do braço, a faixa livre é outra e some muito
+              antes. Medido linha a linha (alpha do recorte amostrado em canvas
+              contra a tinta real de cada linha, via Range — caixa de <p> mede
+              a coluna, não a palavra, e mentiria pra mais):
+                · 1.600 (1440×900)  — 7 linhas cortadas, pior −89. Fora.
+                · 1.655 (1440×870)  — 6 cortadas, pior −45. Fora.
+                · 1.694 (1440×850)  — 4 cortadas, pior −18. Fora.
+                · 1.737 (1440×829)  — 0 cortadas, pior +24.
+                · 1.778 (1600×900)  — 0 cortadas, pior +61.
+              O corte real está entre 1.694 e 1.737; 12/7 é a fração limpa
+              dentro dessa janela. O PREÇO É CONHECIDO: 1440×900 e o MacBook
+              Pro 14" (1.54) perdem a pilha inteira e o CTA volta a ficar sem
+              contrapeso à esquerda. É o custo de plantar os cards em cima do
+              corpo dela — nessa posição o vazio simplesmente não existe abaixo
+              de 1.71, e mostrar viraria sopa. Remedir se a foto ou o MEDIA
+              mudarem: `scale-110`/`object-[100%_50%]` movem essa borda. */}
             {/* `items-start` + `w-[248px]` NO CARD, não na coluna — e isso é
               pré-requisito da escada, não estilo. Com a largura na coluna, o
               stretch padrão do flex faz o `ml` de cada card DESCONTAR da caixa
@@ -556,7 +671,7 @@ export default function CTAFinal() {
               timeline escreve transform nesses mesmos nós — ver CARDS.) */}
             <div
               ref={cardStack}
-              className="absolute left-[3.5vw] top-[30vh] hidden flex-col items-start gap-10 [@media(min-aspect-ratio:38/25)]:flex"
+              className="absolute left-[1vw] top-[30vh] hidden flex-col items-start gap-10 [@media(min-aspect-ratio:12/7)]:flex"
             >
               {/* MOMENTO — o produto agindo, não um número sobre ele. Mesmo
                 vocabulário da tela "início" do iPhone 3D (ver PhoneScreen:
