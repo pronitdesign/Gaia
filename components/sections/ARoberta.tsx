@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useGSAP } from "@/lib/useGSAP";
+import { setTransitionProgress } from "@/lib/robertaTransition";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { CustomEase } from "gsap/CustomEase";
@@ -76,12 +77,6 @@ const CUTOUT = "/roberta-recorte.webp";
 // -50 desloca exatamente uma faixa e o loop é sem emenda.
 const TICKER_NAME = "Roberta Carbonari";
 const TICKER_REPEAT = 4;
-
-// Lírio vinho (cutout transparente, node 195-531 do Figma) — cluster floral no canto
-// inferior-esquerdo, sob os cards de prova. Fiel ao Figma: a massa da flor mora no
-// baixo-esquerda do PNG, então ancorar bottom-left põe o corpo no canto e as pétalas
-// abrindo pro centro, exatamente como na composição.
-const LIRIO = "/lirio-roberta.png";
 
 // Cards de prova em vidro fosco que flutuam sobre a foto full-bleed. Vidro claro
 // translúcido (mesma família do GLASS_FROST do Features) — legível sobre a pétala
@@ -543,7 +538,6 @@ export default function ARoberta() {
   const ticker = useRef<HTMLDivElement>(null);
   const cutout = useRef<HTMLDivElement>(null);
   const proof = useRef<HTMLDivElement>(null);
-  const flora = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<"pinned" | "stacked">("stacked");
 
@@ -563,6 +557,11 @@ export default function ARoberta() {
   useGSAP(
     () => {
       if (mode !== "pinned") {
+        // Sem pin não há cortina — e sem cortina o Features não pode esperar
+        // por um progresso que nunca vai chegar. `null` manda ele cair no
+        // fallback em tempo real (ver lib/robertaTransition.ts).
+        setTransitionProgress(null);
+
         // Fallback: reveals + count-up por scroll normal.
         gsap.from("[data-reveal]", {
           y: 28,
@@ -629,11 +628,9 @@ export default function ARoberta() {
       // o reveal mora no scrub, na posição 1.0 (ver timeline abaixo).
       gsap.set([tickerWrap.current, cutout.current], { autoAlpha: 0 });
 
-      // Cluster floral + cards de prova: mesmo tempo do ticker/recorte — só fazem
-      // sentido sobre a foto cheia. Wrapper apaga tudo; lírio entra com scale-in
-      // ancorado no canto (0% 100%), cards sobem com stagger.
+      // Cards de prova: mesmo tempo do ticker/recorte — só fazem sentido sobre a
+      // foto cheia. Wrapper apaga tudo; os cards sobem com stagger.
       gsap.set(proof.current, { autoAlpha: 0 });
-      gsap.set(flora.current, { autoAlpha: 0 });
       gsap.set("[data-proof]", { autoAlpha: 0, y: 28 });
 
       // Entrada — cada palavra sobe com blur-to-sharp (stagger); o card surge junto.
@@ -693,9 +690,8 @@ export default function ARoberta() {
           { autoAlpha: 1, ease: "power2.out", duration: 0.22 },
           1.0,
         )
-        // Beat 3 (cont.) — lírio e cards de prova materializam no canto inferior-esquerdo.
+        // Beat 3 (cont.) — cards de prova materializam no canto inferior-esquerdo.
         .to(proof.current, { autoAlpha: 1, ease: "none", duration: 0.15 }, 0.98)
-        .to(flora.current, { autoAlpha: 1, ease: "power2.out", duration: 0.5 }, 0.98)
         .to(
           "[data-proof]",
           { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.55, stagger: 0.12 },
@@ -804,17 +800,28 @@ export default function ARoberta() {
       // médio). Também REVERTIDA: sem a régua colada, o parallax/fade não
       // tinham mais função — eram remendo de um mecanismo que já não existe.
       //
-      // QUARTA RODADA (esta) — de volta à mecânica FIEL do demo (clip
-      // dirigido pela ease, recuo com scale+y+opacity do original), porque é
-      // ISSO que produz a sobreposição que o demo tem e a Laura queria. O vão
-      // creme é INERENTE ao efeito — existe no demo também (o gap entre o
-      // rodapé do current recuado e a borda da cortina, que abre no próprio
-      // ease, sem relação geométrica com onde o current parou). No demo ele
-      // não aparece porque o `body` por trás é ESCURO. A solução nunca foi
+      // QUARTA RODADA — de volta à mecânica FIEL do demo (clip dirigido pela
+      // ease, recuo com scale+y+opacity do original), porque é ISSO que
+      // produz a sobreposição que o demo tem e a Laura queria. O vão creme é
+      // INERENTE ao efeito — existe no demo também (o gap entre o rodapé do
+      // current recuado e a borda da cortina, que abre no próprio ease, sem
+      // relação geométrica com onde o current parou). No demo ele não
+      // aparece porque o `body` por trás é ESCURO. A solução nunca foi
       // geometria (colar a régua) — é COR: escurecer o fundo da ARoberta pra
       // a cor exata do Features (#0A0C11) cedo o bastante pra o vão nascer
       // já preto, indistinguível do que está por cima dele. Ver o bloco do
-      // `bgEase` abaixo.
+      // `bgEase` abaixo. O recuo (`gsap.set(recede.current, ...)`), o
+      // `bgEase`/`BG_DONE_AT` e este parágrafo inteiro CONTINUAM valendo —
+      // nada disso mudou na rodada seguinte.
+      //
+      // QUINTA RODADA — SUPERSEDED apenas a parte do CLIP: a Laura viu na
+      // tela e reprovou a ORDEM de entrada do Features (bentos antes do
+      // título), não o recuo nem o vão creme descritos acima. O clipPath
+      // dirigido pela ease (citado neste parágrafo) SAIU; o Features agora
+      // sobe como bloco. Ver o `gsap.set(featuresEl, ...)` final desta
+      // função pro mecanismo atual e a explicação completa — este parágrafo
+      // fica como registro de por que a MÁSCARA existiu, não como descrição
+      // do que roda hoje.
       const featuresEl = document.querySelector<HTMLElement>("#features");
       const pageTransitionEase = gsap.parseEase("pageTransition");
 
@@ -858,9 +865,13 @@ export default function ARoberta() {
         // porque o y que escrevemos nele mais abaixo contaminaria a própria
         // leitura no frame seguinte). root.current (#a-roberta) nunca leva
         // transform e é o irmão anterior imediato do Features, sem margin
-        // entre os dois — seu `.bottom` É o topo natural do Features. Ainda
-        // usado pra cravar o Features no topo da tela (y) — não mais pro
-        // clipPath, que voltou a ser dirigido pela ease (ver abaixo).
+        // entre os dois — seu `.bottom` É o topo natural do Features.
+        // QUINTA RODADA: não crava mais o Features no topo (y=-naturalTop
+        // fixo) — `naturalTop` agora só entra como o termo que cancela o
+        // deslize do scroll dentro de `y = (1-eased)*vh - naturalTop` (ver o
+        // gsap.set(featuresEl, ...) no fim da função), deixando `(1-eased)*vh`
+        // livre pra ser a POSIÇÃO de fato do topo do bloco, não um deslize
+        // residual.
         const naturalTop = root.current.getBoundingClientRect().bottom;
         // p linear: 0 enquanto o Features não tocou a base da tela
         // (naturalTop ≥ vh), 1 quando o topo dele chegaria ao topo da tela
@@ -892,6 +903,15 @@ export default function ARoberta() {
         // deixa a classe Tailwind reassumir). Escrito uma única vez ao tocar
         // cada borda, nunca por frame: o early-out acima garante isso.
         if (naturalTop >= vh || naturalTop <= 0) {
+          // Publica o repouso da borda pro Features (ver lib/robertaTransition
+          // .ts). Aqui `p` já é exatamente 0 ou 1 (o clamp acima garante), e
+          // nos dois extremos a ease é identidade — pageTransition(0)=0,
+          // pageTransition(1)=1 —, então `eased: p` não é aproximação, é o
+          // valor certo, sem pagar uma chamada de ease. Precisa vir ANTES do
+          // return: é o que trava a timeline do Features fechada (progress 0)
+          // antes da janela e aberta (progress 1) depois dela — sem isso o
+          // Features ficaria congelado no último progresso da janela.
+          setTransitionProgress({ p, eased: p });
           gsap.set(featuresEl, { y: 0, clipPath: "none", clearProps: "zIndex" });
           if (recede.current) gsap.set(recede.current, { y: 0, scale: 1, opacity: 1 });
           gsap.set([root.current, document.body], { clearProps: "backgroundColor" });
@@ -899,6 +919,19 @@ export default function ARoberta() {
         }
 
         const eased = pageTransitionEase(p);
+
+        // Publica o progresso da janela pro Features (ver lib/robertaTransition
+        // .ts). Este ticker é a ÚNICA fonte de verdade sobre onde a cortina
+        // está: `eased` é literalmente o que posiciona a borda logo abaixo
+        // (screen-y = (1 - eased) * vh), então é ele — não `p` — que o
+        // Features usa como progress da própria timeline de entrada. Assim as
+        // duas coisas não podem dessincronizar: é o mesmo número.
+        //
+        // Só publica (uma atribuição), não notifica ninguém: o Features lê no
+        // ticker dele. Publicar depois do `eased` e antes das escritas de DOM
+        // é de propósito — o consumidor roda no mesmo tick, e o valor precisa
+        // já estar lá quando ele ler.
+        setTransitionProgress({ p, eased });
 
         // Recuo — FIEL ao defaultTransition do demo: y -30vh·eased, scale
         // 1→0.8, opacity 1→0.4 (NUNCA chega a 0 — no demo o current fica
@@ -965,22 +998,53 @@ export default function ARoberta() {
           backgroundColor: gsap.utils.interpolate(BG_REST, BG_FEATURES, easedBg),
         });
 
-        // #features fica CRAVADO no topo da tela — y cancela exatamente o
-        // naturalTop (screen-y do topo do elemento vira 0, imóvel, conteúdo
-        // não desliza) — e o clipPath volta a sair DIRETO do ease, em pixels
-        // no espaço LOCAL do próprio elemento (~2000px de altura; não em %,
-        // que varreria a caixa toda em vez de só a fatia que cabe na tela).
-        // É JUSTAMENTE essa ease — não colada em `naturalTop` — que faz o
-        // Features SOBREPOR a ARoberta em vez de só preencher o vazio dela
-        // (ver bloco grande acima, segunda/quarta rodada): a cortina abre no
-        // seu próprio ritmo, igual ao demo. clip-path é resolvido no espaço
-        // local ANTES do transform, então com y=-naturalTop um corte em
-        // local-y=X cai em screen-y=X. z-index 10 garante que ele pinta por
-        // cima da ARoberta que recua atrás (#features já é
-        // position:relative, daí z-index pega).
+        // QUINTA RODADA — a Laura viu na tela e reprovou a ORDEM de entrada
+        // do Features (bentos aparecendo antes do título), não o timing do
+        // scrub. Causa: a cortina anterior (clipPath dirigido por `eased`,
+        // topo cravado em y=-naturalTop) revela a section de BAIXO PRA CIMA
+        // — pra QUALQUER deslocamento uniforme do conteúdo, a peça com
+        // offsetTop MENOR (o h2, no topo) é sempre revelada por ÚLTIMO. Não
+        // era ajustável tunando LEAD/DUR (ver Features.tsx) — é a mecânica
+        // da MÁSCARA que fixa a ordem. A Laura escolheu, entre três opções: o
+        // Features sobe como BLOCO, sem clip, liderado pela própria borda de
+        // CIMA — o h2 (que já é o topo do bloco) entra primeiro por
+        // construção, não por sorte de geometria.
+        //
+        // clipPath SAIU. Não há mais máscara na section — ela é opaca
+        // (bg-[#0A0C11]) e se oclui sozinha; ver o zIndex abaixo pro porquê
+        // isso basta.
+        //
+        // y trocou de `-naturalTop` pra `(1-eased)*vh - naturalTop`. Efeito:
+        // o topo do #features (que ANTES ficava cravado em screen-y=0 o
+        // tempo todo) agora VIAJA — screen-y = (1-eased)*vh, de `vh` (fora da
+        // tela, embaixo) até `0` (encostado no topo), na mesma ease
+        // `pageTransition` de sempre. É o bloco inteiro subindo, não uma
+        // cortina abrindo sobre ele parado.
+        //
+        // SEM SALTO NAS BORDAS (medido, não só deduzido): em p=0,
+        // naturalTop=vh e eased=0 → y=(1-0)*vh-vh=0 — igual ao y:0 do
+        // repouso ANTES da janela (bloco acima). Em p=1, naturalTop=0 e
+        // eased=1 → y=(1-1)*vh-0=0 — igual ao y:0 do repouso DEPOIS. As duas
+        // bordas empalmam exatamente com o platô de repouso; não é
+        // coincidência, é o que faz `naturalTop` e `(1-eased)*vh` cancelarem
+        // um ao outro nos dois extremos da janela (onde `eased` e `p`
+        // colapsam pro mesmo valor, 0 ou 1).
+        //
+        // SOBREPOSIÇÃO preservada: a `pageTransition` cruza a diagonal
+        // eased=p em p≈0.44 e vai à FRENTE dela depois (eased > p) — dali em
+        // diante `y` fica NEGATIVO (a section é puxada ACIMA da própria
+        // posição natural), exatamente o que faz o Features cobrir a
+        // ARoberta que recua atrás, preservando o efeito de sobreposição que
+        // a cortina antiga dava por outro caminho.
+        //
+        // zIndex:10 FICA — é ele que garante que o Features (opaco) pinta
+        // por cima da ARoberta enquanto sobrepõe, já que não há mais clip
+        // recortando a fatia visível: agora é a section INTEIRA subindo, e
+        // sem zIndex a ordem de pintura voltaria a seguir a ordem do
+        // documento (que já favorece o Features, mas via z-index é
+        // explícito e não depende de nenhum outro z-index não mexer).
         gsap.set(featuresEl, {
-          y: -naturalTop,
-          clipPath: `inset(${(1 - eased) * vh}px 0px 0px 0px)`,
+          y: (1 - eased) * vh - naturalTop,
           zIndex: 10,
           force3D: true,
         });
@@ -991,6 +1055,12 @@ export default function ARoberta() {
       return () => {
         marquee.kill();
         gsap.ticker.remove(applyTransition);
+        // A cortina deixou de existir — o Features precisa saber, senão fica
+        // preso lendo o último progresso publicado (um valor que ninguém mais
+        // atualiza) e nunca cai no fallback. Mesma razão do clearProps abaixo:
+        // o que este ticker deixou escrito fora do próprio componente é
+        // responsabilidade dele desfazer. Ver lib/robertaTransition.ts.
+        setTransitionProgress(null);
         // O Features é de OUTRO componente, a section #a-roberta (root) e o
         // <body> vivem montados o tempo todo — ao contrário de `recede` (que
         // some com o resto do JSX pinned quando o mode trocar), os estilos
@@ -1020,20 +1090,15 @@ export default function ARoberta() {
       ref={root}
       id="a-roberta"
       className="relative bg-neutro-50"
-      // overflow-x: clip corta o sangramento lateral dos lírios (sem scroll horizontal,
-      // já que não há overflow-x global no body); overflow-y: visible libera o lírio a
-      // atravessar a borda inferior. Antes: overflow-hidden.
+      // overflow-x: clip corta qualquer sangramento lateral sem criar scroll
+      // horizontal (não há overflow-x global no body). Nunca overflow-hidden nos
+      // dois eixos aqui: o pin do GSAP precisa do eixo Y livre.
       //
-      // z-10 SAIU DAQUI — e essa mudança inverte a frase que estava aqui. Ele
-      // existia pra ARoberta pintar POR CIMA do Features (sibling posterior,
-      // opaco), deixando o lírio atravessar a borda inferior pra dentro dele.
-      // A transição pra Features (ver a cortina/recuo no useGSAP acima) exige
-      // o INVERSO: o Features precisa subir por cima da ARoberta enquanto ela
-      // recua, não o contrário. Sem z-index aqui, a ordem de pintura volta a
-      // seguir a ordem do documento — Features, por vir depois no DOM, pinta
-      // em cima — que é exatamente o que a cortina precisa. Efeito colateral
-      // aceito: o lírio não sangra mais visualmente pro Features; ele recua
-      // JUNTO com o resto (dentro do wrapper `recede`) em vez de atravessar.
+      // SEM z-index nesta section, de propósito: a transição pra Features (ver a
+      // cortina/recuo no useGSAP acima) exige que o Features suba POR CIMA da
+      // ARoberta enquanto ela recua. Sem z-index a ordem de pintura segue a ordem
+      // do documento — Features vem depois no DOM, então pinta em cima — que é
+      // exatamente o que a cortina precisa.
       style={{ overflowX: "clip", overflowY: "visible" }}
     >
       {mode === "pinned" ? (
@@ -1151,7 +1216,7 @@ export default function ARoberta() {
             style={{ background: PORTRAIT_SCRIM_DARK }}
           />
 
-          {/* Cluster floral + prova — canto inferior-esquerdo, sobre a foto full-bleed.
+          {/* Cards de prova — canto inferior-esquerdo, sobre a foto full-bleed.
               Nasce no beat final (foto já cheia). Wrapper z-[28]: acima do scrim (z-27)
               e do recorte (z-26), abaixo do editorial (z-30, que fica na direita). */}
           <div ref={proof} aria-hidden className="pointer-events-none absolute inset-0 z-[28]">
@@ -1170,32 +1235,6 @@ export default function ARoberta() {
             className="absolute inset-x-0 bottom-0 z-30 pb-10 md:pb-14"
           >
             <Editorial onDark />
-          </div>
-
-          {/* LÍRIOS EM PRIMEIRO PLANO — z-40, ACIMA de tudo (foto, cards, editorial):
-              desfocados (blur) pra ler como flores fora de foco na frente da lente. A
-              section é vista "através" delas → profundidade. Dois cantos opostos
-              emolduram a cena; o de cima é espelhado/girado e mais desfocado (mais
-              "longe") pra não parecer clone. Entram junto com a prova (beat 0.98). */}
-          <div ref={flora} aria-hidden className="pointer-events-none absolute inset-0 z-40">
-            {/* baixo-esquerda (Figma Frame 16) — vaza pra baixo, ATRAVESSANDO a borda
-                da section pra dentro do Features (habilitado pelo overflow-y visible
-                + z-10 na section). */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={LIRIO}
-              alt=""
-              className="absolute bottom-[-20%] left-[-9%] w-[clamp(340px,38vw,600px)] select-none blur-[4px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.55)]"
-            />
-            {/* topo-direita (Figma Frame 17) — espelhado/girado, mais desfocado (mais
-                "longe"), sangrando pra cima e pra direita. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={LIRIO}
-              alt=""
-              className="absolute top-[-22%] right-[-12%] w-[clamp(320px,34vw,560px)] select-none opacity-90 blur-[7px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
-              style={{ transform: "scaleX(-1) rotate(18deg)" }}
-            />
           </div>
         </div>
         </div>
@@ -1225,22 +1264,6 @@ export default function ARoberta() {
               aria-hidden
               className="pointer-events-none absolute inset-x-0 bottom-0 z-[16] h-1/2"
               style={{ background: PORTRAIT_SCRIM_LIGHT }}
-            />
-            {/* lírios em primeiro plano — desfocados pra dar profundidade, em dois cantos */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={LIRIO}
-              alt=""
-              aria-hidden
-              className="pointer-events-none absolute bottom-[-5%] left-[-8%] z-[19] w-[clamp(190px,52vw,300px)] select-none blur-[3px] drop-shadow-[0_24px_50px_rgba(0,0,0,0.45)]"
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={LIRIO}
-              alt=""
-              aria-hidden
-              className="pointer-events-none absolute top-[-8%] right-[-10%] z-[19] w-[clamp(150px,40vw,240px)] select-none opacity-90 blur-[5px] drop-shadow-[0_24px_50px_rgba(0,0,0,0.4)]"
-              style={{ transform: "scaleX(-1) rotate(18deg)" }}
             />
             {/* cards de prova, empilhados no alto-esquerda da foto */}
             <div className="pointer-events-none absolute left-4 top-[26%] z-[18] flex flex-col gap-3">

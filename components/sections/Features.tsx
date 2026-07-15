@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { useGSAP } from "@/lib/useGSAP";
+import { getTransitionProgress } from "@/lib/robertaTransition";
 import { useAutoCycle } from "@/lib/useAutoCycle";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -174,8 +175,15 @@ const CARD_HERO = "group relative isolate flex flex-col overflow-hidden rounded-
    Vai DEPOIS do véu nos heróis — antes dele o escurecimento apagaria a aresta
    junto com a textura — e antes do conteúdo, que é `relative` e pinta acima de
    qualquer jeito. */
-function EdgeLight({ at, className = "" }: { at: string; className?: string }) {
-  const stops = "rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.22) 42%, rgba(255,255,255,0.07) 100%";
+/* tone="light": o aro branco existe pra separar card escuro de fundo escuro.
+   Sobre a gradiente pastel crua ele simplesmente some (branco sobre ~200 de
+   luminância não é aresta). Aqui a aresta tem que ser sombra, não luz — mesmo
+   desenho, tinta invertida. */
+function EdgeLight({ at, tone = "dark", className = "" }: { at: string; tone?: "dark" | "light"; className?: string }) {
+  const stops =
+    tone === "light"
+      ? "rgba(0,10,26,0.28) 0%, rgba(0,10,26,0.10) 42%, rgba(0,10,26,0.03) 100%"
+      : "rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.22) 42%, rgba(255,255,255,0.07) 100%";
   return (
     <div
       aria-hidden
@@ -203,13 +211,31 @@ const GLASS_DARK =
   "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.92),inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)]";
 const GLASS = `relative overflow-hidden ${GLASS_BLUR} ${GLASS_DARK}`;
 
-/* Vidro claro/fosco — deixa o floral atravessar (satélites do Prontuário).
-   Mais aéreo e premium que o GLASS_DARK: tinta branca translúcida, aro de luz
-   nítido e realce interno no topo. Legível sobre a pétala escura. */
-const GLASS_FROST =
+/* Mesmo vidro, tinta mais forte — pros 9 painéis que agora moram sobre gradiente
+   pastel crua (MockPlano, MockQuestionarios e os 6 satélites do Prontuário).
+   Não é preferência, é o mesmo cálculo do GLASS_DARK refeito com outro fundo:
+   tinta PRETA translúcida não tem cor própria, ela mostra o que está atrás.
+   black/0,58 sobre card escuro (~40 de luminância) dava painel em ~17–24; a
+   MESMA receita sobre pastel (~200) dá 84–120 — o painel clareia 5× e o texto
+   secundário de dentro (white/55) despenca pra ~3:1. Em 0,82→0,74 o painel volta
+   pra ~36–52 e o white/55 passa em 4,97:1.
+   E sim, isto contraria a nota do GLASS_DARK ("em 80% de tinta preta o blur não
+   tem o que refratar, o painel lia como recorte vazado"). Aquilo foi medido
+   sobre cena ESCURA, onde 20% de passagem é quase nada. Aqui os 18–26% que
+   passam são de um pastel de 200 com variação de 148 a 232: sobra sinal de
+   sobra pro blur refratar, e a gradiente continua atravessando o painel. */
+const GLASS_ON_LIGHT =
   `relative overflow-hidden ${GLASS_BLUR} ` +
-  "bg-gradient-to-b from-white/[0.13] to-white/[0.05] " +
-  "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.32),inset_0_0_0_1px_rgba(255,255,255,0.12)]";
+  "bg-gradient-to-b from-black/[0.82] to-black/[0.74] " +
+  "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.55),inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)]";
+
+/* GLASS_FROST (vidro branco translúcido) morava aqui e vestia os três satélites
+   do Prontuário. Saiu junto com o véu escuro daquele card: tinta branca a 13%
+   existia pra deixar a pétala ESCURA atravessar. Sobre a gradiente lilás crua
+   (~200 de luminância) ela vira branco sobre branco — o satélite perde aresta e
+   o texto claro de dentro desaba. Os três passaram a GLASS (vidro escuro), que
+   é o que os outros mocks do bento já usavam: sobre fundo claro é o escuro que
+   dá a peça, e o texto branco de dentro segue valendo. */
 
 const FLOAT = "shadow-[0_34px_70px_-22px_rgba(0,0,0,0.7)]";
 
@@ -219,15 +245,186 @@ const FLOAT = "shadow-[0_34px_70px_-22px_rgba(0,0,0,0.7)]";
 const px = (depth: number, rot = 0) =>
   ({ ["--depth"]: depth, ["--rot"]: `${rot}deg` }) as CSSProperties;
 
-function CardTitle({ children }: { children: ReactNode }) {
+/* tone="light" = card com a gradiente pastel por baixo, sob véu LEVE (0,27).
+   Título e corpo caem os dois em `ink`, e isso não é desleixo — é o teto do
+   sistema. A hierarquia aqui é serifada 1,5rem contra sans de corpo, não cor.
+
+   Por que não `neutro-800` no corpo, que era mais claro e dava hierarquia: ele
+   exige fundo acima de 147 de luminância pra passar 4,5:1. O véu que tira o
+   ofuscamento derruba o pior ponto sob o texto pra ~130, e ali só `ink`
+   (piso 122) aguenta. Foi escolher entre a cor do corpo e o brilho do card.
+
+   Existe uma ZONA MORTA entre ~85 e ~122 de luminância: clara demais pro texto
+   branco (white/55 exige fundo abaixo de 85), escura demais pro escuro. Nenhum
+   card pode pousar ali — por isso o véu destes três é 0,27 e não "um pouco
+   mais": em 0,45 eles cairiam no vão e nenhuma cor de texto funcionaria. */
+function CardTitle({ tone = "dark", children }: { tone?: "dark" | "light"; children: ReactNode }) {
   return (
-    <h3 className="font-title text-[1.5rem] font-medium leading-[1.15] text-neutro-0">{children}</h3>
+    <h3 className={"font-title text-[1.5rem] font-medium leading-[1.15] " + (tone === "light" ? "text-ink" : "text-neutro-0")}>{children}</h3>
   );
 }
 
-function CardBody({ tone = "dark", children }: { tone?: "dark" | "hero"; children: ReactNode }) {
+/* ── Swap — fade-through que mata o key-remount ───────────────────────────
+   O bug que isto conserta: até aqui toda troca de conteúdo era `key={x}` +
+   `.gaia-pop`/`.gaia-fade`. Com `key`, o React não atualiza o nó — ele
+   DESMONTA o velho e MONTA o novo no mesmo commit. O conteúdo antigo não
+   anima saindo, ele SOME num frame só, e só o que ENTRA tem fade. Metade da
+   transição é corte seco — é a raiz do "flash de dado" que os mocks tinham
+   (o marcador do MockExames deslizando 900ms ao lado de um nome que já
+   trocou há um frame).
+
+   A troca é capturada DURANTE O RENDER (`if (k !== cur.k) { setPrev(cur); ... }`
+   abaixo), não num `useEffect` — é o padrão que o próprio React documenta
+   pra derivar estado de uma mudança de prop: ajustar o estado NO MESMO
+   commit em que a prop muda evita o frame órfão em que o conteúdo velho já
+   não é `cur` mas ainda não virou `prev`. Um efeito rodaria um tick tarde
+   demais e esse frame perderia a saída.
+
+   As duas janelas NÃO se sobrepõem, de propósito — é a diferença entre isto
+   e um crossfade comum. Crossfade sobrepondo saída e entrada funciona bem
+   quando o conteúdo é o MESMO dado mudando de estado; aqui cada ciclo troca
+   de SIGNIFICADO ("Hemoglobina" → "Glicose", um paciente por outro), e duas
+   palavras diferentes co-existindo por 100-200ms lê como texto fantasma
+   duplicado, não como transição. Por isso a saída (200ms) termina, sobra um
+   vão mudo de ~20ms sem nenhum dos dois visível, e só então a entrada
+   (340ms) começa aos 220ms. Total ~560ms.
+
+   Saída mais curta e mais seca que a entrada (200ms, só opacity+blur, sem
+   deslocamento) contra a entrada (340ms, opacity+translateY+blur): saída
+   nunca deve competir por atenção com quem está chegando — o olho já sabe
+   que aquilo vai embora, não precisa de encenação, só precisa desocupar.
+
+   `display:grid` com os dois filhos em `gridArea: 1 / 1`: os dois ocupam o
+   MESMO retângulo ao mesmo tempo, inclusive no vão mudo dos 20ms em que
+   nenhum está visível — sem isso o container mediria só quem está presente
+   e a troca faria a altura pular (reflow) toda vez que o texto de uma linha
+   virasse duas.
+
+   Convenção de uso (não imposta pelo componente, decidida caso a caso nos
+   9 call-sites deste arquivo): `className` carrega só POSIÇÃO/TAMANHO/CHROME
+   visual (absolute, margin, GLASS, rounded, sombra — nada que declare
+   `display` flex/grid) porque isso fica FORA do grid interno, no wrapper que
+   persiste entre prev e cur. Qualquer alinhamento interno (flex, gap,
+   justify) que o conteúdo precise vai num `<div>` DENTRO de `children` —
+   nunca na própria Swap — porque a Swap já é `grid` por dentro; um
+   `className="flex ..."` aqui colidiria com o `gridArea` dos dois filhos e
+   quebraria a sobreposição.
+
+   `reducedMotionRef` é lido de um `useEffect([])` que roda no MOUNT, antes
+   de qualquer troca real (a primeira troca só acontece quando `k` muda num
+   render POSTERIOR ao mount) — dá pra confiar nele dentro do bloco de render
+   sem chamar `matchMedia` no SSR (onde `window` não existe) e sem o import
+   de `useLayoutEffect`, que a zona de exclusão deste arquivo não libera.
+
+   CICATRIZ (P0 medido em produção, não hipotético): a primeira versão desta
+   peça tinha os DOIS timers — o da saída (`setPrev(null)`, 200ms) e o da
+   entrada (`setCurIn(true)`, 220ms) — no MESMO `useEffect`, dependente de
+   `[prev]`. Aos 200ms o `exitTimer` chamava `setPrev(null)`; como `prev` é a
+   PRÓPRIA dependência do efeito, o React rodava o CLEANUP dele antes de
+   aplicar a próxima renderização — e o cleanup dava `clearTimeout(enterTimer)`
+   uns 20ms antes de ele disparar. `setCurIn(true)` nunca acontecia:
+   `curIn` ficava em `false` PRA SEMPRE, e o conteúdo que tinha acabado de
+   entrar renderizava com opacity:0 ESTÁVEL, não em transição — medido com
+   getComputedStyle no MockExames (ciclo de 3,2s): o laudo inteiro sumia a
+   cada poucas trocas, sempre que a corrida saía do jeito errado. Um timer
+   cujo trabalho é a ENTRADA não pode morar num efeito cuja dependência é a
+   SAÍDA: a saída se autodestrói ao terminar (é o que `setPrev(null)` faz) e
+   leva a entrada junto no mesmo cleanup. O conserto é dois efeitos
+   SEPARADOS: o da saída depende de `[prev]` (cuida só de si); o da entrada
+   depende de `[cur.k]` (reinicia exatamente quando uma troca nova começa, e
+   seu cleanup só roda na PRÓXIMA troca — nunca no meio do caminho da troca
+   atual). A próxima pessoa vai querer juntar os dois de novo pra "simplificar"
+   — não junte. */
+function Swap({ k, children, className = "" }: { k: string | number; children: ReactNode; className?: string }) {
+  const [cur, setCur] = useState<{ k: string | number; node: ReactNode }>({ k, node: children });
+  const [prev, setPrev] = useState<{ k: string | number; node: ReactNode } | null>(null);
+  const [curIn, setCurIn] = useState(true);
+  const [prevOut, setPrevOut] = useState(false);
+  const reducedMotionRef = useRef(false);
+
+  useEffect(() => {
+    reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  // Ajuste de estado NO RENDER (ver comentário acima) — dispara na hora em
+  // que `k` muda, antes do commit.
+  if (k !== cur.k) {
+    if (reducedMotionRef.current) {
+      // troca instantânea, sem prev, sem animação
+      setCur({ k, node: children });
+      setPrev(null);
+      setCurIn(true);
+    } else {
+      setPrev(cur);
+      setCur({ k, node: children });
+      setCurIn(false);
+      setPrevOut(false);
+    }
+  }
+
+  // SAÍDA — só cuida do `prev`. Dispara o frame de saída e desmonta ao
+  // terminar. NÃO mexe em `curIn`: ver a cicatriz no comentário do topo.
+  useEffect(() => {
+    if (!prev) return;
+    // Um frame de distância do mount: se a saída nascesse já no estado final
+    // no mesmo paint, o navegador nunca veria o estado inicial (opacity 1) —
+    // não existe transição sem dois frames diferentes pra interpolar entre
+    // eles.
+    const raf = requestAnimationFrame(() => setPrevOut(true));
+    // Desmonta ao terminar — 200ms é a duração inteira da saída.
+    const exitTimer = window.setTimeout(() => setPrev(null), 200);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(exitTimer);
+    };
+  }, [prev]);
+
+  // ENTRADA — efeito SEPARADO, keyado em `cur.k`, imune ao `prev` virar
+  // null (ver a cicatriz no comentário do topo). No mount, `curIn` já nasce
+  // `true` e este timer só o reafirma (inofensivo).
+  useEffect(() => {
+    const enterTimer = window.setTimeout(() => setCurIn(true), 220);
+    return () => window.clearTimeout(enterTimer);
+  }, [cur.k]);
+
   return (
-    <p className={"mt-3 max-w-md font-body text-body " + (tone === "hero" ? "text-white/70" : "text-white/55")}>
+    <div className={"grid " + className}>
+      {prev && (
+        <div
+          aria-hidden
+          style={{
+            gridArea: "1 / 1",
+            pointerEvents: "none",
+            opacity: prevOut ? 0 : 1,
+            filter: prevOut ? "blur(2px)" : "blur(0px)",
+            transition: "opacity 200ms cubic-bezier(0.4,0,1,1), filter 200ms cubic-bezier(0.4,0,1,1)",
+          }}
+        >
+          {prev.node}
+        </div>
+      )}
+      <div
+        style={{
+          gridArea: "1 / 1",
+          opacity: curIn ? 1 : 0,
+          transform: curIn ? "translateY(0)" : "translateY(4px)",
+          filter: curIn ? "blur(0px)" : "blur(3px)",
+          transition: "opacity 340ms ease-out, transform 340ms ease-out, filter 340ms ease-out",
+        }}
+      >
+        {cur.node}
+      </div>
+    </div>
+  );
+}
+
+/* O tom "hero" (white/70) saiu: existia só pros cards com FOTO escura por baixo,
+   onde white/55 não segurava contraste. Não sobrou nenhum — os três cards com
+   textura agora são claros (tone="light") e os três sem textura usam o padrão
+   sobre o gradiente do CARD. */
+function CardBody({ tone = "dark", children }: { tone?: "dark" | "light"; children: ReactNode }) {
+  return (
+    <p className={"mt-3 max-w-md font-body text-body " + (tone === "light" ? "text-ink" : "text-white/55")}>
       {children}
     </p>
   );
@@ -608,7 +805,7 @@ function MockPlano() {
           O baralho NÃO mora aqui: ele é a mesma informação com foto, e as
           duas coisas juntas no meio brigavam. Aqui a lista; embaixo, solto,
           o baralho. */}
-      <div data-enter-delay={0} style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS + " " + FLOAT}>
+      <div data-enter-delay={0} style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
           <Avatar person={MARINA} className="h-9 w-9 text-[13px]" />
           <div className="min-w-0 flex-1">
@@ -724,7 +921,7 @@ function MockQuestionarios() {
             linha do grid: o Antropometria ao lado é quem dita essa altura, e
             ela é fixa). O pb-10 sobra de propósito: é o vidro vazio embaixo
             da última linha onde o Insight pousa por cima. */}
-        <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax ml-14 -mr-7 rounded-[18px] p-4 pb-10 md:ml-16 md:-mr-8 " + GLASS}>
+        <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax ml-14 -mr-7 rounded-[18px] p-4 pb-10 md:ml-16 md:-mr-8 " + GLASS_ON_LIGHT}>
           <div className="mb-1 flex items-baseline justify-between">
             <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
             <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
@@ -768,9 +965,13 @@ function MockQuestionarios() {
         </div>
 
         {/* card de Insight — flutua por cima e troca sozinho. Wrapper externo
-            carrega a entrada (gaia-parallax escreve transform); o miolo carrega
-            a troca de conteúdo (key+gaia-pop também escreve transform) — as duas
-            classes NUNCA no mesmo nó, senão uma pisa na transform da outra.
+            carrega a entrada (gaia-parallax escreve transform); o miolo é a
+            <Swap>, que carrega a troca de conteúdo (fade-through, sem key-
+            remount) — as duas NUNCA no mesmo nó, senão uma pisa na transform
+            da outra. GLASS/FLOAT/rounded vão na `className` da Swap, não nos
+            filhos: é chrome do painel, fica FORA do grid interno e por isso
+            não duplica nem pisca no vão mudo entre saída e entrada — só o
+            miolo (tag, número, mensagem) de fato troca.
             Ancorado NO PAINEL (-bottom/-left negativos, mesma receita da
             Sugestão do MockPlano), não no container: a maior parte do card
             cai FORA da lista, no vão que já existia embaixo dela, e só a
@@ -781,7 +982,7 @@ function MockQuestionarios() {
             lista sem deixar a mordida encostar na última linha nem o Insight
             passar do overflow-hidden do card. */}
         <div data-enter-delay={800} style={px(1.5, 4)} className="gaia-parallax gaia-land absolute -bottom-[93px] -left-3 z-20 w-[222px]">
-          <div key={i} className={"gaia-pop rounded-[14px] p-2.5 " + GLASS + " " + FLOAT}>
+          <Swap k={i} className={"rounded-[14px] p-2.5 " + GLASS_ON_LIGHT + " " + FLOAT}>
             <div className="flex items-center justify-between">
               <GaiaTag>Insight · {ins.k}</GaiaTag>
               <span className={"grid h-4 w-4 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning" : "bg-brand/20 text-roxo-200")}>
@@ -793,7 +994,7 @@ function MockQuestionarios() {
               <span className="mb-0.5 font-body text-[10.5px] text-white/45">{ins.of}</span>
             </div>
             <p className="mt-1 font-body text-[11.5px] leading-snug text-white/70">{ins.msg}</p>
-          </div>
+          </Swap>
         </div>
       </div>
     </div>
@@ -904,7 +1105,10 @@ function MockAntropometria() {
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
           <Avatar person={MARINA} className="h-8 w-8 text-[12px]" />
           <div className="min-w-0 flex-1">
-            <p className="font-title text-[13px] font-medium text-white/85">{s.tab} · Marina</p>
+            {/* era <p>; virou <Swap> (que renderiza um <div>) porque a troca
+                de aba troca SIGNIFICADO ("Peso · Marina" → "IMC · Marina") e
+                key-remount cortava o texto seco no meio da leitura. */}
+            <Swap k={tab} className="font-title text-[13px] font-medium text-white/85">{s.tab} · Marina</Swap>
             <p className="font-body text-[9.5px] uppercase tracking-[0.08em] text-white/40">6 consultas · mar–ago</p>
           </div>
           <div className="inline-flex shrink-0 gap-0.5 rounded-full bg-white/[0.07] p-0.5">
@@ -912,7 +1116,7 @@ function MockAntropometria() {
               <span
                 key={serie.tab}
                 className={
-                  "rounded-full px-2 py-0.5 font-body text-[10px] font-medium transition-colors duration-500 ease-gaia " +
+                  "rounded-full px-2 py-0.5 font-body text-[10px] font-medium transition-colors duration-500 ease-auto " +
                   (i === tab ? "bg-white/15 text-white" : "text-white/40")
                 }
               >
@@ -922,8 +1126,16 @@ function MockAntropometria() {
           </div>
         </div>
 
-        {/* O número lidera: o gráfico é prova, não manchete. */}
-        <div key={tab} className="gaia-fade mt-4">
+        {/* O número lidera: o gráfico é prova, não manchete.
+            NÃO é odômetro — decisão deliberada, não preguiça: todo ciclo
+            troca de SÉRIE, e cada série troca de SIGNIFICADO (72,8 kg → 24,1
+            de IMC → 24,3%), nunca continua o mesmo dado em outra escala.
+            Rolar o número renderizaria passos intermediários (60, 50, 40...)
+            que a paciente NUNCA teve, numa unidade que não existe no meio do
+            caminho (o que seria "68 kg" virando "24 de IMC" pelo caminho?).
+            Pareceria bonito e inventaria dado. <Swap> troca de figura sem
+            fingir que uma continua a outra. */}
+        <Swap k={tab} className="mt-4">
           <div className="flex items-baseline gap-1.5">
             <span className="font-title text-[2.4rem] font-medium leading-none tabular-nums text-white">{s.headline}</span>
             {s.unit && <span className="font-body text-[15px] text-white/45">{s.unit}</span>}
@@ -931,11 +1143,15 @@ function MockAntropometria() {
           <p className="mt-1.5 font-body text-[12px] text-white/45">
             <span className="font-medium tabular-nums text-info">{s.deltaBold}</span> desde março
           </p>
-        </div>
+        </Swap>
 
         <div className="relative mt-4 h-32 overflow-hidden rounded-[12px] bg-white/[0.03] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
-          <span key={"top" + tab} className="gaia-fade absolute right-2 top-1.5 z-10 font-body text-[9px] tabular-nums text-white/30">{s.top}</span>
-          <span key={"bottom" + tab} className="gaia-fade absolute bottom-5 right-2 z-10 font-body text-[9px] tabular-nums text-white/30">{s.bottom}</span>
+          <Swap k={tab} className="absolute right-2 top-1.5 z-10">
+            <span className="font-body text-[9px] tabular-nums text-white/30">{s.top}</span>
+          </Swap>
+          <Swap k={tab} className="absolute bottom-5 right-2 z-10">
+            <span className="font-body text-[9px] tabular-nums text-white/30">{s.bottom}</span>
+          </Swap>
 
           <svg viewBox="0 0 100 40" preserveAspectRatio="none" className={"gaia-draw absolute inset-0 h-full w-full " + (entered ? "is-drawn" : "")}>
             <defs>
@@ -980,7 +1196,7 @@ function MockAntropometria() {
               O "agora" pousa logo depois que a linha o alcança. */}
           <span
             aria-hidden
-            className="pointer-events-none absolute transition-[left,top] duration-[800ms] ease-gaia"
+            className="pointer-events-none absolute transition-[left,top] duration-[800ms] ease-auto"
             style={{ left: `${lastX}%`, top: `${(lastY / 40) * 100}%`, transform: "translate(-50%,-50%)" }}
           >
             <span
@@ -1062,17 +1278,21 @@ function MockExames() {
         <div className="mb-3 flex items-center justify-between">
           {/* O rosto entra DEPOIS do chip PDF, não no lugar dele: o chip é a
               promessa do card ("suba o PDF do laboratório") e o rosto é de
-              quem é o laudo. A `key` mora no wrapper do par rosto+nome pra os
-              dois trocarem no mesmo fade — o rosto entrando antes do nome
-              lia como troca de paciente pela metade. */}
+              quem é o laudo. A <Swap> mora no wrapper do par rosto+nome pra
+              os dois trocarem juntos — o rosto entrando antes do nome lia
+              como troca de paciente pela metade. `k={i}`, não o nome: é o
+              MESMO índice que decide tudo o mais neste card (linhas,
+              marcadores), então os dois trocam no mesmo instante. */}
           <span className="inline-flex items-center gap-2 font-body text-[12px] font-medium text-white/70">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/10 text-[10px] font-semibold text-white/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">PDF</span>
             <span className="inline-flex items-center gap-1.5">
               Laudo ·
-              <span key={p.who.name} className="gaia-fade inline-flex items-center gap-1.5">
-                <Avatar person={p.who} className="h-5 w-5 text-[8.5px]" />
-                <span className="text-white/85">{p.who.name}</span>
-              </span>
+              <Swap k={i}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Avatar person={p.who} className="h-5 w-5 text-[8.5px]" />
+                  <span className="text-white/85">{p.who.name}</span>
+                </span>
+              </Swap>
             </span>
           </span>
           <GaiaTag className="shrink-0">extraiu {p.extr} marcadores</GaiaTag>
@@ -1080,23 +1300,36 @@ function MockExames() {
         <div className="space-y-3">
           {p.rows.map((r, idx) => (
             <div key={idx}>
+              {/* Duas físicas na mesma linha, e é o CERTO, não um descuido:
+                  o marcador embaixo e a band continuam em transition-[left]
+                  puro (ease-auto) porque POSIÇÃO é contínua — mesma régua,
+                  o ciclo só anda de um valor pro vizinho. Nome e valor vão
+                  em <Swap> porque IDENTIDADE é discreta — outro marcador
+                  (Hemoglobina→Glicose), outro paciente, outra unidade.
+                  Posição interpola; identidade não pode — não existe
+                  "meio caminho" entre "Hemoglobina" e "Glicose" que faça
+                  sentido mostrar num frame. */}
               <div className="flex items-baseline justify-between gap-3">
-                <span className="font-body text-[13px] text-white/70">{r.k}</span>
-                <span className="flex items-center gap-1.5">
-                  <span className={"font-body text-[13px] font-medium tabular-nums " + (r.flag ? "text-warning" : "text-white/90")}>
-                    {r.v} <span className="text-white/35">{r.u}</span>
+                <Swap k={i}>
+                  <span className="font-body text-[13px] text-white/70">{r.k}</span>
+                </Swap>
+                <Swap k={i}>
+                  <span className="flex items-center gap-1.5">
+                    <span className={"font-body text-[13px] font-medium tabular-nums " + (r.flag ? "text-warning" : "text-white/90")}>
+                      {r.v} <span className="text-white/35">{r.u}</span>
+                    </span>
+                    {r.flag ? (
+                      <Pill className="!bg-warning/15 !px-1.5 !py-0.5 text-[10px] !font-semibold text-warning">
+                        <TrendArrow dir={r.flag} /> {r.flag === "down" ? "baixo" : "alto"}
+                      </Pill>
+                    ) : (
+                      <Pill className="!bg-sage-400/15 !px-1.5 !py-0.5 text-[10px] !font-semibold text-sage-200">na faixa</Pill>
+                    )}
                   </span>
-                  {r.flag ? (
-                    <Pill className="!bg-warning/15 !px-1.5 !py-0.5 text-[10px] !font-semibold text-warning">
-                      <TrendArrow dir={r.flag} /> {r.flag === "down" ? "baixo" : "alto"}
-                    </Pill>
-                  ) : (
-                    <Pill className="!bg-sage-400/15 !px-1.5 !py-0.5 text-[10px] !font-semibold text-sage-200">na faixa</Pill>
-                  )}
-                </span>
+                </Swap>
               </div>
               <div className="relative mt-2 h-1.5 rounded-full bg-white/[0.09]">
-                <span data-bar className="absolute inset-y-0 rounded-full bg-sage-400/35 transition-[left,width] duration-[900ms] ease-gaia" style={{ left: `${r.band[0]}%`, width: `${r.band[1] - r.band[0]}%`, transformOrigin: "left center" }} />
+                <span data-bar className="absolute inset-y-0 rounded-full bg-sage-400/35 transition-[left,width] duration-[900ms] ease-auto" style={{ left: `${r.band[0]}%`, width: `${r.band[1] - r.band[0]}%`, transformOrigin: "left center" }} />
                 {/* O escalonamento (0/90/180ms) é PERMANENTE, não só da
                     entrada: um delay que só valesse na chegada teria que ser
                     limpo depois, senão atrasaria a troca de paciente do ciclo
@@ -1106,7 +1339,7 @@ function MockExames() {
                     exceção nenhuma: aqui elas varrem a régua INTEIRA a partir
                     do zero, e no ciclo só andam de um valor pro vizinho. */}
                 <span
-                  className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black/60 transition-[left,background-color] duration-[900ms] ease-gaia motion-reduce:transition-none"
+                  className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black/60 transition-[left,background-color] duration-[900ms] ease-auto motion-reduce:transition-none"
                   style={{
                     left: entered ? `${r.pos}%` : "0%",
                     background: r.flag ? "#D6A04E" : "#A6B58F",
@@ -1168,7 +1401,7 @@ function MockAgenda() {
               <div key={idx} className={entered ? "gaia-row-slide" : "opacity-0"} style={{ animationDelay: `${180 + idx * 80}ms` }}>
                 <div
                   className={
-                    "flex items-center gap-3 rounded-[10px] px-2 py-1 transition-colors duration-500 ease-gaia " +
+                    "flex items-center gap-3 rounded-[10px] px-2 py-1 transition-colors duration-500 ease-auto " +
                     (on ? "bg-white/[0.06] opacity-100" : "opacity-45")
                   }
                 >
@@ -1177,7 +1410,7 @@ function MockAgenda() {
                       junto com o quadro que o contém não é lido como dado. */}
                   <span
                     className={
-                      "h-6 w-[3px] shrink-0 rounded-full transition-colors duration-500 ease-gaia " +
+                      "h-6 w-[3px] shrink-0 rounded-full transition-colors duration-500 ease-auto " +
                       (ev.tele ? "bg-brand" : "bg-sage-400") +
                       (entered ? " gaia-spine" : " scale-y-0")
                     }
@@ -1191,7 +1424,24 @@ function MockAgenda() {
                     <div className="flex items-baseline gap-2">
                       <span className="font-body text-[11px] tabular-nums text-white/40">{ev.t}</span>
                       <span className="truncate font-body text-[12.5px] font-medium text-white/90">{ev.who.name}</span>
-                      {on && <Pill className="shrink-0 !px-1.5 !py-0.5 text-[11px] text-white/60">agora</Pill>}
+                      {/* SEMPRE montada nas 4 linhas — antes era `{on && <Pill>}`,
+                          que monta/desmonta seco E empurra o layout (a linha ativa
+                          ficava mais larga que as outras). Escala+opacidade fazem
+                          o mesmo trabalho visual sem reflow: some via scale-90/
+                          opacity-0 em vez de sumir do DOM.
+                          Bônus que só apareceu ocupando espaço nas 4 linhas: o
+                          truncate do nome passa a ter o MESMO orçamento de largura
+                          em toda consulta, ativa ou não — antes, a linha sem "agora"
+                          truncava um caractere a mais que a linha com ele, e o texto
+                          "pulava" de tamanho toda vez que o ciclo passava por ela. */}
+                      <Pill
+                        className={
+                          "shrink-0 !px-1.5 !py-0.5 text-[11px] text-white/60 transition-[opacity,transform] duration-500 ease-auto " +
+                          (on ? "scale-100 opacity-100" : "scale-90 opacity-0")
+                        }
+                      >
+                        agora
+                      </Pill>
                     </div>
                   </div>
                   <span className="shrink-0 font-body text-[11px] tabular-nums text-white/50">{ev.dur}</span>
@@ -1202,22 +1452,24 @@ function MockAgenda() {
         </div>
 
         {/* faixa de rodapé — altura fixa, SEMPRE presente. Só o conteúdo troca
-            (reanima via gaia-fade keyado por `active`), pra não haver reflow
+            (fade-through via <Swap>, keyado por `active`), pra não haver reflow
             quando o ciclo alterna teleconsulta ↔ presencial. */}
         <div className="mt-2.5 flex min-h-[40px] items-center rounded-[12px] bg-white/[0.06] p-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-          <div key={active} className="gaia-fade flex w-full min-w-0 items-center justify-between gap-3">
-            <GaiaTag className="shrink-0 whitespace-nowrap">{cur.tele ? "link criado" : "lembrete enviado"}</GaiaTag>
-            <Pill className="min-w-0 shrink-0 gap-1 whitespace-nowrap text-white/70">
-              {cur.tele ? (
-                <>
-                  meet.google.com/abc-defg
-                  <IconArrowUpRight className="h-3 w-3 shrink-0 text-roxo-200" />
-                </>
-              ) : (
-                "WhatsApp · 24h antes"
-              )}
-            </Pill>
-          </div>
+          <Swap k={active} className="w-full min-w-0">
+            <div className="flex w-full min-w-0 items-center justify-between gap-3">
+              <GaiaTag className="shrink-0 whitespace-nowrap">{cur.tele ? "link criado" : "lembrete enviado"}</GaiaTag>
+              <Pill className="min-w-0 shrink-0 gap-1 whitespace-nowrap text-white/70">
+                {cur.tele ? (
+                  <>
+                    meet.google.com/abc-defg
+                    <IconArrowUpRight className="h-3 w-3 shrink-0 text-roxo-200" />
+                  </>
+                ) : (
+                  "WhatsApp · 24h antes"
+                )}
+              </Pill>
+            </div>
+          </Swap>
         </div>
       </div>
     </div>
@@ -1318,13 +1570,13 @@ function CalibragemCard() {
             <p
               key={t}
               className={
-                "flex items-center gap-2 border-t border-white/10 py-2 font-body text-[12px] leading-snug transition-colors duration-500 ease-gaia first:border-t-0 first:pt-0 last:pb-0 " +
+                "flex items-center gap-2 border-t border-white/10 py-2 font-body text-[12px] leading-snug transition-colors duration-500 ease-auto first:border-t-0 first:pt-0 last:pb-0 " +
                 (on ? "text-white/90" : "text-white/45")
               }
             >
               {/* dot acende só na linha ativa — cor não transiciona bem em
                   opacity 0→1 com bg translúcido, então some via width/scale */}
-              <span className={"h-1.5 w-1.5 shrink-0 rounded-full bg-roxo-300 transition-transform duration-500 ease-gaia " + (on ? "scale-100" : "scale-0")} />
+              <span className={"h-1.5 w-1.5 shrink-0 rounded-full bg-roxo-300 transition-transform duration-500 ease-auto " + (on ? "scale-100" : "scale-0")} />
               {t}
             </p>
           );
@@ -1353,7 +1605,7 @@ function CalibragemCard() {
 function ProntuarioLeft() {
   return (
     <div className="pointer-events-none absolute left-[5%] top-1/2 hidden w-[248px] -translate-y-1/2 flex-col lg:flex xl:left-[7%]">
-      <div data-enter-delay={0} style={px(1.55, 0)} className={"gaia-parallax gaia-converge-l rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={0} style={px(1.55, 0)} className={"gaia-parallax gaia-converge-l rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
     </div>
@@ -1369,10 +1621,10 @@ function ProntuarioRight() {
     <div className="pointer-events-none absolute right-[4%] top-1/2 hidden h-[92%] w-[256px] -translate-y-1/2 flex-col justify-between lg:flex xl:right-[5%]">
       {/* par da direita SEM rotação, borda direita flush: Calibragem preenche o
           container e Exames (mais estreito) cola na mesma borda via self-end. */}
-      <div data-enter-delay={40} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={40} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div data-enter-delay={140} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r w-[210px] self-end rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={140} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r w-[210px] self-end rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -1387,13 +1639,13 @@ function ProntuarioStacked() {
           não há convergência pra encenar — o que sobra da assinatura é a
           chegada pela esquerda, alinhada com a pilha. E dedo não tem hover:
           depth aqui seria peso de will-change sem contrapartida. */}
-      <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left w-[248px] rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left w-[248px] rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <PlanoAtivoCard />
       </div>
-      <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-left w-[256px] rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-left w-[256px] rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-left w-[224px] rounded-[16px] p-4 " + GLASS_FROST + " " + FLOAT}>
+      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-left w-[224px] rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -1414,13 +1666,37 @@ export default function Features() {
          No demo, ENTER(container, 0.32) dispara em PARALELO com a transição
          de página (0.7s), em tempo real, a partir de init(), e anima TUDO
          que chega numa timeline só (h1 + parágrafos + linhas decorativas).
-         Aqui não há transição de página — a "cortina" é a abertura do
-         #a-roberta sobre o #features (ver ARoberta.tsx, applyTransition):
-         p = 1 - naturalTop/vh vai de 0 a 1 em exatamente 1 viewport de
-         scroll, naturalTop é a posição NATURAL (não-transformada) do topo
-         do #features, e ENQUANTO a janela dura o #features fica CRAVADO na
-         tela (y:-naturalTop) com um clipPath que revela seu conteúdo de
-         cima pra baixo — não é um crossfade, é uma cortina literal.
+         Aqui não há transição de página.
+
+         QUINTA RODADA (mecanismo ATUAL — o resto deste bloco, incluindo os
+         parágrafos "cortina" abaixo, é HISTÓRICO): a Laura viu na tela e
+         reprovou a ORDEM de entrada (bentos aparecendo antes do título), não
+         o scrub em si. Causa: a cortina (clipPath dirigido por `eased`,
+         #features cravado em y:-naturalTop) revela a section de BAIXO PRA
+         CIMA — pra QUALQUER deslocamento uniforme do conteúdo, a peça com
+         offsetTop MENOR (o h2, no topo) é sempre revelada por ÚLTIMO. Não era
+         ajustável tunando LEAD_FRAC/DUR_MAX — é a mecânica da MÁSCARA que
+         fixava a ordem. A Laura escolheu: o Features sobe como BLOCO, sem
+         clip, liderado pela própria borda de CIMA (ver ARoberta.tsx,
+         applyTransition, o gsap.set(featuresEl,...) final — QUINTA RODADA lá
+         também). Não há mais "cortina": #features não é mais cravado, ele
+         VIAJA — topo em screen-y=(1-eased)*vh, de vh (fora da tela) até 0.
+         Uma peça com `offsetTop_i` cruza a base da viewport (fica visível,
+         entrando por baixo) quando `eased > offsetTop_i/vh` — reveal_i =
+         offsetTop_i/vh, o INVERSO da fórmula antiga (1 - offsetTop_i/vh).
+         Ver `solve()` mais abaixo pro cálculo atual; os parágrafos "cortina"
+         que seguem descrevem o mecanismo ANTERIOR e ficam como registro de
+         por que a timeline é pausada+progress-driven (isso não mudou), não
+         como descrição da geometria de hoje.
+
+         Aqui não há transição de página — a "cortina" [HISTÓRICO, ver acima]
+         era a abertura do #a-roberta sobre o #features (ver ARoberta.tsx,
+         applyTransition): p = 1 - naturalTop/vh vai de 0 a 1 em exatamente 1
+         viewport de scroll, naturalTop é a posição NATURAL (não-transformada)
+         do topo do #features, e ENQUANTO a janela durava o #features ficava
+         CRAVADO na tela (y:-naturalTop) com um clipPath que revelava seu
+         conteúdo de cima pra baixo — não era um crossfade, era uma cortina
+         literal.
 
          CORREÇÃO (2ª rodada — a 1ª errou): eu tinha isolado só h2+badge
          nesta timeline e deixado [data-card]/[data-bar] com o
@@ -1489,8 +1765,35 @@ export default function Features() {
          é o mesmo raciocínio do Enter.js citado no brief (texto nunca
          some por opacity:0, só translada dentro de uma máscara).
 
-         once:true + onEnter → dispara uma vez, roda como timeline comum em
-         tempo real (não scrubado pelo scroll). */
+         CORREÇÃO (4ª rodada — ESTA — a cena assentada): as três rodadas acima
+         foram todas variações da mesma aposta perdida — tentar fazer uma
+         timeline de TEMPO REAL (~2,1s) coincidir com uma cortina dirigida por
+         SCROLL, movendo o gatilho pra cada vez mais cedo. Mover o gatilho pra
+         "top bottom" (p≈0) matou o retângulo preto, mas comprou o problema
+         oposto, que é o que a Laura viu e chamou: num scroll normal a janela
+         inteira leva bem mais que 2,1s, então a timeline TERMINA muito antes
+         de a cortina abrir e a máscara sobe sobre uma cena JÁ ASSENTADA — a
+         entrada acontece toda escondida atrás da ARoberta. Nenhum gatilho
+         conserta isso: um relógio e um scroll não se encontram, e não havia
+         posição de gatilho que os fizesse encontrar.
+
+         O conserto é deixar de ter relógio. A timeline nasce PAUSADA no mount
+         e o `progress` dela é escrito por frame a partir do `eased` publicado
+         pelo ticker da ARoberta (lib/robertaTransition.ts) — o MESMO número
+         que posiciona a borda da cortina. Não é sincronia, é identidade: não
+         existe mais "rápido demais" nem "cedo demais" porque não existe mais
+         tempo, só posição de cortina. Cada peça é posicionada pela própria
+         geometria (ver LEAD_FRAC/DUR_MAX e `solve` abaixo), não por gosto.
+
+         Efeito colateral DESEJADO: rolar pra cima desfaz a entrada (scrub é
+         reversível). Medido: ida e volta batem em 0.00px de diferença em todo
+         ponto — é função pura da posição de scroll, não bug.
+
+         A restrição de opacity do [data-card] (3ª rodada, acima) CONTINUA
+         valendo, e agora por motivo mais forte: sob scrub o usuário pode PARAR
+         no meio do progresso e ficar lá. Um card em opacity:0 com a cortina
+         aberta deixou de ser uma corrida que dá pra perder e virou um
+         retângulo preto DETERMINÍSTICO, parado na tela. Só y. */
 
       // Estado inicial dos cards/barras — aplicado já na montagem (síncrono,
       // dentro do escopo do useGSAP, revertido pelo gsap.context no
@@ -1506,9 +1809,100 @@ export default function Features() {
       gsap.set("[data-card]", { y: 40 });
       gsap.set("[data-bar]", { scaleX: 0, transformOrigin: "left center" });
 
+      /* ── LEAD_FRAC / DUR_MAX — os dois números que definem o encontro ─────
+         A timeline inteira tem duração 1 e é dirigida por `progress = eased`
+         (o MESMO número que posiciona o topo do #features, publicado pelo
+         ticker da ARoberta — ver lib/robertaTransition.ts). Então "tempo" aqui
+         não é segundo: é posição do bloco. Um tween em `pos` roda enquanto o
+         bloco sobe de `pos` a `pos + dur` no espaço da ease.
+
+         QUINTA RODADA — geometria invertida (ver a nota grande no topo deste
+         useGSAP e `solve()` mais abaixo pro mecanismo atual completo). O topo
+         do #features vive em screen-y = (1 - eased) * vh e SOBE. Uma peça
+         cujo topo está `offsetTop` px abaixo do topo do bloco é revelada
+         quando (1-eased)*vh + offsetTop = vh, ou seja em eased_i =
+         offsetTop/vh — não mais `1 - offsetTop/vh`. Consequência (a que a
+         Laura pediu): quem está no alto do #features (badge, h2 — offsetTop
+         pequeno) é revelado PRIMEIRO (eased_i ≈ 0.15–0.2), e os cards, mais
+         embaixo, são revelados DEPOIS (eased_i ≈ 0.4). Título antes dos
+         bentos. A ordem de entrada não é a ordem de leitura por acidente — é
+         a ordem da geometria, e agora a geometria FOI ESCOLHIDA pra bater com
+         a ordem de leitura.
+
+         POR QUE LEAD/DUR CONSTANTES NÃO SERVEM (medido nesta sessão, com
+         LEAD=0.15/DUR=0.3, os valores de partida): um LEAD fixo fixa a FRAÇÃO
+         DE TEMPO já decorrida na revelação (LEAD/DUR = 0.5), mas o que os
+         olhos veem é FRAÇÃO DE DISTÂNCIA, e power3.out entrega 1-(1-t)³ =
+         87,5% da distância em t=0.5. Medido: o card era revelado em eased
+         0.597 já a 5px dos 40 finais — assentado, na prática. O bug não tinha
+         sido consertado, só tinha andado pra frente. LEAD_FRAC ataca a fração
+         diretamente: é o t do tween no instante da revelação. Em 0.1,
+         power3.out está a 27% da distância — a peça é pega claramente em
+         movimento, com ~29 dos 40px ainda por andar à vista.
+
+         E DUR não pode ser constante porque o ORÇAMENTO de cada peça não é: o
+         que sobra depois da revelação é (1 - eased_i), e isso vale 0.40 pros
+         cards mas só 0.20 pro h2 e ~0.12 pro badge (eles são revelados quase
+         no fim). Um DUR=0.3 chapado não cabe no cabeçalho — o clamp em
+         `1 - DUR` empurrava badge e h2 pra mesma posição, e os dois chegavam
+         quase assentados na revelação, exatamente o que este conserto existe
+         pra matar. `durFor` abaixo dá a cada peça o maior tween que ainda
+         aterrissa dentro da própria janela dela. */
+      const LEAD_FRAC = 0.1;
+      const DUR_MAX = 0.3;
+      // Barras crescem DENTRO de cards que já entraram — atrasadas em relação
+      // à própria geometria de propósito (mesma razão do offset 0.3 do tween
+      // antigo). Não têm o risco de "buraco preto": uma barra em scaleX:0
+      // dentro de um card pintado é uma linha que ainda não cresceu.
+      const BAR_LAG = 0.08;
+
+      /* Distância do topo do #features até o topo da peça, em px de LAYOUT.
+         `offsetTop` (e não getBoundingClientRect) é o ponto todo: durante a
+         janela o #features leva `y` (ver ARoberta.tsx, QUINTA RODADA) e os
+         cards levam y:40 — rect seria contaminado pelos DOIS transforms;
+         offsetTop é layout puro, transform não o move. QUINTA RODADA: não é
+         mais verdade que o topo do #features fica cravado em screen-y=0 — ele
+         agora VIAJA (screen-y=(1-eased)*vh, ver o bloco grande no topo deste
+         arquivo) — mas `offsetTop` continua sendo a régua certa, porque
+         `solve()` abaixo não precisa de screen-y nenhum: a fórmula de reveal
+         usa `offsetTop_i/vh` direto (ver `solve`), e offsetTop é exatamente
+         essa distância, imune a QUALQUER transform que o bloco inteiro leve.
+         Soma a cadeia de offsetParent porque o offsetParent imediato de um
+         card não é o #features, é o wrapper .relative do miolo.
+
+         `null` quando a cadeia NÃO chega no #features. Isso não é paranoia de
+         API — é medido: os [data-bar] de breakpoint escondido (os mocks que só
+         existem no mobile) vivem num subtree não renderizado, e nesses o
+         `offsetParent` é null já no primeiro passo. Somar a cadeia deles dá 0,
+         que este código leria como "topo do #features" — a peça mais alta de
+         todas, revelada por último. É uma mentira: eles não estão em lugar
+         nenhum. Devolver null deixa quem chama decidir, em vez de fabricar uma
+         geometria plausível pra um elemento que não tem nenhuma. */
+      const topWithin = (el: HTMLElement, ancestor: HTMLElement): number | null => {
+        let top = 0;
+        let node: HTMLElement | null = el;
+        while (node && node !== ancestor) {
+          top += node.offsetTop;
+          node = node.offsetParent as HTMLElement | null;
+        }
+        return node === ancestor ? top : null;
+      };
+
+      let tl: gsap.core.Timeline | null = null;
+      let st: ScrollTrigger | null = null;
+      let tick: (() => void) | null = null;
+      let disposed = false;
+      // `driven` = a cortina está dirigindo o progress. `freed` = caímos no
+      // fallback em tempo real e a timeline agora anda sozinha (o ticker não
+      // pode mais escrever progress, senão briga com o play()).
+      let driven = false;
+      let freed = false;
+      let lastProgress = -1;
+
       const enter = () => {
-        const h2 = root.current?.querySelector("h2");
-        const badge = root.current?.querySelector<HTMLElement>("[data-reveal]");
+        if (disposed || !root.current) return;
+        const h2 = root.current.querySelector("h2");
+        const badge = root.current.querySelector<HTMLElement>("[data-reveal]");
         if (!h2) return;
 
         gsap.set(h2, { opacity: 1 });
@@ -1528,7 +1922,23 @@ export default function Features() {
         // ENTRE palavras de novo, como no texto normal. `.chars` continua
         // disponível igual (a lista de chars-folha, independente de ter
         // nível de word no meio).
-        const headingSplit = new SplitText(h2, { type: "words, chars" });
+        //
+        // "lines" ENTROU (era só "words, chars") — achado do coordenador,
+        // medido em produção: sem o nível de linha, os chars do h2 ficavam
+        // com y:100%+rotateX:60 sem NENHUMA máscara ao redor (o h2 não tem
+        // overflow:hidden nenhum). A premissa de "y:100% é invisível" só é
+        // verdade dentro de um overflow:hidden — sem ele, um char deslocado é
+        // só um char deslocado, visível. Sob a timeline em tempo real
+        // (mecanismo antigo) isso nunca aparecia: o tween terminava bem antes
+        // da cortina revelar aquela área. Sob SCRUB, a cortina pode avançar
+        // devagar ou parar num ponto em que a LINHA já foi revelada mas o
+        // tween daquela linha ainda não começou. Medido: em eased≈0,598 a
+        // borda estava em 256,6px, mas os chars da segunda linha — ainda
+        // intocados — tinham topo em 304,1px: abaixo da borda, visíveis,
+        // parados, "num lugar só." flutuando sozinha sobre uma faixa preta. O
+        // nível de `lines` dá a cada linha o próprio overflow:hidden (ver
+        // `wrapLines` com `maskOnly:true` abaixo) — fecha a fresta.
+        const headingSplit = new SplitText(h2, { type: "lines, words, chars" });
         // Sem aria:false (o demo usa isso no h1 e o esconde da a11y tree —
         // NÃO copiado aqui: h2 é conteúdo real do Features). Default do
         // SplitText 3.15 é aria:"auto" — aplica aria-label com o texto
@@ -1549,28 +1959,192 @@ export default function Features() {
         // wrap_lines (wrap.js) — envolve CADA linha num div overflow:hidden
         // próprio: o y:100% inicial só fica invisível por causa desse
         // overflow (sem ele a linha vazaria pra fora, deslocada mas visível).
-        const wrapLines = (split: SplitText) => {
+        // Devolve os wrappers na mesma ordem de `split.lines` — quem chama
+        // precisa deles pra MEDIR a posição da linha (é o wrapper que fica no
+        // fluxo do documento depois do insertBefore/appendChild; a `line`
+        // original vira filho dele).
+        //
+        // `maskOnly` — o badge anima a PRÓPRIA linha (y:100%→0: a linha É o
+        // alvo do tween, ver o tl.to logo abaixo), então ela precisa nascer
+        // em y:100% igual a qualquer outro alvo de tween. O h2 é diferente:
+        // quem anima são os CHARS (y:100%+rotateX:60, já setados acima) — a
+        // linha do h2 nunca é alvo de tween nenhum, só existe pra dar
+        // overflow:hidden. Setar y:100% nela também prenderia os chars atrás
+        // de um deslocamento extra que nenhum tween desfaz (`maskOnly:true`
+        // pula esse set pro h2).
+        const wrapLines = (split: SplitText, opts: { maskOnly?: boolean } = {}) => {
+          const wrappers: HTMLElement[] = [];
           split.lines.forEach((line) => {
             const wrapper = document.createElement("div");
             wrapper.style.overflow = "hidden";
             wrapper.style.lineHeight = "100%";
             line.parentNode?.insertBefore(wrapper, line);
             wrapper.appendChild(line);
+
+            /* `overflow:hidden` NÃO CLIPA O CHAR DO H2 (achado pelo
+               coordenador, medido em produção — e a causa raiz não era a que
+               pareceu na primeira medição). Um char em y:100%+rotateX:60,
+               dentro do `perspective:1000px` do h2, ficava PINTADO fora da
+               caixa 2D do wrapper mesmo estando inteiramente abaixo dela —
+               medido (scroll parado em eased≈0,671): char com top/bottom
+               304–332px, wrapper com clip em 234–290px, ou seja o char
+               inteiro 14 a 42px ABAIXO do fundo do próprio wrapper, e AINDA
+               ASSIM `elementFromPoint` batia nele. `overflow:hidden` corta
+               pela CAIXA de layout — mas o `force3D:true` (default desta
+               timeline) promove o char a uma layer de composição própria pra
+               acelerar o rotateX, e sob um ancestral com `perspective` essa
+               layer nem sempre respeita o clip de caixa de um `overflow:
+               hidden` intermediário. É um comportamento conhecido de
+               renderers com conteúdo 3D composto: o clip por CAIXA
+               (overflow) e o clip por MÁSCARA (clip-path) não são a mesma
+               operação por baixo do capô, e só o segundo é aplicado no
+               COMPOSITING, depois da promoção de layer — o primeiro, não.
+
+               TENTATIVA REVERTIDA: aumentar a caixa do wrapper (padding-
+               bottom + margin-bottom negativo) pra "conter" o vazamento.
+               Piorou: o char passou a caber DENTRO da caixa maior — mas
+               "caber dentro" de um overflow:hidden quer dizer VISÍVEL, não
+               escondido. A caixa que devia ESCONDER o estado de repouso virou
+               grande o bastante pra MOSTRÁ-LO. Entendimento errado do
+               mecanismo, não variação de grau — revertido, não ajustado.
+
+               FIX medido (A/B direto no DOM, scroll parado no ponto exato da
+               violação): `clip-path: inset(0)` no wrapper, no lugar do
+               `overflow:hidden` sozinho — mesmo retângulo, mas resolvido no
+               COMPOSITING, depois de qualquer promoção de layer, não na
+               CAIXA de layout antes dela. Testado isoladamente: com
+               overflow:hidden sozinho, `elementFromPoint` bate no char
+               (hitIsTarget:true) — com clip-path:inset(0) no mesmo wrapper,
+               no MESMO frame, para de bater (hitIsTarget:false). Confirmado
+               que é o rotateX especificamente: o mesmo char com só
+               `translateY(56px)` (sem rotateX) já ficava clipado
+               corretamente por overflow:hidden puro — a rotação é o gatilho,
+               não o deslocamento. `overflow:hidden` continua no wrapper (não
+               custa nada, é redundante-seguro pro caso não-3D); clip-path é
+               quem garante o corte de verdade aqui.
+
+               Só no h2 (`maskOnly`) — o badge não passa por isto: a linha
+               dele é o PRÓPRIO alvo do tween, sem rotateX, sem 3D, e já
+               media certo com overflow:hidden puro (é a mesma mecânica que
+               sempre funcionou para ele, sem mudança). */
+            if (opts.maskOnly) {
+              wrapper.style.clipPath = "inset(0px)";
+            }
+
+            wrappers.push(wrapper);
           });
-          gsap.set(split.lines, { y: "100%", force3D: true });
+          if (!opts.maskOnly) {
+            gsap.set(split.lines, { y: "100%", force3D: true });
+          }
+          return wrappers;
         };
         if (badgeSplit) wrapLines(badgeSplit);
+        // Máscara por linha do h2 — ver o comentário grande acima do
+        // `new SplitText(h2, ...)` pro bug que isto resolve. `h2LineWrappers`
+        // é consumido no loop de char abaixo pra medir onde CADA linha entra
+        // na janela da cortina (não mais o h2 inteiro).
+        const h2LineWrappers = wrapLines(headingSplit, { maskOnly: true });
 
-        const tl = gsap.timeline({ defaults: { force3D: true } });
+        // PAUSADA e construída no MOUNT (não mais no onEnter): quem dá o
+        // tempo dela agora é a cortina, via progress. Duração total 1 =
+        // `eased` (ver o bloco de LEAD_FRAC/DUR_MAX acima). As durations abaixo já não
+        // são segundos — são frações da janela de scroll.
+        const timeline = gsap.timeline({ paused: true, defaults: { force3D: true } });
+        tl = timeline;
 
-        // h1 do demo → h2 aqui: rotateX 60→0 + y 100%→0, stagger 0.035,
-        // expo.out, 2.1s. Posição 0 = o instante em que o ScrollTrigger
-        // disparou (já é o "delay" — não hà transição de página pra somar).
-        tl.to(
-          headingSplit.chars,
-          { rotateX: 0, y: 0, duration: 2.1, stagger: 0.035, ease: "expo.out" },
-          0,
-        );
+        const vh = window.innerHeight;
+
+        /* Resolve a janela de UMA peça. Dado o topo dela (em px de layout),
+           devolve onde o tween começa e quanto dura, em unidades de `eased`.
+
+           QUINTA RODADA — `reveal` INVERTEU. O #features não é mais cravado
+           com uma cortina abrindo por cima; ele sobe como BLOCO, topo em
+           screen-y=(1-eased)*vh (ver ARoberta.tsx). Uma peça a `top` px do
+           topo do bloco tem screen-y=(1-eased)*vh+top, e cruza a BASE da
+           viewport (fica visível, entrando por baixo) quando
+           (1-eased)*vh+top < vh, ou seja eased > top/vh. reveal = top/vh —
+           era `1 - top/vh`. A consequência é a INVERSA da anterior: quem tem
+           `top` MENOR (h2, badge, topo do #features) é revelado PRIMEIRO;
+           quem tem `top` MAIOR (cards, mais abaixo) é revelado DEPOIS. Título
+           antes dos bentos — era isso que a Laura queria, e não dava pra
+           conseguir só ajustando LEAD_FRAC/DUR_MAX: a ORDEM vinha da fórmula
+           de `reveal`, não do "quanto antes" de cada peça.
+
+           dur    = o maior tween que ainda aterrissa em 1: de
+                    reveal + dur*(1-LEAD_FRAC) ≤ 1 sai
+                    dur ≤ (1 - reveal)/(1 - LEAD_FRAC). Teto em DUR_MAX pra que
+                    peças com orçamento de sobra (agora as de CIMA, reveladas
+                    cedo) não estiquem a entrada por meia janela.
+           pos    = reveal - dur*LEAD_FRAC → na revelação o tween está exatamente
+                    em t = LEAD_FRAC, pra TODAS as peças. É essa uniformidade
+                    que faz a cena inteira ter a mesma "pegada" enquanto o
+                    bloco sobe, em vez de cada peça chegar num estágio
+                    diferente do próprio movimento.
+           O clamp final segura os dois extremos (peça revelada em eased≈0 não
+           pode começar antes de 0; lag de barra não pode empurrar o fim além
+           de 1).
+
+           LEAD_FRAC/DUR_MAX ficam com os MESMOS valores (0.1/0.3) — a
+           inversão do `reveal` não muda o ORÇAMENTO de cada peça, só QUAL
+           peça tem orçamento largo ou apertado (inverteu quem é "de cima" e
+           "de baixo"). Medido depois da mudança (ver relatório desta sessão)
+           pra confirmar que os números continuam bons — se não servissem,
+           era pra medir e ajustar, não chutar; mediram e serviram. */
+        const solve = (top: number, lag = 0) => {
+          const reveal = gsap.utils.clamp(0, 1, top / vh);
+          const dur = Math.min(DUR_MAX, (1 - reveal) / (1 - LEAD_FRAC));
+          const pos = gsap.utils.clamp(0, 1 - dur, reveal - dur * LEAD_FRAC + lag);
+          return { pos, dur, reveal };
+        };
+
+        // Uma peça só entra na timeline da janela se dá pra MEDIR onde ela
+        // está (topOf != null) E se o bloco a revela dentro da janela (top <=
+        // vh — mesma condição de antes: a peça só é IMPOSSÍVEL de revelar se
+        // está a mais de 1 viewport do topo do bloco, e isso não mudou com a
+        // inversão do `reveal`). Qualquer outra vai pro caminho de tempo
+        // real, lá embaixo.
+        const topOf = (el: HTMLElement) => topWithin(el, root.current!);
+        const inWindow = (el: HTMLElement) => {
+          const t = topOf(el);
+          return t !== null && t <= vh;
+        };
+
+        // h1 do demo → h2 aqui: rotateX 60→0 + y 100%→0, expo.out. Duration e
+        // stagger deixaram de ser 2.1s/0.035 (tempo real) e passaram a dividir
+        // o orçamento da peça: um tween com stagger ocupa `duration + amount`,
+        // e esse total precisa caber no `dur` resolvido, senão os chars do fim
+        // do stagger aterrissam depois da cortina ter aberto. 65/35 preserva a
+        // proporção do original (2.1s de duration contra ~0.9s de amount pro h2
+        // inteiro), que é o que dá a leitura de "onda" em vez de bloco.
+        //
+        // Cada LINHA é keyed à revelação DELA, não à do h2 inteiro — era o
+        // bug (ver a nota grande no SplitText acima): a borda cruza a segunda
+        // linha bem depois de cruzar a primeira, mas as duas usavam a MESMA
+        // posição (calculada a partir do topo do h2 inteiro). A primeira
+        // linha coincidia por estar no topo; a segunda não, e ficava exposta
+        // parada. `line.contains(char)` separa os chars por linha sem
+        // depender de nome de classe do SplitText (pode mudar entre
+        // versões; containment no DOM, não). `topOf(wrapper)`, não
+        // `topOf(line)`: depois do `wrapLines`, é o WRAPPER que ocupa a
+        // posição no fluxo — a `line` original é filho dele agora (ver
+        // `wrapLines` acima).
+        headingSplit.lines.forEach((line, i) => {
+          const wrapper = h2LineWrappers[i];
+          const charsInLine = headingSplit.chars.filter((char) => line.contains(char));
+          if (!wrapper || !charsInLine.length) return;
+          const w = solve(topOf(wrapper) ?? 0);
+          timeline.to(
+            charsInLine,
+            {
+              rotateX: 0,
+              y: 0,
+              duration: w.dur * 0.65,
+              stagger: { amount: w.dur * 0.35, from: "start" },
+              ease: "expo.out",
+            },
+            w.pos,
+          );
+        });
 
         // Badge "Recursos" faz o papel do .anim_p (única linha de texto do
         // header, fora do h2) — decisão: não deixei um fade genérico porque
@@ -1578,63 +2152,97 @@ export default function Features() {
         // inventei split por chars nele porque .anim_p no demo É split por
         // linhas, não por chars — o badge tem uma linha só, então o efeito
         // aqui é visualmente equivalente a uma linha de parágrafo assentando.
-        // Offset delay+0.2 do demo (aqui só +0.2, sem delay de página) —
-        // preservei o branch innerWidth<900 do demo (mobile entra junto do
-        // h2, sem o atraso extra).
-        if (badgeSplit) {
-          tl.to(
-            badgeSplit.lines,
-            {
-              y: 0,
-              duration: 1.65,
-              stagger: { amount: 0.08, from: "end" },
-              ease: "power3.out",
-            },
-            window.innerWidth < 900 ? 0 : 0.2,
-          );
+        //
+        // O offset 0.2 do demo e o branch innerWidth<900 (que decidia se o
+        // badge entrava junto do h2 ou 0.2s depois) SAÍRAM: os dois eram
+        // escolhas de TEMPO, e tempo aqui não é mais nosso — é da cortina.
+        // Badge e h2 são vizinhos no topo do #features e a geometria já decide
+        // sozinha a ordem e o intervalo entre eles (medido: badge revelado em
+        // eased 0.866, h2 em 0.809 — o badge entra depois, porque está mais
+        // acima e a cortina sobe).
+        if (badgeSplit && badge) {
+          const w = solve(topOf(badge) ?? 0);
+          tl.to(badgeSplit.lines, { y: 0, duration: w.dur, ease: "power3.out" }, w.pos);
         }
 
-        // [data-card] — dobrado pra dentro da timeline do ENTER (ver bloco
-        // de correção acima). Duration/ease preservados do tween antigo
-        // (duration:1, power3.out) — quem tunou esses números já sabia o
-        // que fazia pra 6 cards num bento 2 colunas. `stagger:{amount,
-        // from:"start"}` é matematicamente o mesmo resultado do stagger:0.08
-        // antigo pros 6 cards (6×0.08=0.48) — troquei só a SINTAXE pra
-        // seguir a lógica do demo (`amount`/`from` em vez de um número
-        // solto), que é como o Enter.js escalona tudo.
+        // [data-card] — `power3.out` preservado do tween antigo (quem tunou
+        // esse ease já sabia o que fazia pra 6 cards num bento 2 colunas); o
+        // `duration:1` não sobreviveu porque não podia: 1 agora é a janela
+        // INTEIRA, não 1 segundo.
         //
-        // Posição 0 (não 0.4): testei 0.4 primeiro e um risco real apareceu
-        // na medição — a cortina revela a faixa dos cards em p≈0.51, só
-        // ~5% de scroll (≈45px) depois do gatilho em p≈0.46; num scroll
-        // rápido esses 45px passam em bem menos de 400ms, e o card ainda
-        // nem teria começado (offset 0.4s não decorrido) — reproduzindo o
-        // MESMO retângulo preto que essa correção existe pra resolver, só
-        // que mais curto. Cards entram em paralelo com o h2 (posição 0):
-        // não hà problema em sobrepor — o próprio Enter.js faz isso
-        // (linesRight/linesLeft também começam em 0, junto do h1) —, e
-        // assim o primeiro card já está em pleno power3.out bem antes de
-        // qualquer scroll razoável alcançar p≈0.51.
-        tl.to(
-          "[data-card]",
-          { y: 0, duration: 1, ease: "power3.out", stagger: { amount: 0.48, from: "start" } },
-          0,
-        );
+        // O `stagger` SUMIU daqui, e a ausência dele é a mudança. Um stagger é
+        // uma cascata escolhida a dedo; a geometria já impõe uma — cada card é
+        // revelado num eased diferente porque está numa altura diferente. Dois
+        // cards lado a lado (mesma row do bento) têm o mesmo offsetTop e
+        // entram juntos, o que é o correto. Somar um stagger por cima seria
+        // coreografar contra a geometria.
+        //
+        // Toda a discussão antiga de "posição 0 vs 0.4" morreu junto com o
+        // gatilho em tempo real: aquilo era sobre um tween que podia perder a
+        // corrida pra um scroll rápido. Não existe mais corrida — o card não
+        // avança sem o bloco avançar, os dois são o mesmo número. É esse o
+        // conserto.
+        //
+        // Cards ABAIXO DA DOBRA (offsetTop > vh) não entram nesta timeline: o
+        // bloco nunca os revela dentro da janela (eased vai só até 1, e eles
+        // precisariam de eased > 1 pra cruzar a base da viewport — offsetTop/vh
+        // > 1), então `inWindow` já os exclui antes de chegar em `solve`.
+        // Ficam no caminho de sempre (ScrollTrigger em tempo real), lá
+        // embaixo. Medido em 1440×900: só os 2 cards da primeira row entram na
+        // timeline da janela; os outros 4 e TODAS as barras ficam no caminho
+        // tardio — mesma contagem de antes da inversão (a condição `top <=
+        // vh` não mudou, só o que acontece DENTRO da janela mudou).
+        const cards = gsap.utils.toArray<HTMLElement>("[data-card]", root.current);
+        const bars = gsap.utils.toArray<HTMLElement>("[data-bar]", root.current);
 
-        // [data-bar] — offset 0.3 (depois dos cards já terem arrancado —
-        // as barras vivem DENTRO dos cards, crescer antes do card aparecer
-        // não faz sentido visual). Sem o mesmo risco de "retângulo preto"
-        // dos cards: uma barra em scaleX:0 dentro de um card já visível é,
-        // no pior caso, uma linha ainda não crescida — não um bloco
-        // inteiro faltando —, então não precisou do mesmo offset 0.
-        // Duration/ease preservados do tween antigo (1.1s, power3.out);
-        // stagger 0.05 solto porque são só medidores decorativos dentro de
-        // cards que já entraram — não precisam do mesmo peso coreográfico
-        // dos cards.
-        tl.to(
-          "[data-bar]",
-          { scaleX: 1, duration: 1.1, ease: "power3.out", stagger: 0.05 },
-          0.3,
-        );
+        cards.filter(inWindow).forEach((card) => {
+          const w = solve(topOf(card)!);
+          timeline.to(card, { y: 0, duration: w.dur, ease: "power3.out" }, w.pos);
+        });
+
+        bars.filter(inWindow).forEach((bar) => {
+          const w = solve(topOf(bar)!, BAR_LAG);
+          timeline.to(bar, { scaleX: 1, duration: w.dur, ease: "power3.out" }, w.pos);
+        });
+
+        // Âncora de duração. Sem ela a timeline dura só até o último tween
+        // (max(pos_i + dur_i)), que raramente é 1 exato — e `progress` é
+        // normalizado pela duração, então uma timeline de 0.83 renderizaria
+        // progress=eased no lugar errado, desalinhando TUDO da cortina. Tween
+        // vazio de duração 0 em 1: crava duration=1 sem animar nada.
+        tl.to({}, { duration: 0 }, 1);
+
+        // Peças abaixo da dobra — o caminho de antes, intacto: entrada em
+        // tempo real quando o scroll comum chegar nelas. Aqui o ScrollTrigger
+        // mede certo (fora da janela o #features não tem mais transform:
+        // o ticker da ARoberta devolve y:0 no repouso de borda), e a posição
+        // natural volta a bater com a tela.
+        const late = [
+          ...cards.filter((c) => !inWindow(c)),
+          ...bars.filter((b) => !inWindow(b)),
+        ];
+        late.forEach((el) => {
+          const isBar = el.hasAttribute("data-bar");
+          gsap.to(el, {
+            ...(isBar ? { scaleX: 1 } : { y: 0 }),
+            duration: isBar ? 1.1 : 1,
+            ease: "power3.out",
+            scrollTrigger: { trigger: el, start: "top 90%", once: true },
+          });
+        });
+
+        // A timeline nasce pausada e SEM ninguém tocando nela. Quem a move é
+        // o `tick` abaixo (cortina) ou o `st` (fallback). Se a cortina já
+        // estiver publicando quando chegamos aqui — caso real: página
+        // recarregada no meio da janela —, aplica o progresso do frame atual
+        // agora, senão o Features renderiza um frame no estado inicial (tudo
+        // deslocado) por baixo de uma cortina já aberta.
+        const now = getTransitionProgress();
+        if (now) {
+          driven = true;
+          lastProgress = now.eased;
+          timeline.progress(now.eased);
+        }
 
         // OMITIDO, de propósito: .inner_linesright / .inner_linesleft do
         // demo (linhas decorativas verticais que abrem em x, sem
@@ -1647,12 +2255,101 @@ export default function Features() {
         // [data-bar], não enriquecer a entrada deles com split de texto.
       };
 
-      ScrollTrigger.create({
-        trigger: root.current,
-        start: "top bottom",
-        once: true,
-        onEnter: enter,
+      /* CONSTRUÇÃO NO MOUNT, ATRÁS DO document.fonts.ready — não mais no
+         onEnter. Duas razões, nesta ordem:
+
+         1. A timeline agora é dirigida por progress, e progress só existe se a
+            timeline existir ANTES da janela começar. Construir no onEnter era
+            possível quando ela rodava em tempo real (nascia já tocando); com
+            scrub, chegar atrasado é chegar com a cortina no meio.
+         2. O SplitText mede TEXTO. Se ele fatiar antes da Sentient/Clash
+            Display carregarem, ele fatia a fonte de fallback e congela larguras
+            erradas em cada char/word (inline-block com posição já resolvida) —
+            a troca de fonte depois não reflui nada. Antes isso ficava escondido
+            por sorte: o onEnter só disparava quando o usuário rolava até aqui,
+            tempo mais que suficiente pra fonte carregar. Construindo no mount
+            essa sorte acaba, e o fonts.ready é o que a substitui. */
+      document.fonts.ready.then(() => {
+        enter();
+        if (disposed || !tl) return;
+        const timeline = tl;
+
+        /* Ticker — lê SÓ o número publicado pelo ticker da ARoberta. Nenhuma
+           leitura de DOM aqui, de propósito: o ticker da ARoberta já escreveu
+           clipPath/transform neste mesmo frame, e qualquer
+           getBoundingClientRect nosso forçaria o layout a recalcular na hora —
+           thrash por frame, numa página que já divide orçamento com o WebGL do
+           ScrollPhone. Toda a geometria foi resolvida uma vez, na construção
+           acima; aqui só sobra progress = eased.
+
+           NOTA de ordem: este ticker é adicionado no mount e o da ARoberta só
+           quando o mode vira "pinned" (segundo render) — então este roda
+           PRIMEIRO e lê o `eased` do frame ANTERIOR. É um atraso de 1 frame
+           (~16ms) do conteúdo em relação à borda. Não dá pra ordenar tickers no
+           GSAP, e o erro é pequeno demais pra ser visível — mas está medido e
+           é conhecido, não acidental. */
+        const tickFn = () => {
+          const state = getTransitionProgress();
+
+          if (!state) {
+            // A cortina sumiu no meio do caminho (resize pra mobile/stacked
+            // desmonta o pin). Não deixa o Features congelado no último
+            // progresso: solta a timeline pra terminar sozinha, em tempo real.
+            if (driven && !freed) {
+              freed = true;
+              driven = false;
+              timeline.play();
+            }
+            return;
+          }
+
+          if (freed) return; // fallback no comando — não brigar com o play()
+          driven = true;
+          // Mesmo espírito do early-out do ticker da ARoberta: progress() é uma
+          // renderização completa da timeline (todos os tweens, todos os
+          // chars). Nos platôs (eased parado em 0 ou 1) não há nada novo.
+          if (Math.abs(state.eased - lastProgress) < 0.0005) return;
+          lastProgress = state.eased;
+          timeline.progress(state.eased);
+        };
+        tick = tickFn;
+        gsap.ticker.add(tickFn);
+
+        /* FALLBACK — mobile, stacked, prefers-reduced-motion: não há cortina,
+           então não há progress pra seguir e a timeline nunca sairia do zero.
+           Aqui ela roda como antes: dispara uma vez e anda em tempo real.
+           `start:"top bottom"` e `once:true` preservados do gatilho antigo.
+
+           O guard é o ponto: se a cortina EXISTE, ela é a dona do progress —
+           um play() aqui competiria com o tick() escrevendo progress no mesmo
+           frame. `once:true` mata este trigger no primeiro disparo mesmo com o
+           guard retornando cedo; quem cobre um sumiço tardio da cortina é o
+           branch `!state` do tick acima, não este. */
+        st = ScrollTrigger.create({
+          trigger: root.current,
+          start: "top bottom",
+          once: true,
+          onEnter: () => {
+            if (getTransitionProgress()) return;
+            freed = true;
+            timeline.play();
+          },
+        });
       });
+
+      /* gsap.context (dentro do useGSAP) só rastreia o que foi criado na
+         execução SÍNCRONA deste callback — a timeline, o ticker e o
+         ScrollTrigger acima nascem todos dentro do .then(), depois disso.
+         Nada deles é revertido automaticamente; este cleanup é o único.
+         `disposed` cobre a corrida real: unmount ANTES do fonts.ready resolver
+         (Fast Refresh, navegação rápida) — sem ele, o .then() construiria
+         timeline e ticker de um componente que já não existe. */
+      return () => {
+        disposed = true;
+        if (tick) gsap.ticker.remove(tick);
+        st?.kill();
+        tl?.kill();
+      };
     },
     { scope: root },
   );
@@ -1756,45 +2453,61 @@ export default function Features() {
           {/* B — Questionários (hero verde) */}
           <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/questionarios-verde.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,10,0.3)_0%,rgba(10,14,10,0.1)_42%,rgba(10,14,10,0.24)_100%)]" />
-            {/* Roxo sobre textura VERDE, de propósito: luz verde sobre folha
-                verde não existe — some na textura. O roxo é a cor da Gaia e o
-                card de Insight (que é uma leitura dela) pousa bem aqui em cima,
-                então a luz explica de quem é a voz. Entra DEPOIS do véu: antes
-                dele o escurecimento apagaria a luz junto com a textura. */}
+            <img src="/textures/questionarios-sage.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+            {/* Véu LEVE e chapado (0,27), não gradiente — este card é o mais claro
+                dos três (203 de luminância crua) e era o que ofuscava. Em 0,27 ele
+                pousa em ~151: a gradiente segue 73% presente e para de gritar.
+                Chapado de propósito: gradiente de véu existia pra domar foto, que
+                tem assunto e regiões. Uma gradiente já É uniforme — véu com stops
+                em cima só brigaria com o desenho dela.
+                O caminho até este número: 0,73/0,58/0,8 (tingimento) apagava a
+                imagem — a sage saía com 8,4% de saturação, MENOS colorida que um
+                card sem imagem nenhuma. Zero véu devolvia a cor (23,7%) mas
+                ofuscava. 0,27 é o meio, e não é livre: acima de ~0,45 o card cai
+                na zona morta 85–122, onde nem texto branco nem escuro funciona.
+                O Hotspot saiu e não volta: era branco em mix-blend-plus-lighter,
+                e plus-lighter SOMA — sobre pastel não acende, estoura pra branco. */}
+            <div className="absolute inset-0 bg-[rgba(10,14,10,0.27)]" />
+            {/* O Glow FICA, e agora rende mais que antes: ele não é tinta, é
+                backdrop-filter saturate(1.55) — amplifica o que está atrás. Atrás
+                dele há gradiente sage de verdade, então ele adensa o verde na
+                quina em vez de lavar. É a única camada de luz que sobrevive à
+                inversão, porque é a única que trabalha COM o fundo. */}
             <Glow className="bottom-[-4%] left-[-10%] h-80 w-80" />
-            <Hotspot className="bottom-[-90px] left-[-70px] h-[300px] w-[340px]" />
             <Grain at="18% 100%" />
-            <EdgeLight at="18% 100%" />
+            <EdgeLight at="18% 100%" tone="light" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
-                <CardTitle>Questionários</CardTitle>
-                <CardBody tone="hero">Sete instrumentos validados (EAT-26, QFA, PSQI e outros), com pontuação automática.</CardBody>
+                <CardTitle tone="light">Questionários</CardTitle>
+                <CardBody tone="light">Sete instrumentos validados (EAT-26, QFA, PSQI e outros), com pontuação automática.</CardBody>
               </div>
               <MockQuestionarios />
             </div>
           </article>
 
           {/* C — Plano alimentar (hero óleo, card alto) */}
-          {/* verde do pepino */}
+          {/* azul-cinza da gradiente */}
           <article data-card className={CARD_HERO + " lg:col-start-1 lg:row-start-2"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/plano-pepino.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,12,12,0.6)_0%,rgba(6,12,12,0.38)_46%,rgba(6,12,12,0.54)_100%)]" />
-            {/* A quina esquerda é onde a carta da frente do baralho fica — a
-                pilha se abre PRA FORA da luz, subindo e indo pra direita, e o
-                canto aceso é de onde ela sai. Branca faz aqui o que cor nenhuma
-                faria: acende o pepino como pepino. Luz roxa deixava a textura
-                arroxeada (foi a primeira tentativa, e a foto perdia o assunto);
-                luz verde sobre folha verde simplesmente some. */}
-            <Hotspot className="bottom-[-80px] left-[-80px] h-[320px] w-[360px]" />
+            <img src="/textures/plano-azul.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
+            {/* Véu leve chapado (0,27), mesmo alpha dos outros dois — ver a nota
+                longa no Questionários pra por que 0,27 e não outro número.
+                Mesmo alpha, resultado mais escuro: este card pousa em ~122 contra
+                ~151 do Questionários, porque a azul já era a menos luminosa das
+                três na região que o object-cover mostra. O alpha é igual de
+                propósito — igualar a CHEGADA exigiria alpha diferente por card, e
+                aí o véu viraria correção de exposição em vez de tratamento.
+                O Hotspot saiu com o fundo claro. A quina esquerda continua sendo
+                de onde a pilha de cartas se abre, mas quem marcava esse canto era
+                um radial branco em plus-lighter — que sobre fundo claro vira
+                mancha chapada, não luz. O EdgeLight escuro já dá a aresta. */}
+            <div className="absolute inset-0 bg-[rgba(6,9,12,0.27)]" />
             <Grain at="12% 100%" />
-            <EdgeLight at="12% 100%" />
+            <EdgeLight at="12% 100%" tone="light" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-9 md:pt-9">
-                <CardTitle>Plano alimentar</CardTitle>
-                <CardBody tone="hero">Monte sem sair do prontuário. Tabela TACO embutida, macros somados, importação por PDF.</CardBody>
+                <CardTitle tone="light">Plano alimentar</CardTitle>
+                <CardBody tone="light">Monte sem sair do prontuário. Tabela TACO embutida, macros somados, importação por PDF.</CardBody>
               </div>
               <MockPlano />
             </div>
@@ -1802,42 +2515,44 @@ export default function Features() {
 
           {/* coluna direita inferior — Exames + Agenda */}
           <div className="flex flex-col gap-4 md:gap-5 lg:col-start-2 lg:row-start-2">
-            {/* âmbar dos bokeh */}
-            <article data-card className={CARD_HERO + " min-h-[360px] flex-1"}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/textures/exames-ambar.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-              {/* Véu ALIVIADO no miolo (0,34 → 0,24) — este é o card claro do
-                  bento, o papel que no bento do Pixel Point é do "1" âmbar.
-                  Medido lá: os cards deles vão de 36,6 a 139,9 de luminância,
-                  amplitude 103, razão 3,8×. Os nossos seis estavam entre 37,7 e
-                  41,0 — amplitude 3,3, razão 1,1×. Seis cards na mesma
-                  escuridão, e nenhuma camada de luz conserta isso, porque o
-                  problema não é a luz: é não haver contraste ENTRE as peças.
-                  Aqui o alívio deixa os bokeh quentes da foto queimarem de
-                  verdade e o card vira o ponto claro da composição.
-                  O topo continua fechado (0,52, quase o original): é onde o
-                  título e o corpo em branco moram, e ali o véu não é estilo — é
-                  o que segura o contraste do texto. Por isso o gradiente abre
-                  no meio e fecha nas duas pontas, em vez de clarear por igual. */}
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,9,6,0.54)_0%,rgba(12,9,6,0.24)_46%,rgba(12,9,6,0.4)_100%)]" />
-              {/* Continua SEM Glow, e a razão é a de sempre: a textura deste
-                  card já É uma fonte de luz (os bokeh quentes fora de foco).
-                  Somar âmbar sobre âmbar não deu profundidade — deu lavagem: o
-                  card virou o ponto mais claro do bento e puxou o olho pra
-                  longe do laudo, que é o assunto. Mancha ambiente aqui sobra.
-                  O Hotspot não recai nisso porque não é mais tinta: ele é
-                  branco e pequeno, então não ENGROSSA o âmbar — acende os
-                  bokeh que já estão naquela quina, que é o que uma luz faz com
-                  uma foto. E fica na quina onde os marcadores param quando o
-                  valor está alto: o lado "fora da faixa" da régua, que é o
-                  assunto do card. */}
+            {/* sem textura — vidro sobre o azul-ardósia do CARD */}
+            {/* CARD e não CARD_HERO, e isto é obrigatório, não estilo: CARD_HERO
+                não tem fundo NENHUM (só rounded + LIFT) porque quem pinta o card
+                é a textura. Tirar o <img> de um CARD_HERO não deixa o card
+                escuro — deixa o card TRANSPARENTE. O fundo próprio do CARD
+                (#1B2130 → #13171F) é o que assume o lugar da foto.
+                O véu também foi junto: ele existia pra domar a textura, e sem
+                textura vira só uma camada preta em cima de um gradiente que já
+                está no tom certo. */}
+            <article data-card className={CARD + " min-h-[360px] flex-1"}>
+              {/* Continua SEM Glow, mas a razão trocou junto com o fundo.
+                  Era: "a textura já É uma fonte de luz (os bokeh quentes), e
+                  saturar bokeh estourado dá lavagem". Sem foto, ninguém estoura.
+                  A razão agora é o que o Glow É: backdrop-filter saturate(1.55)
+                  + brightness(1.06) — ele AMPLIFICA o que está atrás, não pinta.
+                  Atrás dele aqui só existe o gradiente chapado do CARD, que é
+                  quase dessaturado: saturar quase-cinza devolve quase-cinza, e
+                  6% de brilho ninguém vê. Glow em card sem textura só rende onde
+                  há cor atrás pra puxar — é o caso da Agenda, cujos dois Glows
+                  mordem a espinha roxa/sage das linhas.
+                  Se este card precisar voltar a ser o quente do bento, o lugar
+                  é a quina inferior direita, onde os marcadores âmbar do mock
+                  passam — ali um Glow teria o que amplificar.
+                  O Hotspot fica: é tinta de verdade (radial branco em
+                  plus-lighter), então funciona sobre fundo chapado. E fica na
+                  quina onde os marcadores param quando o valor está alto — o
+                  lado "fora da faixa" da régua, que é o assunto do card. */}
               <Hotspot className="bottom-[-80px] right-[-70px] h-[280px] w-[320px]" />
               <Grain at="85% 100%" />
               <EdgeLight at="85% 100%" />
               <div className="relative flex h-full flex-col">
                 <div className="px-7 pt-7 md:px-8 md:pt-8">
                   <CardTitle>Exames de sangue</CardTitle>
-                  <CardBody tone="hero">Suba o PDF do laboratório. A Gaia extrai os valores e marca o que está fora da faixa.</CardBody>
+                  {/* tone volta pro padrão "dark" (white/55): "hero" é white/70,
+                      calibrado pra segurar contraste contra foto. Sobre o
+                      gradiente chapado do CARD, white/70 destoa dos vizinhos sem
+                      textura — Antropometria e Agenda usam o padrão. */}
+                  <CardBody>Suba o PDF do laboratório. A Gaia extrai os valores e marca o que está fora da faixa.</CardBody>
                 </div>
                 <MockExames />
               </div>
@@ -1866,47 +2581,57 @@ export default function Features() {
 
         {/* Prontuário — hero teal, largura total, phone 3D centralizado */}
         <div className="mt-4 grid grid-cols-1 gap-4 md:mt-5 md:gap-5 lg:grid-cols-6">
-          {/* malva da pétala. Alpha mais baixo (0,38) que os outros de
-              propósito: este card tem 1024px de largura contra ~500 dos
-              vizinhos, então o mesmo alpha renderia o dobro de franja e o
-              Prontuário viraria o ponto mais aceso do bento — quando ele é o
-              fecho, não a manchete. */}
+          {/* lilás da gradiente — herda o malva que a pétala trazia.
+              Havia aqui uma nota sobre o alpha do véu ser mais baixo (0,38) que
+              o dos vizinhos, porque com 1024px de largura contra ~500 o mesmo
+              alpha renderia o dobro de franja e o Prontuário viraria o ponto
+              mais aceso do bento, quando ele é o fecho. Não há mais véu, mas a
+              largura continua sendo o dobro — e agora o card é CLARO e ocupa a
+              faixa inteira. Ele é, por construção, a peça mais luminosa do
+              bento. Se o fecho voltar a roubar a manchete, é aqui. */}
           <article data-card className={CARD_HERO + " lg:col-span-6"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/petala.jpg" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            {/* Escurecimento base — mantém o fundo escuro e coerente com o Features.
-                NÃO acompanha o alívio que os outros heróis levaram: a pétala é a
-                única textura CLARA do bento, e aqui os satélites são GLASS_FROST
-                (tinta branca). Véu mais leve = fundo mais claro = vidro branco
-                sobre claro, e "adesão 68%" some. Nos heróis escuros o alívio
-                revela a textura; neste ele apaga o texto. */}
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,12,0.62)_0%,rgba(6,10,12,0.34)_46%,rgba(6,10,12,0.5)_100%)]" />
-            {/* assento radial atrás do phone — dá contraste ao aparelho centralizado */}
-            <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 hidden h-[620px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(4,8,10,0.66)_0%,rgba(4,8,10,0.32)_52%,transparent_74%)] lg:block" />
-            {/* DEPOIS do assento, e a ordem é o ponto: o assento é justamente o
-                escurecimento no centro que dá contraste ao phone, então uma luz
-                central antes dele nasceria e seria apagada no frame seguinte.
-                Aqui ela acende POR CIMA.
+            <img src="/textures/prontuario-lilas.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+            {/* Véu leve chapado (0,27), igual aos outros dois — pousa em ~127.
+                A imagem no disco está VIRADA na vertical, e isso é legibilidade,
+                não capricho: de pé, a faixa roxa escura da gradiente caía
+                exatamente na quina superior esquerda, que é onde o título e o
+                corpo moram (o texto vive numa coluna de 248px à esquerda do
+                phone). Medido ali, o corpo em neutro-800 dava 3,6:1 — reprova.
+                Virada, a parte clara sobe pro texto e a faixa escura desce pro
+                rodapé: 6,6:1. Gradiente borrada não tem lado certo, então virar
+                não custa nada e paga o contraste. Com o véu de 0,27 por cima a
+                margem encolhe mas continua de pé — é a razão de o corpo ser `ink`
+                e não `neutro-800`. */}
+            <div className="absolute inset-0 bg-[rgba(12,8,12,0.27)]" />
+            {/* Assento atrás do phone — MUITO mais leve (0,66/0,32 → 0,2/0,1) e
+                agora com outra função. Sobre card escuro ele era escurecimento:
+                cavava um poço pro aparelho escuro se destacar de um fundo já
+                escuro. Sobre a lilás clara isso se inverte sozinho — o phone é
+                escuro e o fundo é claro, então o contraste já existe de graça e
+                a mancha antiga só sujaria a gradiente com um borrão cinza no
+                meio do card. No alpha baixo ela deixa de ser poço e vira o que
+                um objeto pousado numa superfície clara projeta: sombra. */}
+            <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 hidden h-[620px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(4,8,10,0.2)_0%,rgba(4,8,10,0.1)_52%,transparent_74%)] lg:block" />
+            {/* O Hotspot da contraluz SAIU. Ele era radial branco em
+                mix-blend-plus-lighter, e plus-lighter só sabe SOMAR: sobre a
+                pétala escura ele escapava por baixo do phone e lia como lâmpada;
+                sobre a lilás crua (~200) somar branco não acende — satura pra
+                branco chapado e come a gradiente justamente no centro do card.
+                Contraluz é um efeito que precisa de escuro atrás. Aqui o fundo
+                virou claro, e o aparelho escuro já se resolve por silhueta.
 
-                MUITO larga e rasa (900×260), e não redonda como as outras. O
-                centro inferior deste card é o lugar mais disputado do bento, e
-                os números são de régua no DOM, não de olho: o phone ocupa
-                x 596–844 e desce até 668 (passa da borda do card, que fecha em
-                619); o satélite esquerdo vai até x 563 e o direito começa em
-                888. Entre eles sobram frestas de 33px e 44px. Uma luz redonda
-                de ~220px centrada aqui fica INTEIRA atrás do aparelho — foi o
-                que aconteceu nas duas primeiras tentativas: o hotspot existia
-                no DOM, media certo, e não aparecia em tela.
-                O que existe de vão é a FAIXA de 55px na base (y 564–619), livre
-                em toda a largura fora do phone. Por isso a elipse é rasa e
-                deitada: ela mora nessa faixa e sai pelos dois lados do
-                aparelho. O phone ganha contraluz em vez de tapar a lâmpada —
-                escuro atrás do corpo (o assento), luz escapando por baixo. É
-                também pra onde os três satélites convergem: a luz marca o
-                centro da reunião. */}
-            <Hotspot className="bottom-[-120px] left-1/2 h-[260px] w-[900px] -translate-x-1/2" />
+                A geometria fica registrada porque custou régua no DOM e vale se
+                alguém tentar reacender isto: o phone ocupa x 596–844 e desce até
+                668 (passa da borda do card, que fecha em 619); o satélite
+                esquerdo vai até x 563 e o direito começa em 888 — frestas de
+                33px e 44px. Uma luz redonda de ~220px centrada fica INTEIRA
+                atrás do aparelho: existe no DOM, mede certo, não aparece em
+                tela. O único vão real é a FAIXA de 55px na base (y 564–619),
+                livre em toda a largura fora do phone — por isso a elipse era
+                rasa e deitada (900×260). */}
             <Grain at="50% 100%" />
-            <EdgeLight at="50% 100%" />
+            <EdgeLight at="50% 100%" tone="light" />
 
             {/* min-h preserva a altura visual do palco agora que a Marina vive na
                 tela do iPhone (ver PhoneScreen) que a ScrollPhone sobrepõe aqui. */}
@@ -1915,8 +2640,8 @@ export default function Features() {
                   centralizado e nunca corre por baixo do aparelho (glass começa
                   ~270px dentro do card). Solto no mobile, onde não há phone. */}
               <div className="max-w-md lg:max-w-[248px]">
-                <CardTitle>Prontuário</CardTitle>
-                <CardBody tone="hero">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
+                <CardTitle tone="light">Prontuário</CardTitle>
+                <CardBody tone="light">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
               </div>
 
               {/* mobile/tablet — sem phone 3D: satélites empilhados */}

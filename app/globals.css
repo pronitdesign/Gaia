@@ -418,31 +418,6 @@
   animation: gaia-tick 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Respiro ambiente — SÓ o Hotspot (ver Features.tsx). Opacity/scale porque é
-   o que o compositor faz de graça sobre uma camada que já é gradiente+blur;
-   nada aqui reamostra o backdrop (essa é a diferença pro Glow, que usa
-   backdrop-filter e não pode animar contínuo sem virar jank).
-   Amplitude curta (.82→1 / 1→1.04) de propósito: o Hotspot é `plus-lighter` e
-   CLIPA — amplitude maior vira pulso visível, que é cheap; o objetivo é
-   ambiente, não pisca-pisca. Duração e delay vêm de fora (--breathe-dur/
-   --breathe-delay) porque cada card pulsa num período próprio — 6 luzes no
-   mesmo compasso leem como vitrine, dessincronizadas leem como ambiente. */
-@keyframes gaia-breathe {
-  0%,
-  100% {
-    opacity: 0.82;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.04);
-  }
-}
-.gaia-breathe {
-  animation: gaia-breathe var(--breathe-dur, 11s) var(--ease-auto) infinite;
-  animation-delay: var(--breathe-delay, 0s);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .gaia-parallax {
     transform: rotate(var(--rot, 0deg));
@@ -462,8 +437,7 @@
   .gaia-meal-rise,
   .gaia-tick,
   .gaia-row-slide,
-  .gaia-spine,
-  .gaia-breathe {
+  .gaia-spine {
     animation: none;
     opacity: 1;
     transform: none;
