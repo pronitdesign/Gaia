@@ -91,9 +91,28 @@ const DIVE_SHRINK = 0.42;
    Por isso FogSync amostra DIVE_STOPS por frame na fração do gradiente onde o
    horizonte cai.
 
-   FOG_NEAR mantém o phone (a ~4 da câmera) limpo: a névoa é só pra distância. */
+   FOG_NEAR/FOG_FAR são a névoa NO PICO: só distância, phone (a ~4 da câmera)
+   limpo.
+
+   NAS BORDAS DA JANELA ELA FECHA E ENGOLE TUDO — e é isto que entrega a seção.
+
+   É como a peachweb resolve, e é o oposto do que eu vinha tentando. Eu passei
+   rodadas caçando a linha do horizonte pra escondê-la. Eles não escondem: no fim
+   do mergulho a cena INTEIRA deles — água, horizonte, colinas, peixe — dissolve
+   num leite uniforme, e o conteúdo emerge de dentro dele. Não há linha porque não
+   há contraste; tudo virou um valor só.
+
+   Então a névoa fecha (near→0, far→HAZE_FAR) conforme dive cai. No limite o
+   quadro inteiro é uma cor chapada — a cor do céu ali — e é NESSE quadro que a
+   água desmonta. Desmontar sem contraste é invisível: acabou o corte, acabou o
+   pop, acabou o véu translúcido. E na entrada é o mesmo de trás pra frente: a
+   água NASCE de dentro da névoa em vez de aparecer. */
 const FOG_NEAR = 20;
 const FOG_FAR = 320;
+/** Névoa fechada: menor que CAM_Z (4), então engole até o phone. */
+const HAZE_FAR = 3;
+/** Acima deste dive a névoa já abriu por completo. Abaixo, ela vai fechando. */
+const HAZE_UNTIL = 0.42;
 
 /* Onde o horizonte cai, em fração da tela, dada a inclinação da câmera.
    Elevação 0 ⇒ screenFrac = 0.5·(1 + tan(pitch)/tan(fov/2)). Nivelada dá 0.5 (o
@@ -101,12 +120,19 @@ const FOG_FAR = 320;
 const horizonFrac = (pitch: number) =>
   0.5 * (1 + Math.tan(pitch) / Math.tan((CAM_FOV * Math.PI) / 180 / 2));
 
-function FogSync() {
+function FogSync({ diveRef }: { diveRef: React.MutableRefObject<number> }) {
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   useFrame(() => {
     const fog = scene.fog as THREE.Fog | null;
     if (!fog) return;
+
+    /* A névoa fecha nas bordas da janela — ver NÉVOA. No pico ela é só
+       distância; saindo, ela engole a cena até o quadro virar uma cor só, e é
+       nesse quadro que a água desmonta sem ninguém ver. */
+    const open = smoothstep(0, HAZE_UNTIL, diveRef.current);
+    fog.near = lerp(0, FOG_NEAR, open);
+    fog.far = lerp(HAZE_FAR, FOG_FAR, open);
 
     const hy = horizonFrac(camera.rotation.x) * window.innerHeight;
 
@@ -521,7 +547,7 @@ export default function ScrollPhone() {
                 usa fog e fica intacto, que é o certo: o céu é o destino da
                 névoa, não vítima dela. */}
             <fog attach="fog" args={["#EFEAF4", FOG_NEAR, FOG_FAR]} />
-            <FogSync />
+            <FogSync diveRef={dive} />
             <Sky3D />
             <WaterScene stateRef={water} />
           </Suspense>
