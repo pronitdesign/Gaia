@@ -76,7 +76,7 @@ function Overlay({
 }) {
   return (
     <div
-      className="absolute bottom-0 left-0 z-10 flex w-full flex-col px-7 pb-12 text-left transition-all duration-500 ease-gaia md:w-[58%] md:px-16 md:pb-20 lg:px-20 lg:pb-24"
+      className="absolute bottom-0 left-0 z-10 flex w-full flex-col px-7 pb-32 text-left transition-all duration-500 ease-gaia md:w-[58%] md:px-16 md:pb-36 lg:px-20 lg:pb-40"
       style={{
         opacity: active ? 1 : 0,
         transform: active ? "translateY(0)" : "translateY(16px)",
@@ -164,7 +164,7 @@ function GlassCard({
     INFERIOR-direita, na mesma linha de visão do título (cluster de HUD) —
     a foto respira na metade de cima, a informação se agrupa embaixo */
 const mainPos =
-  "top-7 left-1/2 -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[13%] md:top-auto md:translate-x-0 lg:right-[9%] lg:bottom-[15%]";
+  "top-7 left-1/2 -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[20%] md:top-auto md:translate-x-0 lg:right-[9%] lg:bottom-[22%]";
 
 /** Foto lifestyle de fundo — mantida viva; scrim escuro só na base/esquerda
     (onde pousa o texto) garante legibilidade sem apagar a imagem.
@@ -383,7 +383,7 @@ export function Panel3({ active }: PanelProps) {
         active={active}
         depth={16}
         delay={120}
-        className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[13%] md:top-auto md:w-[360px] md:translate-x-0 lg:right-[9%] lg:bottom-[15%]"
+        className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[20%] md:top-auto md:w-[360px] md:translate-x-0 lg:right-[9%] lg:bottom-[22%]"
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />

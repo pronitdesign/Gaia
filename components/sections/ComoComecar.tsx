@@ -228,7 +228,7 @@ export default function ComoComecar() {
   );
 
   const Tabs = (
-    <div data-reveal className="mb-7 grid grid-cols-3 gap-x-6">
+    <div data-reveal className="mb-0 grid grid-cols-3 gap-x-6">
       {STEPS.map((step, i) => {
         const isActive = i === highlight;
         const fill = i <= highlight ? 1 : 0;
@@ -236,18 +236,18 @@ export default function ComoComecar() {
           <button
             key={step.n}
             onClick={() => goTo(i)}
-            className="group relative pb-3 text-left outline-none"
+            className="group pointer-events-auto relative pb-3 text-left outline-none"
             aria-current={isActive}
           >
             <div className="flex items-baseline gap-3">
-              <span className={`font-title text-h3 font-semibold tabular-nums transition-colors duration-300 ${isActive ? "text-brand" : "text-neutro-400"}`}>
+              <span className={`font-title text-h3 font-semibold tabular-nums drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-300 ${isActive ? "text-brand" : "text-white/45"}`}>
                 {step.n}
               </span>
-              <span className={`font-body text-body-l font-medium transition-colors duration-300 ${isActive ? "text-neutro-800" : "text-neutro-500"}`}>
+              <span className={`font-body text-body-l font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-300 ${isActive ? "text-white" : "text-white/55"}`}>
                 {step.tab}
               </span>
             </div>
-            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-neutro-200" />
+            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-white/25" />
             <span
               className="absolute inset-x-0 bottom-0 h-[2px] origin-left rounded-full bg-gradient-to-r from-azul-400 via-brand to-brand-600 transition-transform duration-500 ease-gaia"
               style={{ transform: `scaleX(${fill})` }}
@@ -266,7 +266,7 @@ export default function ComoComecar() {
         data-panel
         className={
           mode === "pinned"
-            ? "relative h-full w-[92vw] shrink-0 overflow-hidden bg-neutro-0"
+            ? "relative h-full w-screen shrink-0 overflow-hidden bg-neutro-0"
             : "relative h-[78vh] w-full overflow-hidden rounded-card border border-neutro-200/70 bg-neutro-0 shadow-soft-lg"
         }
       >
@@ -288,20 +288,14 @@ export default function ComoComecar() {
           <div className="mx-auto w-full max-w-6xl px-6 pt-20 md:px-10 lg:px-16">
             {Header}
           </div>
-          <div ref={pin} className="relative flex min-h-screen flex-col justify-start pt-6 pb-14">
-          {/* base CLARA sob a mídia — a tira dissolve num creme (neutro-50) que casa
-              com o topo da section seguinte (A Roberta): os dois lados encontram-se no
-              mesmo creme, então o seam some (era bg-ink, que criava a tira escura morta). */}
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-14 bg-neutro-50" />
-          <div className="mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
-            {Tabs}
+          <div ref={pin} className="relative h-screen overflow-hidden">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/65 via-black/30 to-transparent" />
+            <div className="relative w-full px-7 pb-7 md:px-16 lg:px-20">{Tabs}</div>
           </div>
-          {/* container clip: a mídia É o palco — preenche toda a altura fixa
-              que sobra do pin (zero espaço morto embaixo). Título + card vivem
-              agrupados na faixa inferior (ver mainPos), não em cantos opostos. */}
           <div
             onPointerMove={onPointerMove}
-            className="relative mt-2 min-h-0 flex-1 overflow-hidden bg-neutro-0"
+            className="relative h-full w-full overflow-hidden bg-neutro-0"
           >
             <div
               ref={track}
