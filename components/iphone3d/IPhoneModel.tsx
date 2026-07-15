@@ -128,7 +128,15 @@ function computeLocalNormal(geometry: THREE.BufferGeometry): THREE.Vector3 {
 //    +Z local dele já É a direção que o DOM encara — então a normal em
 //    mundo pra esse teste é só (0,0,1) transformado pela orientação mundial
 //    do group, sem precisar carregar localNormal separadamente até aqui.
-function ScreenHtml({ geometry, screen }: { geometry: THREE.BufferGeometry; screen: ReactNode }) {
+function ScreenHtml({
+  geometry,
+  screen,
+  screenRef,
+}: {
+  geometry: THREE.BufferGeometry;
+  screen: ReactNode;
+  screenRef?: React.RefObject<HTMLDivElement>;
+}) {
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   // Direção em que o DOM está virado (dot > 0 com a câmera). Precisa ser
@@ -201,6 +209,44 @@ function ScreenHtml({ geometry, screen }: { geometry: THREE.BufferGeometry; scre
         transform
         occlude={false}
         scale={scale}
+        /* POR QUE ISTO NÃO É DEFAULT, E POR QUE IMPORTA.
+
+           O default do drei é [16777271, 0] — ele espalha a distância de câmera
+           nesse intervalo e escreve o resultado como z-index no wrapper da camada
+           CSS3D. Dezesseis MILHÕES põe a tela do phone acima de qualquer coisa
+           que o ScrollPhone empilhe por cima do canvas: ordem de DOM só decide
+           entre irmãos de mesmo z-index, e nada no overlay z-[60] tem como
+           competir com esse número.
+
+           O sintoma era a tela renderizando SECA dentro da água — nítida,
+           branca, sem tinta — enquanto o corpo 3D do mesmo aparelho ia
+           tingido. A tela não é WebGL (é DOM real numa camada CSS3D fora do
+           canvas), então nenhum shader a alcança; quem tinge é a camada CSS de
+           ScrollPhone, e ela vinha por baixo sem que ninguém percebesse.
+
+           [10, 0] mantém o mesmo ordenamento por profundidade entre telas (só
+           existe uma, mas o intervalo é o contrato do drei) e devolve a camada
+           pra dentro de um alcance que a camada de tinta consegue disputar.
+
+           ISTO SOZINHO NÃO CONSERTA NADA, e achar que sim custou um render: o
+           container do canvas é position:absolute com z-index auto, logo NÃO
+           cria stacking context, e este número sobe e compete direto no nível do
+           overlay do ScrollPhone — onde `auto` vale 0. Medido: com [10, 0] e a
+           tinta em `auto`, 10 > 0 e a tela continuava seca. O par é este teto
+           mais o z-[20] do submergedEl (ver ScrollPhone.tsx); mexer num sem
+           olhar o outro devolve o bug. */
+        zIndexRange={[10, 0]}
+        /* Em transform mode o drei encaminha este ref pro div de CONTEÚDO — o
+           mesmo que recebe `style` e `className` (ver o render() dele em
+           node_modules/@react-three/drei/web/Html.js). É por ele que o
+           ScrollPhone borra a tela por frame quando o phone submerge: a tela é
+           DOM fora do canvas, nenhum shader a alcança, e a tinta sozinha nunca
+           ia dar conta porque tinta não desfoca. Ver SCREEN_WET_BLUR lá.
+
+           `filter` aqui não quebra o CSS3D: quem carrega a matriz é o
+           transformInner, o pai deste div, e este é folha da cadeia 3D (os
+           filhos dele são UI 2D). Renderizado e conferido. */
+        ref={screenRef}
         style={{ pointerEvents: "none", visibility: facing ? "visible" : "hidden" }}
       >
         {screen}
@@ -220,6 +266,9 @@ type IPhoneModelProps = GroupProps & {
   /** DOM real (PhoneScreen) renderizado dentro da tela via <Html transform>.
    *  Tem prioridade sobre screenImg/screenImgAlt quando presente. */
   screen?: ReactNode;
+  /** Ref pro div de conteúdo da tela — só faz sentido junto com `screen`.
+   *  Quem escreve nele é o ScrollPhone, por frame (ver SCREEN_WET_BLUR lá). */
+  screenRef?: React.RefObject<HTMLDivElement>;
 };
 
 export default function IPhoneModel({
@@ -229,6 +278,7 @@ export default function IPhoneModel({
   screenImgAlt,
   showAlt = false,
   screen,
+  screenRef,
   ...props
 }: IPhoneModelProps) {
   // gltfjsx tipa nodes/materials genericamente — mantemos frouxo de propósito.
@@ -271,7 +321,7 @@ export default function IPhoneModel({
       {screen ? (
         <>
           <PlainScreen geometry={nodes.xXDHkMplTIDAXLN.geometry} />
-          <ScreenHtml geometry={nodes.xXDHkMplTIDAXLN.geometry} screen={screen} />
+          <ScreenHtml geometry={nodes.xXDHkMplTIDAXLN.geometry} screen={screen} screenRef={screenRef} />
         </>
       ) : screenImg ? (
         <TexturedScreen

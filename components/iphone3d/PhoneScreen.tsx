@@ -32,6 +32,15 @@ export type PhoneScreenVariant = "prontuario" | "inicio";
 
 const W = 390;
 const H = 844;
+/* Raio do display, em px deste frame de 390 — ver o uso no root do PhoneScreen
+   pro porquê do número (≈55pt num 15 Pro Max de ~430pt).
+
+   EXPORTADO porque o ScrollPhone precisa do MESMO raio pra recortar o desfoque
+   da tela molhada (ver SCREEN_WET_BLUR lá): `filter` pinta pra FORA da caixa do
+   elemento, e sem um clip com esta curva exata o borrão vaza por cima do bisel e
+   lava a borda do aparelho — medido no render. Duplicar o 56 nos dois arquivos é
+   como esse recorte descola do dia em que este raio mudar. */
+export const SCREEN_RADIUS = 56;
 
 /* ── chrome comum: status bar minimalista (hora + 5G + bateria) ─────────── */
 function StatusBar({ dark }: { dark?: boolean }) {
@@ -531,7 +540,7 @@ export default function PhoneScreen({ variant }: { variant: PhoneScreenVariant }
   // recorta o conteúdo interno a essa curva.
   return (
     <div
-      style={{ width: W, height: H, pointerEvents: "none", borderRadius: 56 }}
+      style={{ width: W, height: H, pointerEvents: "none", borderRadius: SCREEN_RADIUS }}
       className="select-none overflow-hidden"
     >
       {variant === "prontuario" ? <ProntuarioScreen /> : <InicioScreen />}

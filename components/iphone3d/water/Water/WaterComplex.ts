@@ -34,6 +34,8 @@ type WaterOptions = {
 	fxDistortionFactor?: number;
 	/** [GAIA] Ver `u_fade` nos uniforms. [cheia, sumida] em distância do olho. */
 	fade?: Vector2 | [number, number];
+	/** [GAIA] Ver `u_lens` nos uniforms. [θ espelho, θ lente, quanto abre]. */
+	lens?: Vector3 | [number, number, number];
 };
 
 class WaterComplex extends Mesh {
@@ -105,6 +107,41 @@ class WaterComplex extends Mesh {
 			   sempre esteve embaixo, bastava parar de pintar por cima dela.
 			   Medido depois: degrau de (30,42,20) → (1,1,0). */
 			u_fade: { value: new Vector2(12.0, 40.0) },
+
+			/* [GAIA] A ÁGUA COMO LENTE — alpha por ÂNGULO DE VISÃO, não por
+			   distância. É o que faz a página aparecer DENTRO da água.
+
+			   x = θ até onde a água é ESPELHO (opaca)
+			   y = θ a partir de onde ela é LENTE (transparente)
+			   z = quanto ela chega a abrir (1 = some de vez)
+
+			   POR QUE FRESNEL E NÃO u_fade. As duas rampas parecem a mesma coisa
+			   e não são. u_fade é distância radial (length(vToEye)), e distância
+			   NÃO é uma grandeza estável em tela: a altura de um ponto do plano é
+			   atan(h/r), então a mesma faixa de r vira 16px de tela com o olho a
+			   0.3 da superfície e 33px com ele a 0.7 — e h varia por frame o
+			   mergulho inteiro (camera.position.y = -DIVE_DROP·camAmt). Uma rampa
+			   de distância anda em quadro sem ninguém mandar.
+
+			   θ = dot(toEye, normal) = sin(ângulo de depressão). Com o plano
+			   horizontal, esse ângulo sai SÓ da linha da tela e do pitch — h some
+			   da conta. A mesma rampa cai nos mesmos pixels em qualquer altura de
+			   câmera. Medido @1440×900, pitch 0 (fov 50, horizonte em y=450):
+			   y=475 → θ=0.026 · y=505 → θ=0.057 · y=600 → θ=0.154 · y=900 → θ=0.42.
+
+			   E o ângulo é a resposta CERTA, não só a estável: rasante é espelho,
+			   fechado é vidro. É o que oceano faz. A faixa do horizonte fica opaca
+			   — é lá que moram o reflexo do phone e a linha d'água — e o pé da
+			   tela abre, que é onde se enxerga pra dentro. Onde abre, o que
+			   aparece atrás é o DOM da página (o canvas é overlay alpha:true).
+
+			   Isto NÃO entrega nada sozinho: a camada CSS irmã do canvas
+			   (splitPaint em ScrollPhone) precisa virar backdrop-filter na mesma
+			   leva, senão a água abre e a tinta chapada tapa do mesmo jeito. As
+			   duas mudanças são uma coisa só.
+
+			   Default vec3(0, 1, 0) = lens 0 = alpha intocado (upstream). */
+			u_lens: { value: new Vector3(0.0, 1.0, 0.0) },
 		},
 
 		vertexShader: /* glsl */ `
@@ -163,6 +200,7 @@ class WaterComplex extends Mesh {
             uniform float fxDisplayColorAlpha;
             uniform float u_amount;
             uniform vec2 u_fade;
+            uniform vec3 u_lens;
 
             varying vec4 vCoord;
             varying vec2 vUv;
@@ -257,7 +295,23 @@ class WaterComplex extends Mesh {
                    torta. */
                 float fade = 1.0 - smoothstep( u_fade.x, u_fade.y, length( vToEye ) );
 
-                gl_FragColor = vec4(mixedColor, u_amount * fade);
+                /* [GAIA] A LENTE. Ver u_lens nos uniforms.
+
+                   theta é o MESMO da conta de Fresnel logo acima — de propósito.
+                   O que decide se a água reflete é o que decide se dá pra ver
+                   através dela; são a mesma pergunta, e derivar as duas do mesmo
+                   número é o que impede o alpha de descolar do reflexo. Um alpha
+                   com rampa própria abriria a água onde ela ainda está
+                   espelhando, e um espelho que se vê através lê como bug.
+
+                   E é a normal map que salva a linha de ser um risco: theta vem
+                   da normal PERTURBADA, então cada crista de onda tem seu próprio
+                   ângulo. A borda da rampa serpenteia com a ondulação em vez de
+                   atravessar a tela reta. É por isso que a linha pode nascer daqui
+                   e não precisa mais ser desenhada em CSS. */
+                float lens = smoothstep( u_lens.x, u_lens.y, theta ) * u_lens.z;
+
+                gl_FragColor = vec4(mixedColor, u_amount * fade * ( 1.0 - lens ));
     
                 #include <tonemapping_fragment>
                 #include <colorspace_fragment>
@@ -420,6 +474,14 @@ class WaterComplex extends Mesh {
 			(this.material as any).uniforms['u_fade'].value = Array.isArray(f)
 				? new Vector2(f[0], f[1])
 				: f.clone();
+		}
+
+		// lente
+		if (options.lens !== undefined) {
+			const l = options.lens;
+			(this.material as any).uniforms['u_lens'].value = Array.isArray(l)
+				? new Vector3(l[0], l[1], l[2])
+				: l.clone();
 		}
 
 		// inital values

@@ -75,13 +75,20 @@ const SPAN = 900;
    vista de dentro, então este tom fica um degrau acima daquele. Se mexer num,
    olhe o outro.
 
-   ATENÇÃO — a calibragem está MEIA: este tom ainda é lavanda, e o submerso do
-   Pricing virou AZUL (Underwater.tsx, uDeep #7FA3CE sobre o céu de
-   PRICING_STOPS). A passagem não quebrou porque o DIVE_STOPS resolve em creme
-   antes da emenda, então as duas cores não se encostam — mas a água do Mergulho
-   e a do Pricing deixaram de ser a mesma água. Se o Pricing azul ficar, este tom
-   é o próximo a virar. */
-const WATER_COLOR = "#B7A6D3";
+   A DÍVIDA DA LAVANDA, PAGA. Este tom era #B7A6D3 e o comentário aqui já
+   registrava o vencimento: "a calibragem está MEIA... se o Pricing azul ficar,
+   este tom é o próximo a virar". O Pricing não só ficou como foi pro TEAL
+   (Underwater.tsx, uDeep #8FC0CE sobre PRICING_STOPS, resolvendo em ~#5AA2B4).
+
+   O que segurava a dívida era a água ser uma PAREDE: o DIVE_STOPS resolve em
+   creme antes da emenda, então lavanda e teal nunca se encostavam em quadro.
+   Com u_lens (ver WaterComplex) a água virou lente e o Pricing aparece DENTRO
+   dela — as duas cores passam a dividir o mesmo pixel, e lavanda por cima de
+   teal dá o roxo sujo que Underwater.tsx descreve como o erro de sempre.
+
+   Teal pálido, um degrau acima do uDeep de lá: a superfície vista de cima é mais
+   clara que a água vista de dentro. Se mexer num, olhe o outro. */
+const WATER_COLOR = "#A9C6CE";
 
 /* Velocidade do flow map. Constante de MÓDULO, não prop viva do JSX: a config
    do WaterSurfaceComplex é um useMemo cujas deps reconstroem os dois render
@@ -94,16 +101,52 @@ const FLOW_SPEED = 0.02;
 /* Onde a água dissolve na página, em distância do olho — ver u_fade em
    WaterComplex pra POR QUE isto existe e por que a névoa não dá conta.
 
-   Os números saem da geometria da câmera, não do gosto. No pico o olho está a
-   ~0.38 acima da superfície, então a altura na tela é atan(0.38/r): r=12 cai a
-   ~1.8° abaixo do horizonte (y≈212 num viewport de 900) e r=40 a ~0.5° (y≈190).
-   A dissolução inteira mora nesses ~22px logo abaixo do horizonte — que é
-   exatamente onde a borda dura do plano aparecia. Fora dessa faixa a água é
-   cheia, e o phone cruza a ~4 do olho, bem dentro do cheio.
+   ERA [12, 40], E ISSO APAGAVA O HORIZONTE — que é o que a seção queria ter.
+
+   Aquele par foi calibrado pra matar o "degrau seco" na linha do horizonte, e
+   matava mesmo: com o olho a ~0.38 da superfície, r=12 cai em y≈474 e r=40 em
+   y≈458, então a água dissolvia nos ~16px logo abaixo do horizonte e o
+   horizonte WebGL — que o pitch 0 entrega no centro da tela DE GRAÇA — nunca
+   chegava a aparecer. Sumido ele, o CSS desenhava um risco reto de 1440px em
+   cima pra repor a linha. Pagávamos um passe de reflexão pra apagar a única
+   coisa que ele nos dava.
+
+   O degrau existia por outro motivo, e agora está atacado onde nasce: no
+   rasante a água mostra `color * reflectColor` — o céu MULTIPLICADO por
+   WATER_COLOR — contra o céu puro logo acima. Um WATER_COLOR pálido encolhe
+   esse produto até quase nada, e a normal map serrilha o resto.
+
+   [90, 400] é o que sobrou do trabalho: r=90 cai a ~0.24° do horizonte e r=400
+   a ~0.05° — a rampa inteira mora nos últimos ~3px. Não é mais a dissolução da
+   água, é só o antiserrilhado da BORDA DE TRÁS do plano (SPAN=900, r=450), que
+   sem isto encosta no horizonte como uma aresta de 1px. A água visível toda
+   fica cheia, e quem decide o que se vê através dela agora é u_lens — por
+   ângulo, não por distância. Ver o comentário de u_lens pra por que distância
+   nunca podia ter feito esse trabalho.
 
    Constante de MÓDULO, não literal inline: a config do WaterSurfaceComplex é um
    useMemo cujas deps reconstroem a água inteira (dois render targets). */
-const WATER_FADE: [number, number] = [12, 40];
+const WATER_FADE: [number, number] = [90, 400];
+
+/* A LENTE — [θ espelho, θ lente, quanto abre]. Ver u_lens em WaterComplex pra
+   geometria e pra por que é ângulo e não distância.
+
+   Os dois primeiros números são sin(ângulo de depressão), que num plano
+   horizontal com pitch 0 é função SÓ da linha da tela. Medido @1440×900
+   (horizonte em y=450): θ=0.02 → y≈469 · θ=0.10 → y≈543.
+
+   Então a faixa 450–470 é ESPELHO: é ela a linha d'água, e é nela que mora o
+   reflexo do phone. De 470 a 545 a água abre, e de 545 pra baixo é lente. O
+   topo do Pricing cai em y=505 no frame que esta seção existe pra entregar —
+   bem no meio da rampa, que é onde ele tem que estar: aparecendo, ofuscado, não
+   nítido nem tapado.
+
+   z=0.92, não 1: a água nunca some de vez. O resto de alpha é o que segura a
+   ondulação e o tingimento no pé da tela — sem ele, os últimos ~300px do quadro
+   perdem a água inteira e viram o Pricing borrado e mais nada.
+
+   Constante de MÓDULO — mesma razão do WATER_FADE. */
+const WATER_LENS: [number, number, number] = [0.02, 0.1, 0.92];
 
 /* Escreve u_amount na material da água. Precisa ser FILHO do
    WaterSurfaceComplex, porque é ele quem provê o WaterContext com o ref da
@@ -214,6 +257,7 @@ export default function WaterScene({
         fxDistortionFactor={0.06}
         fxDisplayColorAlpha={0.0}
         fade={WATER_FADE}
+        lens={WATER_LENS}
       >
         <WaterAmount stateRef={stateRef} />
         {/* rastro de ondas no ponteiro. É o filho que preenche u_fx — sem ele o

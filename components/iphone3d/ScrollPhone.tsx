@@ -34,7 +34,7 @@ import { gsap } from "gsap";
 import { getLenis } from "@/lib/lenis";
 import IPhoneModel from "@/components/iphone3d/IPhoneModel";
 import Lights from "@/components/iphone3d/Lights";
-import PhoneScreen from "@/components/iphone3d/PhoneScreen";
+import PhoneScreen, { SCREEN_RADIUS } from "@/components/iphone3d/PhoneScreen";
 import Sky3D from "@/components/iphone3d/Sky3D";
 import WaterScene, { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
 import { DIVE_STOPS, SKY_STOPS, sampleStops } from "@/lib/sky";
@@ -156,25 +156,194 @@ const FLOOR_FADE = 0.15;
  *  cavalga a linha d'água subindo, que é o bug que isto conserta. */
 const FLOOR_RELEASE = 0.14;
 
-/* A TINTA DO SUBMERSO — a metade de baixo do plano-partido (ver splitPaint).
+/* A TINTA DO SUBMERSO — ver lensPaint.
 
-   O risco sai da geometria (pitch 0 põe o horizonte no centro), mas sozinho ele
-   é invisível: céu lavanda contra água lavanda não é corte, é um campo só. Foi
-   o que se viu no render. O que faz o tiro do iceberg é o CONTRASTE — pálido em
-   cima, fundo embaixo — e é isto que o pinta.
+   ERA TINTA CHAPADA (#A8C2E0 → #5E87B8, opaca, com stop duro em 50%/50.3%) e
+   isso fazia DUAS coisas erradas de uma vez.
 
-   multiply: branco não mexe, cor tinge. Mesma física de Underwater.tsx — sobre
-   o phone claro a água TINGE, jamais lava, e o corpo escuro não vira azul.
+   1. Tapava. Sobre a região transparente do canvas, multiply contra backdrop
+      vazio devolve a cor de origem intacta (co = αs·Cs) — ou seja, uma tinta
+      opaca aqui é uma PAREDE, não um véu. Nada da página podia aparecer abaixo
+      da linha, por construção. Medido: o topo do Pricing em y=505, 100%
+      invisível.
+   2. Desenhava a linha. O stop duro repunha em CSS um horizonte reto de 1440px
+      — enquanto o horizonte WebGL de verdade, que o pitch 0 entrega no centro
+      da tela de graça, era apagado pelo u_fade logo abaixo. Dois horizontes, e
+      o que sobrava em quadro era o falso: reto, sem crista, sem onda.
 
-   Da MESMA família do uDeep do Pricing (#7FA3CE): quem cruza esta linha cai no
-   submerso de lá segundos depois, e trocar de água no meio do caminho é o tipo
-   de emenda que esta seção existe pra evitar. Raso e claro logo abaixo da
-   linha; fundo no pé do quadro. */
-const SUBMERGED_TOP = "#A8C2E0";
-const SUBMERGED_DEEP = "#5E87B8";
-/** Espessura do corte, em % da tela. O risco é DURO — mas 0 serrilha e cintila
- *  quando a linha anda entre frames. */
-const SPLIT_FEATHER = 0.3;
+   Agora a linha nasce da RAMPA DE FRESNEL da água (u_lens em WaterComplex) e
+   esta camada só tinge. Então: sem stop duro, e rgba em vez de hex.
+
+   O ALPHA FAZ DOIS TRABALHOS, e é isso que deixa uma camada só dar conta das
+   duas metades da cena — o phone é WebGL+CSS3D, o Pricing é DOM, e eles vivem
+   em lados opostos do canvas:
+
+     backdrop opaco (o corpo do phone, a água rasante):
+       co = αs·B(Cb,Cs) + (1−αs)·Cb  →  multiply DOSADO. Tinge, jamais lava.
+     backdrop vazio (onde a lente abriu):
+       co = αs·Cs, αo = αs           →  véu translúcido, e o Pricing aparece
+                                        por baixo, já borrado pelo lensEl.
+
+   TEAL, não mais periwinkle. #A8C2E0/#5E87B8 eram da família do uDeep ANTIGO do
+   Pricing (#7FA3CE) e ficaram pra trás quando ele virou teal (#8FC0CE sobre
+   PRICING_STOPS, resolvendo em ~#5AA2B4 — ver Underwater.tsx). A divergência
+   sobreviveu porque as duas cores nunca se encostavam: a parede garantia isso.
+   A lente encosta as duas no mesmo pixel — tingir de periwinkle um Pricing teal
+   é o mesmo erro que Underwater.tsx já registra duas vezes (lavanda sobre azul,
+   periwinkle sobre recife).
+
+   Alpha 0 na linha, subindo com a profundidade: logo abaixo da superfície a
+   água é rasa e clara, e no pé do quadro é fundo. Zero no topo também é o que
+   deixa a linha ser SÓ a rampa da água — qualquer alpha ali de volta e o CSS
+   está desenhando horizonte outra vez.
+
+   O ALPHA DO FUNDO É UM DOS DOIS DIAIS DO PEDIDO — "o Pricing meio ofuscado",
+   não sumido. Onde a lente abriu, o backdrop está vazio e este alpha vira
+   COBERTURA direta: 0.82 deixava passar 18% do Pricing e o devolvia ao invisível
+   de antes, só que por outra porta (a parede saiu do canvas e virou tinta).
+
+   0.48 ERA "presença sem legibilidade" no papel e NÃO era isso em quadro. Medido
+   @1440×900, scroll 10709, contraste (desvio-padrão da luminância) na região do
+   título do Pricing (200,730 → 596,890 — recorte SEM o phone, que é branco e
+   contamina a conta):
+
+     parede opaca do baseline ............ 5.40   ← o que a lente veio substituir
+     blur 12 + tint 0.48 (era) ........... 9.81   ← +4.4 sobre a PAREDE
+     blur 10 + tint 0.38 (é) ............ 13.18   ← +7.8
+
+   Ou seja: a lente inteira estava comprando 4.4 de contraste sobre não ter lente
+   nenhuma. Era esse o "sujeira em suspensão" — não uma escolha de gosto, um
+   número perto do chão.
+
+   QUAL DOS DOIS COMIA O PRICING, medido desligando um de cada vez (A/B em runtime,
+   `!important` por cima das escritas por frame do lensPaint):
+
+     desligar a TINTA .... +61% de contraste
+     desligar o BLUR ..... +176%
+
+   O blur manda, com folga — mas a tinta não é inocente, e por isso os DOIS
+   andaram. Os dois fazem trabalhos DIFERENTES e é isso que deixa separá-los: blur
+   mata alta frequência (as hastes das letras) e governa a LEGIBILIDADE; alpha
+   corta amplitude e governa a PRESENÇA. Então a receita é blur alto o bastante pra
+   não se ler, e tinta baixa o bastante pra se ver que há massa ali. Medido: blur 9
+   + tint 0.38 dá o MESMO contraste que blur 10 + tint 0.38 (13.43 vs 13.18, dentro
+   do ruído) e em 9 dá pra ler "Sem surp". Então 10 — o maior blur que ainda chega
+   nos ~13.
+
+   ATENÇÃO A QUEM FOR RETUNAR ISTO: a FASE DA ONDA move este número ±1.7 a 3.6 de
+   sd, sozinha, sem ninguém tocar em dial nenhum — é da ordem do efeito dos dials.
+   Um PNG só não decide nada aqui; foi preciso média de 4 fases por candidato. Uma
+   matriz blur×tint tirada de um frame por célula chegou a dar blur 11 MAIS nítido
+   que blur 10, que é fisicamente impossível: era a onda, não o dial. */
+const SUBMERGED_TOP = "rgba(169, 198, 206, 0)";
+const SUBMERGED_DEEP = "rgba(78, 143, 160, 0.38)";
+
+/* A LENTE — o quanto o que está ATRÁS da água chega ofuscado.
+
+   POR QUE ELA NÃO MORA DENTRO DO OVERLAY z-[60], e por que essa foi a única
+   coisa difícil deste arquivo.
+
+   backdrop-filter borra o que foi pintado atrás do elemento DENTRO do Backdrop
+   Root. "Um stacking context de z-index puro não cria Backdrop Root" é verdade
+   — e é uma meia-verdade que custa horas, porque o overlay z-[60] NÃO é um
+   stacking context de z-index puro: ele tem um filho com mix-blend-mode (o
+   submergedEl). Um filho blendado faz do pai um ISOLATION GROUP, e isolation
+   group É Backdrop Root. O overlay vira um saco fechado: o backdrop de
+   qualquer lente lá dentro passa a ser só o que o próprio overlay pintou —
+   ou seja, nada, porque ela é o primeiro filho.
+
+   O sintoma engana: o elemento pinta normalmente (um background vermelho de
+   teste aparece), o computed style diz `blur(14px)`, e o borrão simplesmente
+   não acontece. Medido, A/B, com blur(40px) nos dois lados: mix-blend do irmão
+   DESLIGADO → o texto do Pricing vira fantasma; LIGADO → volta a navalha, sem
+   mais nada mudar. Não adianta mexer no blur, no z-index ou na ordem do DOM
+   dentro do overlay — enquanto o submergedEl blendar, o saco está fechado.
+
+   Então a lente é IRMÃ do overlay, em z-[59]: aí o backdrop root dela é o
+   documento e ela enxerga a página. E o submergedEl continua blendando lá
+   dentro à vontade, que é o que ele precisa fazer.
+
+   Isto não entrega nada sozinho — a água tem que abrir (u_lens em
+   WaterComplex). Uma sem a outra é uma parede opaca com um borrão invisível
+   atrás.
+
+   LENS_BLUR: 14 = mancha, 9 = dá pra ler "no fim do mês". Isso continua valendo.
+   O que NÃO valia era o 12: ele foi descrito aqui como "onde se vê que há um
+   título sem se saber qual" e em quadro não era — era mancha também. Medido, em
+   média de 4 fases de onda, ele comprava 4.4 de contraste sobre a PAREDE OPACA do
+   baseline (ver o bloco de SUBMERGED_DEEP pros números e pro método). 10 compra
+   7.8 e continua sem se ler. Não subir de volta sem refazer a medição — e sem
+   lembrar que a onda sozinha move o número tanto quanto o dial. */
+const LENS_BLUR = 10; // px
+const LENS_SATURATE = 1.18; // água rasa satura o que se vê através dela
+
+/* A TELA MOLHADA — e por que ela é `filter` NA TELA, não mais uma lente.
+
+   A tinta (submergedEl) SEMPRE alcançou a tela: o par zIndexRange [10,0] +
+   z-[20] funciona, e eu conferi na árvore viva antes de mexer (o wrapper do
+   <Html> é `position:absolute; z-index:10; perspective:965px`, e o container do
+   canvas é z-index auto, que não cria stacking context — então o 10 sobe e
+   perde do 20, como o comentário do submergedEl afirma). A hipótese de que o
+   preserve-3d/perspective prendia o z-index num contexto interno é FALSA: a
+   perspective está no MESMO elemento que carrega o z-index 10, então ela cria
+   contexto pros FILHOS dele, não pra ele.
+
+   O que faltava não era z-index: era que TINTA NÃO BORRA. A tela lia seca porque
+   estava NAVALHA — sd de nitidez 1365 contra 1527 do baseline, ~11% de diferença,
+   enquanto o texto do Pricing ao lado, na mesma profundidade de água, estava
+   ilegível. Tingir não conserta isso: só o desfoque conserta.
+
+   POR QUE NÃO UMA LENTE (backdrop-filter) DENTRO DO OVERLAY. Ela FUNCIONA — e eu
+   cheguei a provar: um div em z-[15] (acima da camada CSS3D em 10, abaixo da
+   tinta em 20) borra a tela de verdade, porque o overlay É um Backdrop Root (o
+   mix-blend do submergedEl faz dele um isolation group) e o backdrop de quem mora
+   lá dentro é exatamente o que o overlay já pintou: canvas + tela. O comentário
+   de LENS_BLUR diz que o saco é fechado "porque ela é o primeiro filho" — a
+   ressalva é essencial e é o que abre esta porta: quem entra DEPOIS do canvas
+   enxerga o canvas.
+
+   Foi REJEITADA por medição, não por gosto: o backdrop dela é o canvas INTEIRO,
+   então ela leva a água junto. Medido @10709, nitidez da faixa da superfície
+   (100,450 → 600,545) — a crista e o brilho especular:
+
+     blur 2 → tela −91.2%, crista −52.8%
+     blur 6 → tela −93.7%, crista −61.4%
+
+   Não existe blur barato: a crista é sparkle de 1–2px, então até blur(2) já leva
+   metade dela. O custo é um DEGRAU, não uma rampa — e a crista é justamente o que
+   esta seção acabou de ganhar. Descer a borda do rect pra onde a água vira lente
+   (θ=u_lens.y ≈ y543) salvaria a crista, mas aí a borda cai onde a água está
+   ABERTA e o corte aparece em quadro, a 75px da linha d'água aparente — o oposto
+   do que o rect do lensEl consegue fazer (aquele esconde a aresta atrás de água
+   opaca, ver o comentário dele).
+
+   `filter` na própria tela não tem esse dilema: a água não é entrada dele. Custa
+   ZERO de crista, não tem aresta, e acerta o único elemento que estava seco. A
+   tela é DOM real numa camada CSS3D fora do canvas — nenhum shader a alcança (é a
+   mesma razão de ela ignorar a névoa), mas CSS alcança.
+
+   Os valores são LOCAIS, não de tela: a tela é um frame de 390×844 CSS que a
+   matriz do CSS3D encolhe pra ~200×400 em quadro, então o blur renderizado sai
+   ~metade daqui. 6 local ≈ 3 em quadro — o bastante pra matar texto de 5–8px, que
+   é o tamanho real do "Início" ali dentro.
+
+   saturate/brightness porque a queixa era "nítidos, SATURADOS, secos": o card roxo
+   atravessava o azul sem perder um grau de croma. Água tira croma e tira luz. O
+   TOM (o teal) quem dá é a tinta, que já cai por cima — ver SUBMERGED_DEEP. */
+const SCREEN_WET_BLUR = 6; // px no espaço LOCAL da tela (~metade disso em quadro)
+const SCREEN_WET_SAT = 0.78;
+const SCREEN_WET_BRIGHT = 0.94;
+/* Quanto o phone precisa afundar (unidades de mundo, abaixo de WATER_Y) pra tela
+   ler 100% molhada. O phone tem ~1.40 de altura, então 0.45 é ~um terço dele
+   dentro d'água — cheio o bastante pra não haver dúvida, curto o bastante pra a
+   transição acontecer enquanto ele cruza, não depois.
+
+   A profundidade sai da POSIÇÃO JÁ CLAMPEADA (ver o piso em placeWorld), e é isso
+   que faz o frame do TOQUE (9994) sair seco de graça: ali floorGrip=1 prende a
+   origem em WATER_Y, então depth=0 e a tela é navalha — que é o certo, ele ainda
+   não entrou. Depois de wp o piso solta, ele afunda, e a tela molha junto. Não é
+   um segundo roteiro do mergulho: é a mesma geometria que já decide tudo aqui. */
+const WET_DEPTH = 0.45;
 /** Em que faixa de p a tinta entrega o dentro-d'água pro submerso do Pricing.
  *  Tem que FECHAR antes do pouso: o canvas é z-[60] e uma tinta viva em p=1
  *  pintaria de azul a metade de baixo dos cards e do preço. */
@@ -414,10 +583,25 @@ export default function ScrollPhone() {
      (DIVE_PITCH -0.44) ele fazia o aparelho CAVALGAR a linha d'água até o topo
      e sair de quadro. Não era o clamp errado: era o clamp certo, tarde demais. */
   const floorGrip = useRef(0);
-  /* O elemento DOM que pinta o "dentro d'água" abaixo do risco. Ref e escrito
-     por frame de dentro do gsap.ticker — ver splitPaint. Estado seria
-     re-render do React a 120fps. */
+  /* As duas camadas DOM do "dentro d'água" — ver lensPaint. Refs e escritas por
+     frame de dentro do gsap.ticker; estado seria re-render do React a 120fps.
+     lensEl BORRA a página (mora antes do canvas), submergedEl TINGE o que
+     sobrou (mora depois). A ordem no DOM é o que separa os dois trabalhos. */
+  const lensEl = useRef<HTMLDivElement>(null);
   const submergedEl = useRef<HTMLDivElement>(null);
+  /* A TELA do phone — DOM real da camada CSS3D, entregue pelo forwardRef do
+     <Html> do drei (em transform mode ele passa o ref pro div de CONTEÚDO, ver
+     node_modules/@react-three/drei/web/Html.js). Ref e escrita por frame no
+     ticker, como lensEl/submergedEl: `style` como prop do React seria re-render
+     a 120fps.
+
+     O useLayoutEffect interno do drei re-renderiza esse div com `style={style}`
+     e apaga escritas imperativas (é o que IPhoneModel documenta pro `visibility`,
+     que por isso é state) — mas ele só roda quando o <Html> re-renderiza, o que
+     aqui acontece umas 2x por giro (setShowAlt/setWaterOn), não por frame. Como
+     wetPaint reescreve TODO frame, o pior caso é 1 frame sem filtro. Medido no
+     render dos 3 frames-chave: não aparece. */
+  const screenEl = useRef<HTMLDivElement>(null);
   /** Quanto do dentro-d'água pintar. Curva própria, não o bump — ver TINT. */
   const tint = useRef(0);
 
@@ -723,6 +907,29 @@ export default function ScrollPhone() {
       // slot em vez de só 75% dela — ver comentário da constante.
       const endG = b.height / PHONE_FILL / REF_H;
       placeWorld(cx, cy, lerp(START_G, endG, eP));
+
+      /* A TELA MOLHA POR PROFUNDIDADE, não por dive nem por tint — e a diferença
+         é o frame do TOQUE.
+
+         dive é um bump: pica no instante em que o phone encosta na água e cai nas
+         duas pontas, então molharia a tela na aproximação (ele ainda seco, no ar)
+         e a secaria com ele submerso. tint chega a 1 no toque e FICA — molharia a
+         tela em 9994, onde o aparelho está boiando, não afundado.
+
+         Quem sabe se ele entrou é a POSIÇÃO, depois do clamp: enquanto o piso
+         segura (floorGrip=1) a origem está presa em WATER_Y e depth=0; quando o
+         piso solta depois de wp, ele afunda e depth cresce. Ler DEPOIS de
+         placeWorld é o que dá acesso ao valor já clampeado.
+
+         O ×tint.current é o desligamento: a tela tem que pousar NAVALHA no slot do
+         Pricing, e TINT_OUT já é a curva que fecha o dentro-d'água antes de p=1
+         (pelo mesmo motivo, e no mesmo compasso, que fecha a tinta e a lente).
+         Sem ele o phone chegaria borrado no pouso. */
+      if (group.current) {
+        const depth = WATER_Y - group.current.position.y;
+        wetPaint(smoothstep(0, WET_DEPTH, depth) * tint.current);
+      }
+
       if (group.current) {
         // No fundo do mergulho o phone deita na superfície, no MESMO compasso da
         // câmera. dive já é um bump (0 → 1 → 0), então ele resolve sozinho de
@@ -753,23 +960,93 @@ export default function ScrollPhone() {
        matriz dela que placeWorld desprojeta. Invertido, o phone fica um frame
        atrás da câmera — e um frame de atraso num mergulho com pitch aparece
        como tremor. */
-    /* Pinta a metade submersa. `frac` = onde o risco cai (0 = topo), `amt` =
+    /* O dentro-d'água em DOM. `frac` = onde a linha cai (0 = topo), `amt` =
        quanto aplicar.
 
-       Dois stops quase no mesmo ponto: o corte é DURO, é ele que faz o risco
-       do iceberg. Um degradê ali devolveria o véu chapado que esta seção já
-       teve. SPLIT_FEATHER não é zero só porque um corte de 0px serrilha e
-       cintila quando a linha anda entre frames. */
-    const splitPaint = (frac: number, amt: number) => {
+       Chamava-se splitPaint e pintava um plano partido; hoje não parte nada —
+       quem corta o quadro é a rampa de Fresnel da água (u_lens). Aqui só se
+       borra e se tinge o que está DEBAixo da linha.
+
+       O RECORTE DA LENTE É UM RECT, NÃO UMA MÁSCARA. `mask-image` seria o jeito
+       óbvio de dar borda macia ao borrão, e é justamente o que não se pode usar:
+       mask CRIA Backdrop Root, e um backdrop root no próprio elemento que carrega
+       o backdrop-filter reduz o backdrop dele a nada — o borrão simplesmente não
+       acontece. Um rect com `top` na linha não tem esse problema, e não precisa de
+       borda macia nenhuma: no topo da rampa a água ainda está OPACA (u_lens.x),
+       então a aresta do rect cai atrás de água cheia e não existe em quadro. A
+       gradação de quem enxerga o quê é da água, não daqui.
+
+       frac não é sempre 0.5 por acidente: com DIVE_PITCH = 0 o horizonte cai no
+       centro em qualquer altura de câmera (ver O PLANO-PARTIDO). Escrever o mesmo
+       `top` todo frame é no-op pro browser — e no dia em que o pitch mudar, a
+       lente acompanha a linha sozinha em vez de descolar dela. */
+    const lensPaint = (frac: number, amt: number) => {
+      const lens = lensEl.current;
       const el = submergedEl.current;
-      if (!el) return;
+      if (!lens || !el) return;
+
       el.style.opacity = String(amt);
-      if (amt <= 0.001) return;
-      const a = (frac * 100).toFixed(2);
-      const b = (frac * 100 + SPLIT_FEATHER).toFixed(2);
+      // 'none', não opacity/alpha: backdrop-filter é caro (lê o backdrop e
+      // borra o viewport inteiro por frame) e não pode ficar de pé fora do
+      // mergulho, onde não há água nenhuma pra justificar. Também é o que
+      // garante que o Pricing pouse NÍTIDO: TINT_OUT fecha antes de p=1, e
+      // uma lente viva no pouso deixaria os cards e o preço borrados.
+      if (amt <= 0.001) {
+        lens.style.backdropFilter = "none";
+        // setProperty, não .webkitBackdropFilter: o prefixo não existe no
+        // CSSStyleDeclaration do TS, e o Safari ainda só entende o prefixado.
+        lens.style.setProperty("-webkit-backdrop-filter", "none");
+        return;
+      }
+
+      const top = (frac * 100).toFixed(2);
+      lens.style.top = `${top}%`;
+      const f =
+        `blur(${(LENS_BLUR * amt).toFixed(1)}px)` +
+        ` saturate(${(1 + (LENS_SATURATE - 1) * amt).toFixed(3)})`;
+      lens.style.backdropFilter = f;
+      lens.style.setProperty("-webkit-backdrop-filter", f);
+
       el.style.background =
-        `linear-gradient(to bottom, rgba(255,255,255,0) ${a}%,` +
-        ` ${SUBMERGED_TOP} ${b}%, ${SUBMERGED_DEEP} 100%)`;
+        `linear-gradient(to bottom, ${SUBMERGED_TOP} ${top}%, ${SUBMERGED_DEEP} 100%)`;
+    };
+
+    /* A TELA MOLHADA — ver SCREEN_WET_BLUR pro porquê de ser filter e não lente.
+       `amt` 0 = seca (navalha), 1 = submersa.
+
+       O CLIP É METADE DO CONSERTO, e sem ele isto é uma REGRESSÃO, não um ganho:
+       `filter` pinta pra FORA da caixa do elemento. O div da tela é um retângulo
+       de 390×844 encostado no bisel, então o borrão sangra por cima dele e LAVA a
+       borda do aparelho — o bisel escuro vira uma névoa branca e o phone perde o
+       contorno. Renderizado, comparado a 4x, e é gritante: exatamente a parte do
+       corpo que já estava boa.
+
+       clip-path resolve porque roda DEPOIS do filter no pipeline (filter → clip →
+       mask → opacity): o borrão acontece inteiro e só então é recortado na curva
+       do display. Medido em A/B de 4 células (clip×blur): clip com blur DESLIGADO
+       é indistinguível do original — o recorte sozinho não custa nada, porque cai
+       exatamente sobre o borderRadius que o PhoneScreen já desenha. Por isso o
+       raio vem de lá, importado, e não copiado.
+
+       Não usar `overflow:hidden` no lugar: ele recorta os FILHOS, não o filter do
+       próprio elemento. E não usar `mask`: mask cria Backdrop Root, que é a
+       armadilha que o lensEl já documenta. */
+    const wetPaint = (amt: number) => {
+      const el = screenEl.current;
+      if (!el) return;
+      // 'none' e não blur(0px): filter cria containing block e força uma camada
+      // de composição própria: fora do mergulho a tela não tem que pagar isso.
+      // O clip sai junto: ele só existe pra conter o borrão.
+      if (amt <= 0.001) {
+        el.style.filter = "none";
+        el.style.clipPath = "none";
+        return;
+      }
+      el.style.filter =
+        `blur(${(SCREEN_WET_BLUR * amt).toFixed(2)}px)` +
+        ` saturate(${(1 + (SCREEN_WET_SAT - 1) * amt).toFixed(3)})` +
+        ` brightness(${(1 + (SCREEN_WET_BRIGHT - 1) * amt).toFixed(3)})`;
+      el.style.clipPath = `inset(0 round ${SCREEN_RADIUS}px)`;
     };
 
     const setDive = (d: number, camAmt: number) => {
@@ -784,10 +1061,10 @@ export default function ScrollPhone() {
         camera.rotation.x = DIVE_PITCH * camAmt;
         camera.position.y = -DIVE_DROP * camAmt;
 
-        /* A linha da TINTA é a MESMA linha da GEOMETRIA, por construção.
+        /* A linha da LENTE é a MESMA linha da GEOMETRIA, por construção.
            horizonFrac() é a fórmula que já diz onde o plano cruza a tela; um
            0.5 fixo casaria só enquanto o pitch fosse exatamente zero e
-           descolaria no dia em que alguém o mexesse. Um risco que descola do
+           descolaria no dia em que alguém o mexesse. Uma lente que descola do
            próprio reflexo lê como bug, não como superfície.
 
            tintRef, não `d`: a tinta tem curva PRÓPRIA — ver TINT em place().
@@ -795,7 +1072,7 @@ export default function ScrollPhone() {
            da seção: em p=0.82 o phone já estava submerso, de frente, e o azul
            tinha evaporado embaixo dele. Estar dentro d'água não é um pico por
            onde se passa; é um estado em que se fica. */
-        splitPaint(horizonFrac(camera.rotation.x), tint.current);
+        lensPaint(horizonFrac(camera.rotation.x), tint.current);
       }
 
       const wet = d > 0.001;
@@ -955,7 +1232,26 @@ export default function ScrollPhone() {
   if (!enabled) return null;
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-[60] hidden lg:block">
+    <>
+      {/* A LENTE — ver LENS_BLUR e lensPaint.
+
+          IRMÃ do overlay e em z-[59], NÃO filha dele: dentro do z-[60] o
+          mix-blend do submergedEl fecha o Backdrop Root e o borrão não acontece
+          (o porquê, e o A/B que provou, estão em LENS_BLUR). Aqui fora o
+          backdrop dela é o documento — a página, e só a página. Em z-[59] ela
+          entra por baixo do canvas, que é onde a lente de uma água tem que
+          estar: o que se vê através da superfície, não a superfície.
+
+          `top` é escrito por frame (fica em 50% enquanto DIVE_PITCH for 0) e
+          backdropFilter volta a 'none' fora do mergulho. Sem inset-0: o rect
+          começa NA linha e vai até o pé da tela — o céu não se borra. */}
+      <div
+        aria-hidden
+        ref={lensEl}
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[59] hidden lg:block"
+        style={{ top: "50%" }}
+      />
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-[60] hidden lg:block">
       {/* pointerEvents:none NÃO é redundante com o pointer-events-none do
           wrapper: o R3F escreve pointerEvents:'auto' no style inline do seu
           container, e pointer-events é herdado — mas um descendente pode
@@ -1000,12 +1296,14 @@ export default function ScrollPhone() {
               glb="/models/scene.glb"
               bodyColor="#8F8A81"
               screen={showAlt ? <PhoneScreen variant="inicio" /> : <PhoneScreen variant="prontuario" />}
+              // o DOM da tela, pra wetPaint borrar por frame — ver SCREEN_WET_BLUR
+              screenRef={screenEl}
               scale={[16.5, 16.5, 16.5]}
             />
           </group>
         </Suspense>
       </Canvas>
-      {/* A METADE DE BAIXO DO PLANO-PARTIDO — e ela é DOM, não WebGL.
+      {/* A TINTA DO SUBMERSO — e ela é DOM, não WebGL.
 
           A primeira tentativa foi um ScreenQuad dentro do Canvas com
           renderOrder alto. Renderizou, tingiu a água e o CORPO do phone — e
@@ -1014,14 +1312,38 @@ export default function ScrollPhone() {
           numa camada CSS3D FORA do canvas. Nenhum shader alcança aquilo — é a
           mesma razão de ela ignorar a névoa da cena.
 
-          Irmã do <Canvas> e depois dele no DOM: cai por cima do canvas E da
-          camada CSS3D, então pega os dois de uma vez. */}
+          SER IRMÃ DO <Canvas> E VIR DEPOIS DELE NÃO BASTAVA, e este comentário
+          afirmou por várias rodadas que sim ("cai por cima do canvas E da camada
+          CSS3D, então pega os dois de uma vez"). Era falso, e o bug que ele
+          escondia é o MESMO que a tentativa do ScreenQuad tinha: a tela do phone
+          renderizava seca dentro da água. Provado pintando este div de vermelho
+          chapado com blend normal — ele cobria a água e o corpo 3D, e a tela
+          sobrava INTACTA por cima.
+
+          O motivo é que z-index auto não vence 16.7 MILHÕES: o <Html> do drei
+          traz zIndexRange default [16777271, 0] e escreve isso no wrapper da
+          camada CSS3D. Ordem de DOM só decide entre irmãos de MESMO z-index, e
+          esses dois nunca estiveram empatados.
+
+          O conserto é um PAR, e os dois lados precisam existir:
+            · zIndexRange={[10, 0]} em IPhoneModel.tsx derruba a camada de 16.7M
+              pra 0–10;
+            · z-[20] AQUI passa por cima dela.
+          Só a primeira metade não resolve — medido: com a camada em z-index 10 e
+          esta em `auto`, a tela continuava seca. O container do canvas é
+          position:absolute com z-index auto, ou seja NÃO cria stacking context,
+          então o 10 da camada CSS3D sobe e disputa direto neste nível, onde
+          `auto` conta como 0. 10 > 0 e a tela ganhava de novo.
+
+          Se a tela voltar a ler seca dentro d'água, é esta desigualdade que
+          quebrou: z-[20] tem que ser maior que o teto do zIndexRange de lá. */}
       <div
         aria-hidden
         ref={submergedEl}
-        className="pointer-events-none absolute inset-0 mix-blend-multiply"
+        className="pointer-events-none absolute inset-0 z-[20] mix-blend-multiply"
         style={{ opacity: 0 }}
       />
-    </div>
+      </div>
+    </>
   );
 }
