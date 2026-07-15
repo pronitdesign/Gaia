@@ -27,7 +27,7 @@ pro espaço do mundo em placeWorld(). Ver COMPENSAÇÃO DE ESCALA abaixo, que é
 */
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { gsap } from "gsap";
@@ -36,6 +36,7 @@ import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 import Sky3D from "@/components/iphone3d/Sky3D";
 import WaterScene, { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
+import { DIVE_STOPS, SKY_STOPS, sampleStops } from "@/lib/sky";
 
 const TWO_PI = Math.PI * 2;
 // Yaw nas duas pontas: Features reto de frente (Math.PI), Pricing em 3/4 mais
@@ -76,6 +77,66 @@ const DIVE_PITCH = -0.30; // ~17°
 const DIVE_DROP = 0.9;
 /** Quanto o phone encolhe no pico do mergulho. Ver o uso em placeWorld. */
 const DIVE_SHRINK = 0.42;
+
+/* NÉVOA — o que apaga o corte no horizonte.
+
+   Sem névoa a água acaba numa linha reta contra o céu, e essa linha lê como
+   emenda de seção, não como distância. Água não termina: ela dissolve na cor do
+   céu conforme se afasta.
+
+   Mas a cor da névoa NÃO pode ser fixa. Ela tem que ser a cor do céu exatamente
+   na altura do horizonte — e essa altura muda a cada frame, porque a câmera
+   inclina no mergulho e a seção rola. Um hex fixo casa num frame e deixa um
+   degrau em todos os outros; e degrau é justamente o corte que se quer sumir.
+   Por isso FogSync amostra DIVE_STOPS por frame na fração do gradiente onde o
+   horizonte cai.
+
+   FOG_NEAR mantém o phone (a ~4 da câmera) limpo: a névoa é só pra distância. */
+const FOG_NEAR = 20;
+const FOG_FAR = 320;
+
+/* Onde o horizonte cai, em fração da tela, dada a inclinação da câmera.
+   Elevação 0 ⇒ screenFrac = 0.5·(1 + tan(pitch)/tan(fov/2)). Nivelada dá 0.5 (o
+   centro, como manda a geometria); inclinando pra baixo o horizonte sobe. */
+const horizonFrac = (pitch: number) =>
+  0.5 * (1 + Math.tan(pitch) / Math.tan((CAM_FOV * Math.PI) / 180 / 2));
+
+function FogSync() {
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  useFrame(() => {
+    const fog = scene.fog as THREE.Fog | null;
+    if (!fog) return;
+
+    const hy = horizonFrac(camera.rotation.x) * window.innerHeight;
+
+    /* QUAL céu está na altura do horizonte?
+
+       Não é sempre o do Mergulho, e supor que era foi o bug: no pico a câmera
+       inclina ~17°, o horizonte sobe pra ~19% da tela, e nessa altura quem está
+       atrás ainda é o MANIFESTO. Medido: emenda das seções em y=315, horizonte
+       em y=176 — 140px acima dela.
+
+       Com a névoa amostrando DIVE_STOPS ali, ela dava #FAF9F5 (branco) contra um
+       céu que era #EFEBEC — e a diferença aparecia como uma faixa branca
+       atravessando a tela. Exatamente o corte que a névoa existia pra apagar.
+
+       Então perguntamos ao DOM de quem é aquela altura, e amostramos o gradiente
+       DAQUELA seção. */
+    const dive = document.querySelector<HTMLElement>("[data-sky-dive]");
+    const manifesto = document.querySelector<HTMLElement>("[data-sky-manifesto]");
+    const pick = (el: HTMLElement | null, stops: typeof DIVE_STOPS) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      if (r.height === 0 || hy < r.top || hy > r.bottom) return null;
+      return sampleStops(stops, (hy - r.top) / r.height);
+    };
+
+    const rgb = pick(dive, DIVE_STOPS) ?? pick(manifesto, SKY_STOPS);
+    if (rgb) fog.color.setRGB(rgb[0], rgb[1], rgb[2]);
+  });
+  return null;
+}
 
 /* COMPENSAÇÃO DE ESCALA — a única regressão real do canvas viewport.
    O canvas era 506×900 FIXO, então a altura visível do frustum (2·tan(fov/2)·z
@@ -136,6 +197,11 @@ const DIVE_ROLL = Math.PI / 2;
 const bump = (t: number) => {
   const s = Math.min(1, Math.max(0, t));
   return Math.sin(s * Math.PI) ** 2;
+};
+
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 };
 
 /* Entrega a câmera ATIVA pro gsap.ticker, que roda fora do React.
@@ -238,8 +304,27 @@ export default function ScrollPhone() {
          deitado, cortado pela linha d'água, entrando pela metade. O lerp por dive
          devolve ele ao layout nas duas pontas, sem costura, porque dive é um bump
          que morre em 0 lá. */
-      onWater.set(onScreen.x, WATER_Y, onScreen.z);
-      el.position.lerpVectors(onScreen, onWater, dive.current);
+      /* O PHONE CAVALGA A SUPERFÍCIE — nunca afunda enquanto a água existe.
+
+         A versão anterior lerpava a posição dele ATÉ a superfície por dive, e
+         isso o deixava submerso em todo o percurso menos no pico exato: em
+         dive=0.69 ele caía em y ≈ -1.76 com a água em -1.2, meio metro embaixo.
+         Como a água é translúcida, ele aparecia ATRAVÉS dela — o fantasma cinza.
+         Só em dive=1 ele encostava na superfície. Ou seja, passava o mergulho
+         quase inteiro afogado.
+
+         Agora o Y dele é limitado pela superfície assim que a água nasce: ele
+         desce, TOCA a água e deita nela, e só volta a afundar quando o mergulho
+         acaba e a água já saiu. O smoothstep curto faz esse trave nascer sem
+         solavanco; o clamp em si é max(), que só age quando ele passaria pra
+         baixo. Acima da linha, nada muda — a descida continua sendo do layout. */
+      const ride = smoothstep(0.0, 0.15, dive.current);
+      onWater.set(
+        onScreen.x,
+        lerp(onScreen.y, Math.max(onScreen.y, WATER_Y), ride),
+        onScreen.z,
+      );
+      el.position.lerpVectors(onScreen, onWater, ride);
 
       /* Na superfície o phone fica mais perto da câmera (ela desceu até quase
          rasar a água), e perspectiva o infla até encher o quadro. DIVE_SHRINK
@@ -401,7 +486,19 @@ export default function ScrollPhone() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-[60] hidden lg:block">
-      <Canvas className="!absolute inset-0" gl={{ alpha: true, antialias: true }} dpr={[1, 2]}>
+      {/* pointerEvents:none NÃO é redundante com o pointer-events-none do
+          wrapper: o R3F escreve pointerEvents:'auto' no style inline do seu
+          container, e pointer-events é herdado — mas um descendente pode
+          reativar. Sem isto o canvas volta a capturar o hit-testing e, como
+          este overlay é fixed inset-0 z-[60] sobre a página inteira, MATA o
+          clique de tudo no desktop (toggle do Pricing, CTAs, ComoComeçar).
+          Não remover. */}
+      <Canvas
+        className="!absolute inset-0"
+        style={{ pointerEvents: "none" }}
+        gl={{ alpha: true, antialias: true }}
+        dpr={[1, 2]}
+      >
         <ambientLight intensity={0.3} />
         <PerspectiveCamera makeDefault position={[0, 0, CAM_Z]} fov={CAM_FOV} />
         <CameraBridge camRef={cam} />
@@ -409,6 +506,12 @@ export default function ScrollPhone() {
         {/* Céu e água só existem na janela do Mergulho — ver setDive(). */}
         {waterOn && (
           <Suspense fallback={null}>
+            {/* Ver NÉVOA no topo. O shader vendorizado já vinha com fog:true e
+                o #include <fog_fragment> — faltava a cena ter névoa. O Sky3D não
+                usa fog e fica intacto, que é o certo: o céu é o destino da
+                névoa, não vítima dela. */}
+            <fog attach="fog" args={["#EFEAF4", FOG_NEAR, FOG_FAR]} />
+            <FogSync />
             <Sky3D />
             <WaterScene stateRef={water} />
           </Suspense>

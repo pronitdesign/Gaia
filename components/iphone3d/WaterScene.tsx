@@ -24,7 +24,7 @@ rasante, mais o Fresnel puxa pro reflexo. A água fica espelhada sozinha, por
 física, no fim do curso. Não é um efeito roteirizado.
 */
 
-import { useContext, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import WaterSurfaceComplex from "@/components/iphone3d/water/WaterSurfaceComplex";
@@ -59,20 +59,56 @@ const SPAN = 900;
    mostra, e o reflexo do phone desaparece dentro do roxo. Um tom claro deixa o
    reflexo mandar e a cor só assinar — que é o que água faz.
 
+   Mas claro NÃO é o mesmo que sem cor. Já esvaziei este tom até a água virar um
+   campo pálido chapado — e a cor não vinha de volta mexendo aqui, porque no
+   rasante quem manda é o reflexo (ver DIVE_STOPS em lib/sky). Os dois juntos é
+   que pintam: o céu dá a cor, este tom assina.
+
    Calibrada contra o submerso do Pricing (Underwater.tsx, uDeep #A08FC4 sobre
-   creme): mergulhar tem que ser uma passagem contínua de tom, não um baque. A
-   superfície vista de cima é mais clara que a água vista de dentro, então este
-   tom fica um degrau acima daquele. Se mexer num, olhe o outro. */
-const WATER_COLOR = "#DDD4EC";
+   creme): mergulhar tem que ser passagem contínua de tom, não baque. A superfície
+   vista de cima é mais clara que a água vista de dentro, então este tom fica um
+   degrau acima daquele. Se mexer num, olhe o outro. */
+const WATER_COLOR = "#B7A6D3";
 
 /* Escreve u_amount na material da água. Precisa ser FILHO do
    WaterSurfaceComplex, porque é ele quem provê o WaterContext com o ref da
    mesh — mesma via que o RippleFX usa pra escrever u_fx. */
 function WaterAmount({ stateRef }: { stateRef: React.MutableRefObject<WaterState> }) {
   const { ref } = useContext(WaterContext);
+  const scene = useThree((s) => s.scene);
+
+  /* Força o recompile depois que a névoa existe na cena.
+
+     O three decide o `#define USE_FOG` no PRIMEIRO compile do programa, olhando
+     scene.fog naquele instante, e não revisita. A material da água é criada no
+     useMemo do WaterSurfaceComplex — pode compilar antes do <fog> attachar — e
+     aí o #include <fog_fragment> do shader vira no-op para sempre. O sintoma é
+     cruel: nenhum erro, os uniforms de fog existem, e a água simplesmente ignora
+     a névoa. Medido: a água distante ficava em 219,216,211 quando a névoa mandava
+     243,240,241.
+
+     needsUpdate força o programa a ser reconstruído já com a névoa na cena. */
+  useEffect(() => {
+    const m = ref?.current?.material;
+    if (m && scene.fog) m.needsUpdate = true;
+  }, [ref, scene.fog]);
+
   useFrame(() => {
     const m = ref?.current?.material;
-    if (m?.uniforms?.u_amount) m.uniforms.u_amount.value = stateRef.current.amount;
+    if (!m?.uniforms?.u_amount) return;
+    /* A água chega OPACA depressa.
+
+       O fade linear (amount = dive) mantinha a superfície translúcida em quase
+       todo o mergulho, e água meio transparente não lê como água: lê como um véu
+       cinza lavando a cena inteira — sem horizonte, sem reflexo, tudo pálido.
+       Era a "espaço em branco".
+
+       O alpha existe só pra ela não POPAR nas bordas da janela, onde ela está
+       saindo de quadro de qualquer jeito. Dentro do mergulho ela é opaca, e é a
+       CÂMERA chegando nela que faz a chegada — não a transparência. */
+    const d = stateRef.current.amount;
+    const t = Math.min(1, Math.max(0, d / 0.22));
+    m.uniforms.u_amount.value = t * t * (3 - 2 * t);
   });
   return null;
 }

@@ -51,6 +51,9 @@ export default function Mergulho() {
   return (
     <section
       aria-hidden
+      /* data-sky-dive: par do data-sky-manifesto. A névoa amostra o gradiente da
+         seção que estiver na altura do horizonte — ver NÉVOA em ScrollPhone. */
+      data-sky-dive
       /* 120vh: um viewport pro mergulho respirar mais o que sobra pro phone
          chegar e sair sem a água ainda em cena. Menos que isso e voltamos a
          espremer os três atos. Desktop-only por dentro (o ScrollPhone é lg:),

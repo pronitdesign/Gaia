@@ -119,6 +119,11 @@ export default function Manifesto() {
   return (
     <section
       ref={root}
+      /* data-sky-manifesto: a névoa do Mergulho precisa saber QUAL céu está na
+         altura do horizonte. Ele nem sempre cai dentro da seção da água — no
+         pico do mergulho a câmera inclina e o horizonte sobe pra dentro DESTA
+         seção. Ver NÉVOA em ScrollPhone. */
+      data-sky-manifesto
       aria-label="Você cuida da pessoa. A Gaia cuida do resto."
       className="relative flex min-h-[130vh] flex-col justify-between overflow-hidden py-[32vh] md:min-h-[160vh] md:py-[42vh]"
       style={{ background: SKY }}

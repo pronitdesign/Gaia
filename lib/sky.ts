@@ -30,12 +30,22 @@ export type SkyStop = {
   pos: number;
 };
 
-/* Lido das pontas reais: nasce no #0A0C11 do Features e morre no #FAF9F5
-   (neutro-50) do Pricing, então a costura some. No miolo floresce pelo roxo da
-   marca em vez de passar por cinza neutro (que lia como sujeira/lavado). Os
-   stops finais repetem #FAF9F5 pra chegar no tom do Pricing ANTES do fim e
-   segurar — sem isso, qualquer arredondamento no último pixel vira uma linha
-   visível. */
+/* Nasce no #0A0C11 do Features e floresce pelo roxo da marca em vez de passar
+   por cinza neutro (que lia como sujeira/lavado).
+
+   MORRE EM LAVANDA, NÃO EM CREME — e isso mudou.
+
+   Antes ele ia até #FAF9F5 porque emendava DIRETO no creme do Pricing. Não
+   emenda mais: o Mergulho entrou no meio, e é ele quem resolve pro Pricing
+   agora. Insistir no creme aqui tinha um custo que só apareceu na água: a água
+   reflete o céu, e no pico do mergulho o horizonte cai DENTRO desta seção (~19%
+   da tela, medido: horizonte em y=176, emenda das seções em y=315). Terminar em
+   creme aqui significava água sem cor nenhuma — lavada, exatamente o que ela não
+   pode ser.
+
+   Os stops até 0.72 estão intactos de propósito: é sobre eles que "A Gaia cuida
+   do resto." (text-ink) é lida, e essa legibilidade já estava calibrada. Só a
+   cauda mudou. */
 export const SKY_STOPS: SkyStop[] = [
   { color: "#0A0C11", pos: 0.0 },
   { color: "#0A0C11", pos: 0.12 },
@@ -45,30 +55,77 @@ export const SKY_STOPS: SkyStop[] = [
   { color: "#5F4590", pos: 0.56 },
   { color: "#6E52A0", pos: 0.64 },
   { color: "#A493C2", pos: 0.72 },
-  { color: "#D5CCE0", pos: 0.81 },
-  { color: "#EFEBEC", pos: 0.89 },
-  { color: "#FAF9F5", pos: 0.95 },
-  { color: "#FAF9F5", pos: 1.0 },
+  { color: "#B4A3CE", pos: 0.86 },
+  { color: "#C0B0D7", pos: 1.0 },
 ];
 
-/* O céu do MERGULHO — a seção onde a água de fato vive.
+/* O céu do MERGULHO — a seção onde a água de fato vive, e o céu que ela reflete.
 
-   Nasce no #FAF9F5 exato em que o Manifesto morre e volta pra ele no fim, pra as
-   duas costuras sumirem. Que ele seja CLARO não é escolha estética solta: a água
-   reflete o céu da cena, então este creme é o que torna a água pálida e a faz
-   entrar no submerso do Pricing sem salto de tom. No ângulo rasante quem manda é
-   o reflexo, não a cor da água — foi a lição de quando a água morava no
-   Manifesto e refletia o preto do Features.
+   Nasce no #C0B0D7 exato em que o Manifesto morre e resolve no #FAF9F5 do
+   Pricing. Ele carrega sozinho a travessia lavanda→creme que antes era a cauda
+   do Manifesto.
 
-   O miolo desce um fio pro lavanda: é a luz mudando conforme se aproxima da
-   superfície. Sem isso a seção lê como um bloco chapado. */
+   O TOPO É LAVANDA DE VERDADE, e isso É A COR DA ÁGUA — não decoração de fundo.
+   No ângulo rasante o Fresnel faz o reflexo mandar sobre a cor própria da água,
+   então quem pinta a água é este gradiente. Céu creme aqui = água lavada.
+
+   Já erramos isto duas vezes, por motivos opostos: com a água no Manifesto ela
+   refletia o #0A0C11 do topo daquele gradiente e lia como piche; depois, com
+   este céu em creme, ela perdeu a cor inteira. O céu é o botão de cor da água —
+   mexer aqui é mexer nela.
+
+   A resolução pro creme mora na METADE DE BAIXO (>0.5), abaixo da linha d'água,
+   fora do que o horizonte amostra. Assim o Pricing recebe a costura pronta sem
+   custar a cor do reflexo. */
 export const DIVE_STOPS: SkyStop[] = [
-  { color: "#FAF9F5", pos: 0.0 },
-  { color: "#F4F1F7", pos: 0.34 },
-  { color: "#E9E3F1", pos: 0.62 },
-  { color: "#F3F0F6", pos: 0.84 },
+  { color: "#C0B0D7", pos: 0.0 },
+  { color: "#C8B9DD", pos: 0.22 },
+  { color: "#D5CCE0", pos: 0.46 },
+  { color: "#E4DEEE", pos: 0.68 },
+  { color: "#EFEBEC", pos: 0.86 },
   { color: "#FAF9F5", pos: 1.0 },
 ];
+
+/**
+ * A cor do gradiente na fração `t`, em [r,g,b] 0–1.
+ *
+ * Interpola em sRGB entre os stops — igual ao linear-gradient do CSS e ao
+ * createLinearGradient do canvas. É por isso que o resultado casa com o fundo
+ * sem correção de cor.
+ *
+ * Existe pra névoa do Mergulho poder ser a cor do céu NA ALTURA DO HORIZONTE, a
+ * cada frame. Névoa de cor fixa não some no céu: sobra um degrau, e o degrau lê
+ * como corte de seção. Ver FOG em ScrollPhone.
+ */
+export const sampleStops = (
+  stops: SkyStop[],
+  t: number,
+): [number, number, number] => {
+  const x = Math.min(1, Math.max(0, t));
+  let lo = stops[0];
+  let hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (x >= stops[i].pos && x <= stops[i + 1].pos) {
+      lo = stops[i];
+      hi = stops[i + 1];
+      break;
+    }
+  }
+  const span = hi.pos - lo.pos;
+  const k = span === 0 ? 0 : (x - lo.pos) / span;
+  const rgb = (h: string): [number, number, number] => [
+    parseInt(h.slice(1, 3), 16) / 255,
+    parseInt(h.slice(3, 5), 16) / 255,
+    parseInt(h.slice(5, 7), 16) / 255,
+  ];
+  const a = rgb(lo.color);
+  const b = rgb(hi.color);
+  return [
+    a[0] + (b[0] - a[0]) * k,
+    a[1] + (b[1] - a[1]) * k,
+    a[2] + (b[2] - a[2]) * k,
+  ];
+};
 
 const gradientCss = (stops: SkyStop[], angle: string) =>
   `linear-gradient(${angle},` +
