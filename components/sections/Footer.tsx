@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Script from "next/script";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -156,6 +157,11 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
           : "relative border-t border-white/10 bg-[#0E1016] text-white"
       }
     >
+      {/* define <laura-signature>. type="module" já é deferido: não bloqueia
+        render, e a assinatura só é interativa depois de hidratar de qualquer
+        forma. Uma vez por página — o próprio arquivo guarda contra redefinir. */}
+      <Script type="module" src="/laura-signature.js" strategy="afterInteractive" />
+
       <div
         ref={card}
         className={
@@ -275,6 +281,19 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
           className="mt-14 flex flex-col gap-2 border-t border-white/10 pt-8 font-body text-small text-white/40 md:flex-row md:items-center md:justify-between"
         >
           <p>© 2026 Gaia · Hospedado no Brasil.</p>
+
+          {/* assinatura de autoria — a janela do retrato abre no hover.
+            `no-sync`: o arquivo, por default, busca foto/link em
+            eckertlaura.com a cada load. Numa página que afirma LGPD uma linha
+            acima, o IP do visitante não sai daqui. Congelado nos embutidos.
+            `size` e `no-sync` como string: React 18 não trata custom element. */}
+          <div className="inline-flex flex-col items-start gap-[7px]">
+            <span className="font-body text-[11px] uppercase leading-none tracking-[0.09em] text-white/30">
+              Designed by
+            </span>
+            <laura-signature size="16px" no-sync="" />
+          </div>
+
           <p className="text-white/30">Workspace clínico operado conforme a LGPD.</p>
         </div>
       </div>
