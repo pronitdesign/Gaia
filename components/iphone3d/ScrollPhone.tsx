@@ -44,6 +44,13 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /* posição/escala: acelera saindo do card, desacelera pousando no preço */
 const easePos = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+/* horizontal: fica travado no X do card até o Pricing entrar (p ≥ X_HOLD), só
+   então desliza pro slot. O phone desce reto pelo Manifesto. */
+const X_HOLD = 0.7;
+const easeX = (t: number) => {
+  const s = Math.min(1, Math.max(0, (t - X_HOLD) / (1 - X_HOLD)));
+  return s * s * (3 - 2 * s); // smoothstep: sai e chega sem solavanco
+};
 /* giro: smootherstep concentra a rotação no miolo (Manifesto) → de costas no centro */
 const easeSpin = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
@@ -76,7 +83,7 @@ export default function ScrollPhone() {
       const b = end.getBoundingClientRect();
       const eP = easePos(p);
       const eS = easeSpin(p);
-      const cx = lerp(a.left + a.width / 2, b.left + b.width / 2, eP);
+      const cx = lerp(a.left + a.width / 2, b.left + b.width / 2, easeX(p));
       const cy = lerp(a.top + a.height / 2, b.top + b.height / 2, eP);
       el.style.transform = `translate3d(${cx}px, ${cy}px, 0) translate(-50%, -50%)`;
       if (group.current) {
