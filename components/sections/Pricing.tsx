@@ -15,6 +15,12 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
   ssr: false,
 });
 
+/* Ambiente submerso (cáusticas/raios/partículas) — client-only pelo mesmo
+   motivo: é WebGL. */
+const Underwater = dynamic(() => import("@/components/sections/Underwater"), {
+  ssr: false,
+});
+
 /* ── Pricing ────────────────────────────────────────────────────────────────
    Desktop: fundo claro, tipografia preta grande à esquerda, e o aparelho
    flutuando no canto direito sobre um campo de luz ambiente (auroras blur,
@@ -235,11 +241,20 @@ export default function Pricing() {
          numa linha reta na borda: era o "corte" visível entre as seções. */
       className="relative overflow-x-clip bg-neutro-50 py-28 md:py-36"
     >
-      {/* AMBIENTE — luz de aurora escorrendo atrás da seção (profundidade) */}
+      {/* AMBIENTE — a seção acontece DEBAIRO da água. O leitor cruzou a
+          superfície no fim do Manifesto (ver ScrollPhone/WaterScene) e ainda não
+          voltou à tona; emerge no CTA Final.
+
+          As auroras continuam: submersas elas leem como luz difusa filtrada pela
+          água, que é exatamente o que já eram. Por cima delas vêm as cáusticas.
+          Tudo isto vive ATRÁS do conteúdo — os cards flutuam limpos, com ar
+          dentro. Ver o cabeçalho de Underwater.tsx pro porquê da água ser clara
+          (a pill escura do CTA foi desenhada pra viver sobre o creme). */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-[-6rem] h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-roxo-200/35 blur-[130px]" />
         <div className="absolute -left-40 bottom-[-4rem] h-[440px] w-[560px] rounded-full bg-[#DFE9F1]/60 blur-[120px]" />
       </div>
+      <Underwater />
       {/* film grain — overlay estático, mistura suave */}
       <div
         aria-hidden
