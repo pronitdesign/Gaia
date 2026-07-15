@@ -22,6 +22,12 @@
   }
 }
 
+/* Mesma curva de `ease-auto` (tailwind.config.ts), exposta como variável pra
+   quem escreve @keyframes puro (Tailwind não injeta o token em CSS cru). */
+:root {
+  --ease-auto: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
 /* Motion — Como Começar */
 @keyframes gaia-float {
   0%,
@@ -340,7 +346,16 @@
 }
 
 /* Pop/fade — conteúdo que troca sozinho (paciente, insight, sugestão).
-   Remonta com key → reanima. */
+   Remonta com key → reanima.
+
+   Uma sessão anterior removeu esta regra alegando que o Features.tsx tinha
+   trocado pra um <Swap> e que "um grep no repo inteiro não achou mais nenhum
+   uso". Nesta árvore isso é FALSO nos dois pontos: <Swap> não existe, e o
+   card de Insight (Features.tsx, `key={i}` + className "gaia-pop") ainda
+   depende dela — sem o keyframe o card aparece seco, sem entrada. A remoção
+   foi escrita contra o Features.tsx de OUTRA worktree (wt-features). Se o
+   <Swap> um dia entrar de verdade, remova aqui de novo — mas confira o uso
+   nesta árvore antes. */
 @keyframes gaia-pop {
   from {
     opacity: 0;
@@ -403,6 +418,31 @@
   animation: gaia-tick 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Respiro ambiente — SÓ o Hotspot (ver Features.tsx). Opacity/scale porque é
+   o que o compositor faz de graça sobre uma camada que já é gradiente+blur;
+   nada aqui reamostra o backdrop (essa é a diferença pro Glow, que usa
+   backdrop-filter e não pode animar contínuo sem virar jank).
+   Amplitude curta (.82→1 / 1→1.04) de propósito: o Hotspot é `plus-lighter` e
+   CLIPA — amplitude maior vira pulso visível, que é cheap; o objetivo é
+   ambiente, não pisca-pisca. Duração e delay vêm de fora (--breathe-dur/
+   --breathe-delay) porque cada card pulsa num período próprio — 6 luzes no
+   mesmo compasso leem como vitrine, dessincronizadas leem como ambiente. */
+@keyframes gaia-breathe {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+.gaia-breathe {
+  animation: gaia-breathe var(--breathe-dur, 11s) var(--ease-auto) infinite;
+  animation-delay: var(--breathe-delay, 0s);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gaia-parallax {
     transform: rotate(var(--rot, 0deg));
@@ -422,7 +462,8 @@
   .gaia-meal-rise,
   .gaia-tick,
   .gaia-row-slide,
-  .gaia-spine {
+  .gaia-spine,
+  .gaia-breathe {
     animation: none;
     opacity: 1;
     transform: none;

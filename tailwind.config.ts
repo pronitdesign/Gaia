@@ -118,6 +118,14 @@ const config: Config = {
       transitionTimingFunction: {
         // easing assinatura do brief
         gaia: "cubic-bezier(0.16, 1, 0.3, 1)",
+        // Promoção, não token novo: é o easeInOutCubic que `.gaia-draw`
+        // (globals.css) já usava sozinho — a ÚNICA animação autônoma do
+        // arquivo que tinha acertado a curva. A regra: entrada disparada por
+        // scroll = ease-gaia (expo-out, responde no primeiro frame porque o
+        // usuário pediu rolando); tick do useAutoCycle = ease-auto
+        // (ease-in-out, nasce do repouso porque ninguém pediu — sem isso o
+        // ciclo automático arranca da velocidade máxima parado).
+        auto: "cubic-bezier(0.65, 0, 0.35, 1)",
       },
     },
   },
