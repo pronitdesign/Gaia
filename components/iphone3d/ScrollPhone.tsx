@@ -185,13 +185,23 @@ const easeSpin = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
    Pricing, senão boia sobre os cards. */
 const DIVE_SPAN = 0.3;
 
-/* Onde o phone deita.
-   No fundo do mergulho ele fica NA HORIZONTAL e entra pela metade — deitado na
-   superfície, cortado por ela. É a pose do mergulho, e ela tem que resolver de
-   volta em 0 nas duas pontas, senão o phone chega torto no slot do Pricing (que
-   espera END_TILT) ou no card do Features (que espera reto). Daí ser um bump e
-   não um lerp. */
-const DIVE_ROLL = Math.PI / 2;
+/* Quanto o phone se inclina ao cruzar a água. TETO: 20°.
+
+   Já foi 90° — o aparelho deitava na horizontal, encostava na superfície e era
+   cortado por ela. Bonito parado, demais em movimento: lia como o phone
+   tombando, não como uma travessia.
+
+   20° é teto, não alvo. O ângulo final soma com o tilt de percurso:
+
+     rotation.z = lerp(START_TILT[1], END_TILT[1], eP) + roll
+
+   e END_TILT[1] é NEGATIVO (-0.19, a pose que ele leva pro slot do Pricing), então
+   ele cancela parte disto em vez de somar — no pico o total fica em ~11°. Se um
+   dia END_TILT virar positivo, esta soma passa dos 20° sem ninguém perceber.
+
+   Continua sendo dirigido por dive, que é um bump: resolve em 0 nas duas pontas,
+   senão o phone chega torto no slot do Pricing ou no card do Features. */
+const DIVE_ROLL = (20 * Math.PI) / 180;
 
 /** bump: 0 nas pontas, 1 no meio, sem canto vivo. */
 const bump = (t: number) => {
