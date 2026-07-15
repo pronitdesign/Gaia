@@ -303,14 +303,33 @@ export default function Pricing() {
               elemento — no pai (16px) daria ~120px e quebrava o título em 4 linhas */}
           <h2 className="mt-6 max-w-[13ch] text-balance font-title text-h2 font-medium leading-[1.02] text-neutro-800 md:text-[4rem] lg:max-w-[11ch] lg:text-[5rem] lg:leading-[0.94] lg:tracking-[-0.032em] xl:text-[6rem]">
             Sem surpresa no{" "}
-            {/* azul-600, não neutro-600: a escala neutro MUDA DE MATIZ na
+            {/* azul-700, não neutro-600: a escala neutro MUDA DE MATIZ na
                 rampa — é fria no 800/700 (#2B2E3A) e vira quente no 600/500
                 (#8E8E86 é oliva). O título escuro usa neutro-800 e casa com o
                 fundo; este itálico caía justo onde a escala esquenta, e lia
-                sujo contra a água azul-lavanda. azul-600 (#617697) tem a mesma
-                luminosidade do neutro-600 que substituiu — o peso do título não
-                muda, só sai o oliva. */}
-            <span className="italic text-azul-600">fim do mês.</span>
+                sujo contra a água azul-lavanda.
+
+                ESTE PONTO NÃO PASSA EM CONTRASTE, E NÃO TEM COMO PASSAR SEM
+                MATAR O TÍTULO DE DOIS TONS. Medido contra o fundo real (a água
+                da seção nesta altura, mediana sobre a caixa do span):
+                neutro-600 dava 2.27:1, azul-600 dá 1.97, azul-700 dá 2.85 —
+                todos abaixo do 3:1 que texto grande pede. Só azul-800 (3.94)
+                passa, e ele é praticamente o neutro-800 da primeira linha: o
+                itálico deixaria de ser voz secundária e o contraste entre as
+                duas linhas morreria. azul-700 é o teto do que dá pra fazer
+                mantendo o desenho — e ainda assim é MELHOR que o 2.27 que
+                estava aqui antes, além de frio. Se um dia o contraste tiver
+                que passar de verdade, o caminho não é escurecer o texto: é
+                escurecer/desfocar a água atrás dele.
+
+                OS NÚMEROS ACIMA SÃO DE ANTES DA TROCA DO ASSET (o céu/musgo
+                virou recife; ver PRICING_STOPS em lib/sky) e não foram
+                remedidos com o mesmo método. A água aqui era periwinkle
+                (~#748EB7) e virou teal (~#75A3B4): mesma luminância, matiz
+                outro — o veredito (só azul-800 passa, e passar custa o
+                desenho) sobrevive à troca, mas os decimais não. Remedir antes
+                de citá-los como prova. */}
+            <span className="italic text-azul-700">fim do mês.</span>
           </h2>
         </div>
       </div>
@@ -377,10 +396,12 @@ export default function Pricing() {
                 Tudo incluído.
                 <br />
                 {/* azul-600 e não azul-500 (o par de luminosidade do
-                    neutro-500 que estava aqui): sobre o lavanda do vidro o
-                    500 fica em ~2.4:1, abaixo do 3:1 que texto grande pede.
-                    O 600 sobe pra ~3.4:1 e passa. Ver o irmão no h2 do header
-                    pra por que a escala neutro esquenta e suja aqui. */}
+                    neutro-500 que estava aqui): medido contra o lavanda do
+                    vidro, o 500 fica em 2.97:1 — abaixo do 3:1 que texto grande
+                    pede, e o neutro-500 que estava aqui dava 3.00, ou seja
+                    exatamente em cima da linha. O 600 sobe pra 4.20 e passa com
+                    folga. Ver o irmão no h2 do header pra por que a escala
+                    neutro esquenta e suja aqui. */}
                 <span className="italic text-azul-600">Sem add-on.</span>
               </h3>
 
@@ -472,17 +493,38 @@ export default function Pricing() {
                   permanente do plano. */}
               <div data-zone>
                 <div className="flex items-baseline gap-1">
-                  <span className="font-title text-[1.25rem] text-neutro-400 xl:text-[1.75rem]">
+                  {/* azul-700 e não neutro-400: este lockup era o pior caso da
+                      seção — R$ e /mês em neutro-400 (#B7B6AD, o tom mais
+                      quente da escala) encostados no 49,90 em neutro-800, que é
+                      frio. O choque de matiz entre vizinhos imediatos denuncia o
+                      oliva muito mais que nos títulos. E neutro-400 já era claro
+                      demais aqui: a régua de "Sem fidelidade" abaixo registra
+                      que ele SUMIA sobre o vidro — medido, dava 1.42:1.
+
+                      azul-700 (#4B5D79) porque R$ e /mês têm ALVOS DIFERENTES
+                      apesar de serem um par visual: 28px conta como texto grande
+                      (3:1), 20px não (4.5:1). azul-600 passaria no R$ (3.21) e
+                      falharia no /mês (4.12) — e pintar os dois lados do número
+                      de tons diferentes pra satisfazer a régua leria como bug.
+                      azul-700 passa nos dois (4.56 e 5.90) com uma cor só, e
+                      segue claro o bastante pra não competir com o 49,90. */}
+                  <span className="font-title text-[1.25rem] text-azul-700 xl:text-[1.75rem]">
                     R$
                   </span>
                   <span className="font-title text-[3.5rem] font-semibold leading-none tracking-[-0.03em] text-neutro-800 tabular-nums xl:text-[5rem]">
                     49,90
                   </span>
-                  <span className="font-body text-[1rem] text-neutro-400 xl:text-[1.25rem]">
+                  <span className="font-body text-[1rem] text-azul-700 xl:text-[1.25rem]">
                     /mês
                   </span>
                 </div>
-                <p className="mt-2 font-body text-[1rem] text-neutro-600 xl:text-[1.125rem]">
+                {/* azul-700 e não azul-600: o 600 é o par de MATIZ do
+                    neutro-600 que estava aqui, mas não de LUMINOSIDADE — trocar
+                    um pelo outro derrubava o contraste de 4.67 (passava) pra
+                    4.05 (falha), porque 18px não conta como texto grande e o
+                    alvo é 4.5. azul-700 dá 5.86. Esfriar o tom não pode custar
+                    a legibilidade que já estava boa. */}
+                <p className="mt-2 font-body text-[1rem] text-azul-700 xl:text-[1.125rem]">
                   Comece com 2 meses grátis.
                 </p>
               </div>
