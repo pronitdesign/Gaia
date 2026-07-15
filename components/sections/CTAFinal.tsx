@@ -20,12 +20,16 @@ gsap.registerPlugin(ScrollTrigger);
      · MASK   0    → 0.24 — o telhado abre enquanto o palco ainda desliza pra
        dentro da viewport, e ABRE ATÉ PREENCHER a section (vira retângulo
        full-bleed, sem creme). O vídeo só começa depois que ela encheu tudo.
-     · FRASE  0.10 → 0.34 — "Enquanto você atendia, a Gaia anotou." Nasce
+     · FRASE  0.10 → 0.36 — "Enquanto você atendia, a Gaia anotou." Nasce
        DENTRO do gesto do arco (não numa cena parada) e morre cavalgando o
        início do scrub do vídeo (0.30): quem dispensa a frase é a câmera se
        mexendo, não um fade avulso. Só existe na primeira cena — câmera
        fechada na tela do tablet, antes do pull-back — por isso não sobrevive
-       além de 0.34.
+       além de 0.36.
+     · DIM    0    → 0.44 — a primeira cena entra ESCURA (CSS, desde o mount)
+       e a luz só SOBE, dentro do mesmo pull-back que tira a frase: a câmera
+       saindo é quem apaga o texto E acende a cena, num sentido só. Ver o
+       comentário de `sceneDim` no corpo do componente pro porquê do número.
      · VÍDEO  0.30 → 0.62 — o scroll é a agulha da timeline: pull-back saindo
        da tela do tablet até a cena inteira. Só começa com o palco parado.
      · ROBERTA 0.62 → 0.67 — o recorte alpha (mesmo pixel do frame final) faz
@@ -180,17 +184,29 @@ const CARD_SHEEN =
 
 const CARD_SHADOW = "shadow-[0_20px_50px_-20px_rgba(0,10,26,0.7)]";
 
-/** Camadas por cima da imagem: wash de marca + scrims de legibilidade + aurora. */
+/** Camadas por cima da imagem: wash de marca + scrims de legibilidade + aurora.
+ *
+ * O wash empilhava tint 0.52/0.70 + scrim 0.5 + base 0.8 PERMANENTES — presos
+ * o tempo todo, não só na primeira cena — e achatava o roxo real do vídeo e o
+ * tom de pele dela em cinza. Ele fazia dois trabalhos ao mesmo tempo (marca E
+ * legibilidade da headline) e por isso cobrava o preço dos dois o tempo todo,
+ * inclusive nos 0.62→1 em que não há headline nenhuma sobre a cena pra
+ * proteger. Agora a legibilidade da primeira cena é responsabilidade do DIM
+ * (temporal, ver `sceneDim` abaixo — CSS opaco que só apaga), e o wash volta a
+ * ser só marca: tint e scrim central caem pra valores de tonalidade, não de
+ * contraste. O scrim de base CONTINUA mais forte que os outros dois — ele não
+ * é legibilidade, é a costura com o footer (ver o comentário do footer: sem
+ * cor pra casar, sem costura, e é esse scrim que prepara o preto ali). */
 function Wash() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
       {/* tint de marca (lavanda/roxo) — puxa a foto pro mundo da Gaia */}
-      <div className="absolute inset-0 bg-[linear-gradient(165deg,rgba(36,26,56,0.52)_0%,rgba(58,72,94,0.28)_38%,rgba(14,16,22,0.70)_100%)]" />
-      {/* scrim central — contraste AA da headline sobre qualquer foto */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_42%,transparent_26%,rgba(14,16,22,0.5)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(165deg,rgba(36,26,56,0.16)_0%,rgba(58,72,94,0.06)_38%,rgba(14,16,22,0.30)_100%)]" />
+      {/* scrim central — só tonalidade agora; a legibilidade da headline é o DIM */}
+      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_42%,transparent_42%,rgba(14,16,22,0.22)_100%)]" />
       {/* scrim de base — escurece o pé só o suficiente; a imagem segue visível
           nas bordas ao redor do card de vidro flutuante do footer */}
-      <div className="absolute inset-x-0 bottom-0 h-[44%] bg-[linear-gradient(to_top,rgba(14,16,22,0.80),rgba(14,16,22,0.38)_52%,transparent)]" />
+      <div className="absolute inset-x-0 bottom-0 h-[44%] bg-[linear-gradient(to_top,rgba(14,16,22,0.70),rgba(14,16,22,0.22)_52%,transparent)]" />
       {/* luz aurora fluindo (o "momento mais quente") — bloom lavanda que respira */}
       <div className="gaia-aurora-flow absolute top-[8%] left-1/2 h-[60vh] w-[80vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(163,133,192,0.42),rgba(122,144,174,0.15)_45%,transparent_70%)] blur-3xl" />
     </div>
@@ -206,6 +222,10 @@ export default function CTAFinal() {
   // do pull-back. Vive e morre dentro do gesto do arco (ver timeline); depois
   // disso quem fala é a câmera se afastando, não mais texto sobre a tela.
   const firstLine = useRef<HTMLDivElement>(null);
+  // O DIM da primeira cena — legibilidade da FRASE contra o vídeo+wash, agora
+  // que o Wash voltou a ser só marca (ver comentário do Wash). Ref de um <div>
+  // que já nasce opaco via CSS (ver JSX): a timeline só tem o tween que apaga.
+  const sceneDim = useRef<HTMLDivElement>(null);
   // O BLOCO interno (headline + botão), não a camada full-screen: é o bloco que
   // viaja de cima do corpo dela até a faixa do topo. Animar a camada moveria a
   // caixa de layout inteira e o `y` não teria significado nenhum.
@@ -292,16 +312,17 @@ export default function CTAFinal() {
         0,
       );
 
-      // ── FRASE 0.10 → 0.34 ────────────────────────────────────────────────
+      // ── FRASE 0.10 → 0.36 ────────────────────────────────────────────────
       // "Enquanto você atendia, a Gaia anotou." — a única linha da primeira
       // cena, câmera ainda fechada na tela do tablet. Entra em 0.10→0.20:
       // DENTRO do gesto do arco (que roda 0→0.24), não numa cena parada — ela
-      // nasce junto com a abertura do telhado. Segura 0.20→0.28. Sai em
-      // 0.28→0.34, cavalgando o começo do scrub do vídeo (0.30): quem
-      // dispensa a frase é a CÂMERA se mexendo, não um fade avulso — o `y:-24`
-      // sobe contra o recuo. `fromTo` com immediateRender pelo mesmo motivo do
-      // ctaBlock e dos cards: precisa nascer invisível desde o mount, senão
-      // fica de fantasma sobre a tela do tablet.
+      // nasce junto com a abertura do telhado. Segura 0.20→0.30. Sai em
+      // 0.30→0.36, começando JUNTO com o scrub do vídeo (0.30, ver VÍDEO
+      // abaixo) e com o DIM apagando (ver `sceneDim`): quem dispensa a frase é
+      // a CÂMERA se mexendo, não um fade avulso — o `y:-24` sobe contra o
+      // recuo. `fromTo` com immediateRender pelo mesmo motivo do ctaBlock e
+      // dos cards: precisa nascer invisível desde o mount, senão fica de
+      // fantasma sobre a tela do tablet.
       tl.fromTo(
         firstLine.current,
         { autoAlpha: 0, y: 0 },
@@ -311,7 +332,35 @@ export default function CTAFinal() {
       tl.to(
         firstLine.current,
         { autoAlpha: 0, y: -24, duration: 0.06, ease: "power2.in" },
-        0.28,
+        0.3,
+      );
+
+      // ── DIM 0 → 0.44 (SAÍDA) ─────────────────────────────────────────────
+      // A cena entra ESCURA e a luz só SOBE — um sentido só, sem pulso: um dim
+      // que acende e apaga viraria piscada. Por isso o estado escuro é CSS
+      // (`opacity-[0.62]` no JSX, ver `sceneDim`) e existe desde o mount; a
+      // timeline só tem ESTE tween, que apaga.
+      //
+      // 0.62 é medido, não gosto: preto a 0.62 sobre o branco da tela do
+      // tablet dá ~#666, que contra texto branco fecha ~5.7:1 (passa AA até
+      // pra corpo normal). A 0.50 cairia pra ~3.9:1 — passaria só como texto
+      // grande, e a frase perderia a margem. Acima de 0.7 a UI do tablet
+      // deixa de ser legível como produto e vira mancha.
+      //
+      // Uniforme no quadro inteiro, e NÃO um radial atrás do texto: o radial
+      // vira borrão sobre a UI e lava justamente o que a cena existe pra
+      // mostrar. Uniforme, o tablet vira brilho num quarto escuro e o produto
+      // continua legível.
+      //
+      // Apaga em 0.30→0.44 e a frase sai em 0.30→0.36: as duas coisas começam
+      // JUNTO com o scrub do vídeo (0.30). Quem apaga a frase e acende a luz é
+      // a CÂMERA saindo — a luz sobe DENTRO do pull-back, terminando depois da
+      // frase, então a última coisa que acontece é a cena acendendo, já sem
+      // texto.
+      tl.to(
+        sceneDim.current,
+        { opacity: 0, duration: 0.14, ease: "power2.inOut" },
+        0.3,
       );
 
       // ── CTA 0.64 → 0.88 ───────────────────────────────────────────────────
@@ -480,6 +529,22 @@ export default function CTAFinal() {
             {/* DENTRO do clip de propósito: fora dele os scrims pintariam o creme
               ao redor do arco. */}
             <Wash />
+
+            {/* DIM da primeira cena — legibilidade da FRASE, não da marca (isso é
+              o Wash). Precisa vir DEPOIS do Wash (cobre vídeo+wash) e ANTES da
+              FRASE (que tem que ficar por cima do dim) — a ordem de pintura é a
+              ordem do DOM. Nasce opaco por CSS (`opacity-[0.62]`, ver o porquê
+              do número no tween de saída, logo abaixo em useGSAP) e existe
+              desde o mount: a cena entra escura e a luz só sobe, nunca pisca.
+              Fora em reduced-motion pelo mesmo motivo da frase: sem pista não
+              há primeira cena, e o still nasceria escuro sem nunca acender. */}
+            {motion === true ? (
+              <div
+                ref={sceneDim}
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-[#0B0D12] opacity-[0.62]"
+              />
+            ) : null}
 
             {/* FRASE da primeira cena — câmera fechada na tela do tablet, antes
               do pull-back. Vive DENTRO do clip de propósito: assim o arco já
@@ -849,47 +914,158 @@ export default function CTAFinal() {
         de quebra o reveal próprio do Footer (`start: "top 88%", once: true`)
         queimava a seco lá dentro; aqui ele volta a disparar sozinho.
 
-        SEM RISCO DE DIVISÃO: o footer não tenta casar de cor com o pé da cena —
-        ele SOBREPÕE. O `-mt` puxa 16vh por cima do palco e o fundo nasce
-        transparente ali, endurecendo no preto da marca. A cena dissolve dentro
-        dele. Casar cor não funcionaria: o pé do palco não é uma cor só (o corpo
-        dela é quase preto no meio, o backdrop é lavanda nas beiradas), então
-        qualquer chapado encostaria num degrau. Sem cor pra casar, sem costura.
+        A COSTURA É PRETA — e a única regra estável, depois de a coisa ter
+        dado meia-volta DUAS vezes, é esta: ela fecha na cor DE QUE O FOOTER É
+        FEITO. Nunca na do <body>. As duas voltas, porque cada uma parece um
+        erro até você saber o que o rodapé era na época:
 
-        O bloom lavanda embaixo é a atmosfera do CTA continuando — longe da
-        emenda de propósito, senão ele mesmo criaria o degrau que veio matar. */}
-      {/* Regra desta caixa: nada aqui pode passar do PÉ do wrapper. Um absolute
-        que ultrapassa o pai por baixo estica o scrollHeight do documento, e o
-        que aparece nesse excedente é o creme do <body> — foi exatamente assim
-        que nasceu a faixa branca embaixo do footer (o bloom era `h-[70vh]` a
-        partir de `top-[16vh]`: 144+630 num wrapper de 646). Por isso o bloom é
-        ancorado em `bottom-0`, não em altura fixa. Passar do TOPO pode: crescer
-        pra cima não mexe no scroll — é o que a flor faz. */}
-      <div className="relative -mt-[16vh]">
+        1. Costura `#0E1016` + rodapé CREME → pé preto da cena encostado num
+           card claro: degrau duro. Daí a BANDA DE EMERGÊNCIA (55vh subindo do
+           preto ao creme + 24vh de noite sobrando = 79vh de gradiente vazio,
+           que lia como página inacabada).
+        2. Costura `#FAF9F5` + rodapé CREME → dissolve, e a banda morre sem ter
+           o que resolver. Foi o mundo que este arquivo descreveu por um tempo.
+        3. (hoje) Rodapé volta pra NOITE, agora como VIDRO PRETO sobre
+           `#0E1016` — e o creme passa a ser o degrau. A costura acompanha:
+           volta pro `#0E1016`, junto com o fundo do rodapé, na mesma placa.
+
+        Quem pinta isso agora é a PLACA NOTURNA (primeiro filho do wrapper
+        abaixo), não um gradiente solto: costura e fundo do rodapé viraram um
+        elemento só, porque são a mesma cor por definição.
+
+        24vh NÃO é gosto, é medido. É o que o `-mt` toma do palco, o que a
+        sub-caixa devolve, e onde o gradiente da placa fecha. Pés medidos (%
+        da altura do palco, timeline no fim): botão "Começar grátis" em 64.6
+        (1920) / 67.7 (1440) / 69.2 (1280); pilha de cards em 75.1 (1920) /
+        55.7 (1440) / 66.1 (1280). O pior caso é a pilha em 1920, a 75.1% — a
+        costura nasce em 76% e passa raspando, com o topo dela em opacidade 0
+        de qualquer forma. Mais que 24vh e a noite começa a subir pelo card de
+        rotina; menos e a mescla encurta. */}
+      {/* Regra desta caixa (o wrapper `-mt-[24vh]` inteiro): nada aqui pode
+        passar do PÉ dele. Um absolute que ultrapassa o pai por baixo estica o
+        scrollHeight do documento, e o que aparece nesse excedente é o creme do
+        <body> — foi exatamente assim que nasceu a faixa branca embaixo do
+        footer (o bloom era `h-[70vh]` a partir de `top-[16vh]`: 144+630 num
+        wrapper de 646). Por isso todo absolute aqui dentro ancora em
+        `bottom-0`, nunca em altura fixa. Passar do TOPO pode: crescer pra cima
+        não mexe no scroll — é o que a flor faz.
+
+        A COSTURA tem sub-caixa própria e mede EXATAMENTE os 24vh que o `-mt`
+        tomou do palco. Não é coincidência, é a definição de "colado": ela
+        inteira mora POR CIMA do pé da cena, custa 0vh de documento, e o card
+        do footer começa no mesmo pixel em que o palco acaba. Os 24vh são
+        também o número do gradiente — ele fecha no `#FAF9F5` em `24vh`, ou
+        seja, no pé exato da sub-caixa: a mescla termina de pintar no instante
+        em que o card entra. É por isso que os dois números têm que andar
+        juntos; mexer num sem o outro ou recria vão (`-mt` menor que a caixa)
+        ou deixa a mescla inacabada quando o card chega (gradiente mais longo
+        que a caixa).
+
+        A FLOR NÃO mora nessa sub-caixa — ela é filha DIRETA do wrapper, e é o
+        que a deixa atravessar o footer. Ver o comentário dela. */}
+      <div className="relative -mt-[24vh]">
+        {/* A PLACA NOTURNA — um só elemento fazendo os dois trabalhos, porque
+          são o mesmo trabalho: `transparent` no topo, `#0E1016` aos 24vh, e
+          daí pra baixo SEGURA a cor (gradiente CSS mantém o último stop). Ou
+          seja: nos primeiros 24vh ela é a COSTURA (a cena dissolve na noite,
+          no pé exato do palco); do 24vh ao fim do wrapper ela é o FUNDO do
+          rodapé. Uma peça, porque a cor de chegada da costura e a cor do
+          rodapé têm que ser a mesma por definição — separá-las em dois
+          elementos é convidar as duas a dessincronizar.
+
+          POR QUE ELA É O PRIMEIRO FILHO: tudo aqui é positioned sem z-index,
+          então pinta na ordem do DOM. A placa vem antes da FLOR de propósito —
+          a flor passa POR CIMA dela e é isso que a deixa existir dentro do
+          rodapé. Pintar esta noite mais embaixo (ex.: um bg no wrapper do
+          card) tapa a flor: já foi feito, já quebrou.
+
+          POR QUE NÃO NO WRAPPER: `bg` no `-mt-[24vh]` seria opaco desde o topo
+          e comeria os últimos 24vh da cena. É o gradiente que resolve — ele
+          nasce transparente exatamente onde a cena ainda precisa aparecer.
+
+          É preta, e não creme, por uma razão só: a costura fecha na cor DE QUE
+          O FOOTER É FEITO. O footer é vidro preto sobre `#0E1016`. Se ele
+          voltar a ser claro, este é o número que muda — e o alvo é a cor dele,
+          nunca a do <body>. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0,#0E1016_16vh)]"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0,#0E1016_24vh)]"
         />
+
+        {/* Sub-caixa VAZIA, e é de propósito: ela não pinta nada (quem pinta é
+          a placa acima), só paga os 24vh que o `-mt` tomou do palco. Os dois
+          números continuam atados (ver a regra acima) — e agora são TRÊS: o
+          `-mt`, esta altura e o stop do gradiente da placa. Mexer num sem os
+          outros recria vão, sobreposição, ou uma costura que acaba no lugar
+          errado. */}
+        <div className="relative h-[24vh]" />
+
+        {/* A FLOR — a peça que ATRAVESSA a emenda. É o único elemento que
+          existe dos dois lados dela: nasce na cena, cruza a mescla e mergulha
+          ATRÁS do card do footer. É por isso que ela é filha DIRETA do wrapper
+          e não da sub-caixa da costura — `bottom-0` aqui resolve contra o pé
+          do FOOTER, não contra o fim da mescla, e é essa uma linha que a deixa
+          entrar no rodapé. (Ela morou na sub-caixa enquanto a banda de
+          emergência existia: naquele mundo o pé do wrapper ficava depois de
+          55vh de gradiente claro, e sem a sub-caixa a flor vazaria por cima de
+          um creme pro qual o asset — pensado pra fundo quase-preto — não foi
+          feito. Sem banda, o pé do wrapper voltou a ser o pé do card, e a
+          sub-caixa deixou de ter função pra ela.)
+
+          A ORDEM DO DOM É O EFEITO INTEIRO, e são duas regras opostas de uma
+          vez. DEPOIS da costura: elementos positioned sem z-index pintam na
+          ordem do DOM, então a flor fica POR CIMA do gradiente creme e não é
+          lavada por ele — ela sobrevive à mescla nítida enquanto a cena
+          dissolve atrás, que é o que faz dela a âncora visual da emenda em vez
+          de mais uma coisa que some. ANTES do footer: pelo mesmo mecanismo, o
+          card (que é `relative`, ver o wrapper dele abaixo) pinta POR CIMA
+          dela. Inverter qualquer um dos dois quebra um lado — a flor sumiria
+          na mescla, ou passaria por cima do texto do rodapé.
+
+          Ela aparece na FOLGA lateral do card (`mx-auto max-w-7xl`): 320px de
+          cada lado em 1920, 80px em 1440, 12px em 1280. Quanto mais estreita a
+          tela, mais o card a engole — degrada pra "flor só na cena", que é o
+          comportamento certo, e não pra nada quebrado.
+
+          `-top-[1vh]`: o topo do wrapper está em 76% do palco (o `-mt-[24vh]`),
+          então -1vh planta a flor em 75%, exatamente onde ela já nascia antes
+          desta seção. Não subir mais é deliberado: ela é `w-full`, pinta depois
+          do palco (por cima de TUDO que é cena) e o `-scale-x-100` a joga na
+          direita, que é a coluna do CTA — o pé do bloco do botão fica em
+          64.6–69.2% conforme o viewport, então cada vh a mais que ela sobe
+          começa a comer o "Começar grátis". Pra cima é seguro só até aqui. */}
+        {/* SEM MÁSCARA — a flor vai inteira, e quem desenha TODAS as bordas
+          é o alpha do PNG (`w-full`, altura livre, nada de `object-cover`, que
+          era o que ceifava as pétalas em linha reta — bug antigo, documentado,
+          já corrigido uma vez).
+
+          O `mask-image` que morava aqui (fade pra transparent em 46%→74%)
+          existia por UM motivo, e o motivo caiu. O asset tem base reta por
+          construção — o prompt de geração pediu "base falls below the frame
+          edge": ele foi feito pra SANGRAR pra fora do quadro, não pra terminar
+          sozinho. Enquanto o rodapé era um card CREME, essa base aterrissava à
+          vista na folga lateral, sobre um fundo pro qual o asset não foi feito;
+          o fade a matava antes disso. Agora a folga é `#0E1016` (ver o bg do
+          wrapper do footer) e o card é vidro: a flor tem o fundo quase-preto de
+          que precisa, e atravessa o rodapé em vez de morrer antes dele.
+
+          O `overflow-hidden` FICA, e agora ele é a feature, não o bug: ele corta
+          no pé do wrapper, que é o pé do documento — exatamente a borda pra fora
+          da qual o asset foi desenhado pra sangrar. Medido no asset atual
+          (1600x893): a última linha ainda tem pixels em alpha 255 em ~6% das
+          colunas, então a base RETA continua existindo — ela só deixou de ser
+          visível porque cai fora da página.
+
+          O QUE ISSO CUSTA: depende da flor transbordar a caixa. Ela é `w-full`,
+          então a altura dela segue a LARGURA (h ≈ 0.558 × vw), enquanto a caixa
+          segue 24vh + a altura do rodapé. Em telas largas e baixas (1920×1080:
+          flor ~1072px contra caixa ~800px) sobra flor e o corte cai fora. Em
+          telas estreitas e altas a conta pode inverter — aí a base reta pousa
+          DENTRO da página. Se aparecer uma linha reta no pé da flor, é isto, e
+          o conserto é no asset (dar base própria a ele), não em remascarar. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[16vh] bg-[radial-gradient(65%_55%_at_50%_0%,rgba(138,105,216,0.20),transparent_72%)]"
-        />
-        {/* A FLOR — montada na emenda, metade na cena e metade no footer. Vem
-          DEPOIS dos gradientes na ordem de pintura pra não ser lavada por eles,
-          e antes do footer pra passar por trás do card de vidro. O `-translate-y-1/2`
-          a joga pra cima do pé do wrapper: pra cima é seguro, pra baixo não. */}
-        {/* A FLOR, sem máscara: quem desenha a borda é o alpha do PNG. Ela rende
-          no aspecto natural (`w-full`, altura livre) — nada de `object-cover`,
-          que era o que ceifava as pétalas em linha reta.
-          A caixa começa ACIMA do wrapper (`-top`) e termina no pé dele
-          (`bottom-0`): o `overflow-hidden` daqui existe só pra travar o pé, que
-          é a regra da caixa — absolute passando do fundo estica o scrollHeight e
-          devolve a faixa branca. Travando aqui, a flor pode descer o quanto
-          quiser dentro do footer sem risco. Vem antes do footer na pintura, então
-          passa por trás do card de vidro. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-[9vh] bottom-0 overflow-hidden"
+          className="pointer-events-none absolute inset-x-0 -top-[1vh] bottom-0 overflow-hidden"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {/* `-scale-x-100`: o recorte reto do asset fica na ponta esquerda —
@@ -897,10 +1073,22 @@ export default function CTAFinal() {
           <img src={CTA_FLOWER} alt="" className="absolute inset-x-0 top-0 w-full -scale-x-100" />
         </div>
 
-        {/* `relative` senão o card de vidro fica ATRÁS dos gradientes e da flor.
-          O `pt` devolve o que o `-mt` tomou: o conteúdo do footer começa
-          embaixo da dissolvência, nunca dentro dela. */}
-        <div className="relative pt-[16vh]">
+        {/* `relative` senão o card fica ATRÁS do gradiente e da flor.
+          SEM `pt`, e agora por um motivo mais forte que antes: `pt` aqui é
+          literalmente o vão que o pedido veio matar. O `-mt-[16vh]` sobe o
+          wrapper por cima do palco e a zona noturna consome esses 16vh por
+          dentro (ver o comentário dela) — então este bloco JÁ começa no pé
+          exato do palco. Qualquer padding aqui descola o card da cena, que é
+          a única coisa que esta caixa não pode fazer.
+
+          SEM bg próprio, e isso é uma regra, não um esquecimento: pintar a
+          noite AQUI é o jeito errado, e custou uma volta. Este div é
+          `relative` e vem DEPOIS da flor no DOM — qualquer fill opaco nele
+          tapa a flor inteira no rodapé (é o mesmo mecanismo que faz o card
+          pintar por cima dela, ver o comentário da flor). A noite mora na
+          PLACA lá em cima, antes da flor. Aqui só o `relative`, que é o que
+          põe o card na frente dela. */}
+        <div className="relative">
           <Footer embedded />
         </div>
       </div>

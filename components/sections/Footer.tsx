@@ -63,7 +63,15 @@ const SOCIAL: Social[] = [
   { label: "YouTube", href: "https://youtube.com/", Icon: IconYoutube },
 ];
 
-/* Link de navegação — hover shift pro Roxo (150ms) + foco visível no teclado. */
+/* Link de navegação — hover shift pro Roxo (150ms) + foco visível no teclado.
+   A paleta NÃO depende mais de `embedded`: os dois modos são noturnos hoje
+   (ver o comentário do <footer> abaixo), então a escada de branco vale pros
+   dois e o `embedded` só decide GEOMETRIA. A versão clara (neutro-600 +
+   brand-600) morreu com o card creme.
+
+   `ring-offset-[#0E1016]` serve os dois: no modo cheio é literalmente o bg;
+   no vidro é a cor de que o vidro é feito — o offset cai sobre o próprio
+   card, não sobre o que passa atrás. */
 function FooterLink({ label, href }: Link) {
   return (
     <a
@@ -75,8 +83,31 @@ function FooterLink({ label, href }: Link) {
   );
 }
 
-/* embedded = footer vive DENTRO do CTA Final, como card de vidro sobre a
-   imagem full-bleed: dispensa o próprio fundo escuro e afina o respiro. */
+/* embedded = footer vive DENTRO do CTA Final, como card de VIDRO PRETO
+   flutuando na folga do palco. Hoje `embedded` decide só GEOMETRIA (card
+   com folga lateral vs. faixa cheia) — a paleta é noturna nos dois.
+
+   O VIDRO É O PONTO, não decoração: é ele que deixa a FLOR aparecer atrás
+   (ver o comentário dela em CTAFinal.tsx). Card opaco a engolia — a ordem do
+   DOM faz o card pintar POR CIMA dela, então translucidez é a única via pra
+   ela existir sob o rodapé em vez de só ao lado dele.
+
+   ELE JÁ FOI VIDRO ANTES, branco (`from-white/[0.09] to-white/[0.03]` +
+   `backdrop-blur-2xl`) sobre a cena escura. Virou card creme sólido quando a
+   costura passou a fechar em `#FAF9F5`, e o blur foi junto (não havia mais o
+   que refratar: só gradiente sólido atrás). Agora que o rodapé voltou pra
+   noite, o vidro volta — preto, e com o que refratar de novo.
+
+   0.72 DE TINTA não é gosto, é o piso do contraste. O que passa atrás é a
+   flor (lavanda clara) sobre `#0E1016`; o tier mais frágil é `text-white/55`
+   dos links. No pior caso — pico da flor, já borrado pelo `backdrop-blur-2xl`
+   — o vidro assenta em ~#282031 e o link mede ~5.6:1: passa AA. Baixar a
+   tinta mostra mais flor e derruba o link abaixo de 4.5:1. Se for abrir o
+   vidro, o que sobe junto é o tier do link, não só o alpha.
+
+   O fundo quase-preto atrás deste card é responsabilidade do CTAFinal (o
+   `<body>` é creme, ver globals) — sem ele o vidro assenta sobre creme e nada
+   disto vale. */
 export default function Footer({ embedded = false }: { embedded?: boolean }) {
   const root = useRef<HTMLElement>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -129,9 +160,14 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
         ref={card}
         className={
           embedded
-            ? // glass premium: sem stroke — realce de luz interno no topo (refração),
-              // preenchimento em degradê translúcido + blur + sombra funda
-              "relative mx-auto w-full max-w-7xl overflow-hidden rounded-3xl bg-gradient-to-b from-white/[0.09] to-white/[0.03] px-6 py-10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.85),inset_0_1px_0_0_rgba(255,255,255,0.14),inset_0_-1px_0_0_rgba(255,255,255,0.04)] backdrop-blur-2xl backdrop-saturate-150 md:px-12 md:py-12"
+            ? // VIDRO PRETO. `backdrop-blur-2xl` é o que transforma a flor atrás
+              // em presença difusa em vez de recorte legível através do card —
+              // e é também o que salva o contraste, porque borra os picos claros
+              // dela antes de a tinta ter que dar conta deles.
+              // `border-white/10` + inset highlight = a quina de cima pegando
+              // luz; sem eles o card não lê como vidro, lê como buraco.
+              // `overflow-hidden` mantém o sheen e o grão dentro do raio.
+              "relative mx-auto w-full max-w-7xl overflow-hidden rounded-card border border-white/10 bg-[rgba(14,16,22,0.72)] px-6 py-10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] backdrop-blur-2xl backdrop-saturate-[1.2] md:px-12 md:py-12"
             : "mx-auto w-full max-w-6xl px-6 py-20 md:px-10 md:py-24 lg:px-16"
         }
       >
@@ -155,7 +191,9 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
                 {CONTATO}
               </a>
             </div>
-            {/* sociais — chips de vidro */}
+            {/* sociais — chips de vidro sobre vidro: `white/[0.06]` quase
+              invisível até o hover, que abre pra `white/[0.12]`. Some com o
+              card creme, a versão em tom (neutro-100→200) foi junto. */}
             <ul className="mt-7 flex items-center gap-2.5">
               {SOCIAL.map(({ label, href, Icon }) => (
                 <li key={label}>
@@ -210,6 +248,8 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
               <label htmlFor="footer-email" className="sr-only">
                 Seu e-mail
               </label>
+              {/* Input: chip de vidro `white/[0.06]` → abre pra `white/[0.1]`
+                no foco. Placeholder em white/40 (o mesmo tier dos eyebrows). */}
               <input
                 id="footer-email"
                 type="email"
@@ -227,15 +267,15 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
           </div>
         </div>
 
-        {/* linha de confiança — espelha o footer real (Brasil · LGPD) */}
+        {/* linha de confiança — espelha o footer real (Brasil · LGPD).
+          `border-white/10`: o mesmo traço de luz das outras quinas do vidro.
+          (`border-hairline`, a versão quase-preta, era do card creme.) */}
         <div
           data-reveal
           className="mt-14 flex flex-col gap-2 border-t border-white/10 pt-8 font-body text-small text-white/40 md:flex-row md:items-center md:justify-between"
         >
           <p>© 2026 Gaia · Hospedado no Brasil.</p>
-          <p className="text-white/30">
-            Workspace clínico operado conforme a LGPD.
-          </p>
+          <p className="text-white/30">Workspace clínico operado conforme a LGPD.</p>
         </div>
       </div>
     </footer>
