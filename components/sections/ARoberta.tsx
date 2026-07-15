@@ -717,7 +717,20 @@ export default function ARoberta() {
       //
       // O demo dispara num clique: current recua (y -30vh, scale 0.8, opacity
       // 0.4) enquanto next sobe por uma clipPath (inset 100%→0%), os dois ao
-      // mesmo tempo, no mesmo ease customizado (pageTransition).
+      // mesmo tempo, no mesmo ease customizado (pageTransition). O ponto
+      // central do original: next é FIXED e NÃO SE MOVE — o clipPath sozinho
+      // faz 100% da revelação, com current visível por trás da máscara que abre.
+      //
+      // CONFIRMADO NO BUNDLE PUBLICADO (async-page-transitions.crnacura.
+      // workers.dev): baixei /assets/index-DHXtjec7.js e achei `inset(100% 0%
+      // 0% 0%)` + `-30vh` (é o defaultTransition) — mas NÃO achei `-50%` nem
+      // `x:"100%"` (a assinatura do alternativeTransition, que o Vite
+      // tree-shakou do build publicado porque nenhuma rota o usa).
+      // `/alternative-page` é o NOME DA ROTA da segunda página (namespace
+      // "about"), não o nome de uma transição — o efeito visto ali É o
+      // defaultTransition, o mesmo que este bloco replica desde a primeira
+      // versão. Registrando isso aqui pra ninguém (inclusive eu) reabrir essa
+      // investigação de novo.
       //
       // NÃO dá pra pendurar isso no `tl` acima — tentei, e o motivo é o ponto
       // central desta seção (vale registrar pra ninguém repetir o mesmo
@@ -742,8 +755,86 @@ export default function ARoberta() {
       // dois exatamente à janela em que o Features está de fato entrando no
       // viewport: os tais ~900px de "resto" do pin, que É o ~1 viewport
       // pedido no brief, não uma fatia arbitrária do scrub.
+      //
+      // PRIMEIRA VERSÃO DESSE TICKER (errada, ficou no ar por uma sessão
+      // inteira até ser medida): deixava #features NO FLUXO NORMAL — quem
+      // revelava era o próprio scroll — e lia featuresEl.getBoundingClientRect()
+      // .top pra achar `p`, subtraindo do clipPath o gap que o ease "devia"
+      // deixar contra o rect.top real (`gap - rect.top`). Dentro da janela,
+      // rect.top JÁ é (1-p)*vh (é o SCROLL quem move o Features, ninguém
+      // escreve nele) — então a conta reduz a topPx = vh·max(0, p - eased).
+      // O ease pageTransition cruza a diagonal p=eased em p≈0.44; depois
+      // disso eased > p, a subtração fica negativa, o `max(0,...)` engole
+      // tudo e o clipPath morre em inset(0) pro resto da janela. Medido em
+      // 1600×900: pico de 109px em p≈0.29, zero a partir de p≈0.5 — metade
+      // da cortina nunca existia, e o que devia ser máscara virava scroll cru
+      // sem ease nenhum bem na hora em que o Features de fato aparecia.
+      //
+      // O FIX que resolveu isso, e que SEGUE valendo: #features não pode se
+      // mover pelo scroll comum dentro da janela — ele fica CRAVADO no topo
+      // da viewport (y = -naturalTop, cancelando exatamente o deslocamento
+      // que o scroll aplicaria). Isso exige medir o topo NÃO-TRANSFORMADO do
+      // Features (`naturalTop`) sem cair no loop de feedback: assim que
+      // aplicamos y nele, getBoundingClientRect().top passa a incluir esse y,
+      // e o próximo frame leria o que acabamos de escrever. Saída:
+      // `root.current` (a própria section #a-roberta) NUNCA é transformada —
+      // só `pin.current` (fixed durante o pin) e `recede.current` (o wrapper
+      // de recuo) recebem transform, e nenhum dos dois é ancestral do
+      // Features (transform de filho não muda o layout/rect do pai).
+      // #features é o próximo irmão no documento logo depois de #a-roberta,
+      // sem margin entre os dois — então `root.current.getBoundingClientRect()
+      // .bottom` é exatamente o topo natural do Features, imune ao transform
+      // que este mesmo ticker escreve nele. Isso é o que faz o Features ficar
+      // parado (conteúdo não desliza) — no demo o `next` é `position:fixed`,
+      // imóvel; aqui é o mesmo resultado por outro mecanismo, e é fiel.
+      //
+      // SEGUNDA RODADA — a faixa creme: colei o clipPath direto no
+      // `naturalTop` (régua linear, sem ease) pra fazer a máscara coincidir
+      // com o rodapé real da foto. Resolvia a faixa, mas quebrava o efeito:
+      // no demo o `next` SOBREPÕE o `current` (a cortina abre por conta
+      // própria, no seu próprio ease, e o current recua ATRÁS dela) — colar
+      // a máscara no rodapé faz o Features só PREENCHER o vazio que a
+      // ARoberta desocupa, nunca sobrepor. Grudar a régua e ter sobreposição
+      // são incompatíveis; a Laura viu a diferença e chamou certo. REVERTIDA
+      // nesta rodada.
+      //
+      // TERCEIRA RODADA — troquei o recuo por parallax+fade (sem scale) pra
+      // resolver um efeito colateral de uma tentativa de sincronizar
+      // fundo/opacidade que criava névoa (foto semitransparente sobre cinza
+      // médio). Também REVERTIDA: sem a régua colada, o parallax/fade não
+      // tinham mais função — eram remendo de um mecanismo que já não existe.
+      //
+      // QUARTA RODADA (esta) — de volta à mecânica FIEL do demo (clip
+      // dirigido pela ease, recuo com scale+y+opacity do original), porque é
+      // ISSO que produz a sobreposição que o demo tem e a Laura queria. O vão
+      // creme é INERENTE ao efeito — existe no demo também (o gap entre o
+      // rodapé do current recuado e a borda da cortina, que abre no próprio
+      // ease, sem relação geométrica com onde o current parou). No demo ele
+      // não aparece porque o `body` por trás é ESCURO. A solução nunca foi
+      // geometria (colar a régua) — é COR: escurecer o fundo da ARoberta pra
+      // a cor exata do Features (#0A0C11) cedo o bastante pra o vão nascer
+      // já preto, indistinguível do que está por cima dele. Ver o bloco do
+      // `bgEase` abaixo.
       const featuresEl = document.querySelector<HTMLElement>("#features");
       const pageTransitionEase = gsap.parseEase("pageTransition");
+
+      // Cor de repouso da section (classe Tailwind bg-neutro-50) e a cor
+      // exata do Features (classe bg-[#0A0C11]) — o escurecimento do fundo
+      // (ver abaixo) anima entre as duas cores REAIS do design, não entre
+      // branco e preto genéricos.
+      const BG_REST = "#FAF9F5";
+      const BG_FEATURES = "#0A0C11";
+
+      // Escurecimento do fundo: FRONT-LOADED e AGRESSIVO — termina em
+      // p=BG_DONE_AT=0.15, bem antes da cortina ter aberto quase nada (a
+      // `pageTransition` é achatada no começo: em p=0.15 o vão ainda mede
+      // só algumas dezenas de px) e com o `recede` ainda ~0.97 de opacidade
+      // (a foto, full-bleed na caixa, ainda cobre o fundo inteiro — dá pra
+      // escurecer atrás dela sem ninguém ver o gradiente acontecer).
+      // power2.out (arranca rápido, desacelera) concentra o escurecimento
+      // logo nos primeiros pixels dessa janela curta.
+      const BG_DONE_AT = 0.15;
+      const bgEase = gsap.parseEase("power2.out");
 
       // Último `p` efetivamente aplicado (não o lido no frame atual). O
       // ticker roda em TODA sessão desktop, o tempo todo — não só na janela
@@ -760,14 +851,22 @@ export default function ARoberta() {
       let lastP: number | null = null;
 
       const applyTransition = () => {
-        if (!featuresEl) return;
+        if (!featuresEl || !root.current) return;
         const vh = window.innerHeight;
-        const rect = featuresEl.getBoundingClientRect();
+        // naturalTop = topo NÃO-TRANSFORMADO do Features (ver bloco acima —
+        // não dá pra ler featuresEl.getBoundingClientRect().top direto,
+        // porque o y que escrevemos nele mais abaixo contaminaria a própria
+        // leitura no frame seguinte). root.current (#a-roberta) nunca leva
+        // transform e é o irmão anterior imediato do Features, sem margin
+        // entre os dois — seu `.bottom` É o topo natural do Features. Ainda
+        // usado pra cravar o Features no topo da tela (y) — não mais pro
+        // clipPath, que voltou a ser dirigido pela ease (ver abaixo).
+        const naturalTop = root.current.getBoundingClientRect().bottom;
         // p linear: 0 enquanto o Features não tocou a base da tela
-        // (rect.top ≥ vh), 1 quando o topo dele encosta no topo da tela
-        // (rect.top ≤ 0). O clamp segura os dois lados fora dessa janela —
+        // (naturalTop ≥ vh), 1 quando o topo dele chegaria ao topo da tela
+        // (naturalTop ≤ 0). O clamp segura os dois lados fora dessa janela —
         // fora dela recuo e cortina ficam parados, sem custo extra.
-        const p = 1 - Math.min(1, Math.max(0, rect.top / vh));
+        const p = 1 - Math.min(1, Math.max(0, naturalTop / vh));
 
         // Early-out ANTES de qualquer gsap.set: se `p` não mudou desde o
         // último frame aplicado (epsilon, não igualdade estrita — evita
@@ -779,48 +878,112 @@ export default function ARoberta() {
         if (lastP !== null && Math.abs(p - lastP) < 0.0005) return;
         lastP = p;
 
+        // Fora da janela — ainda não chegou (naturalTop ≥ vh) OU já passou
+        // (naturalTop ≤ 0): repouso explícito nas TRÊS camadas que este
+        // ticker escreve (Features, recuo, fundo da section). #features solto
+        // de volta ao scroll comum (y:0, clip "none" — não `inset(0 0 0 0)`,
+        // que é visualmente idêntico mas deixa estilo gravado à toa num
+        // elemento que não é nosso), recuo de volta ao estado de repouso do
+        // demo (y:0, scale:1, opacity:1 — some junto com o resto do JSX
+        // pinned quando o mode trocar, mas parado aqui evita um frame de
+        // recuo residual se o usuário rolar rápido pra fora da janela e
+        // voltar), e o fundo — section E body, ver bloco abaixo do porquê os
+        // dois — volta pro bg-neutro-50 via clearProps (remove o inline,
+        // deixa a classe Tailwind reassumir). Escrito uma única vez ao tocar
+        // cada borda, nunca por frame: o early-out acima garante isso.
+        if (naturalTop >= vh || naturalTop <= 0) {
+          gsap.set(featuresEl, { y: 0, clipPath: "none", clearProps: "zIndex" });
+          if (recede.current) gsap.set(recede.current, { y: 0, scale: 1, opacity: 1 });
+          gsap.set([root.current, document.body], { clearProps: "backgroundColor" });
+          return;
+        }
+
         const eased = pageTransitionEase(p);
 
-        // Recuo — no wrapper `recede`, NUNCA em pin.current (é nele que o
-        // próprio GSAP escreve o transform do pin; ver o useRef de `recede`).
+        // Recuo — FIEL ao defaultTransition do demo: y -30vh·eased, scale
+        // 1→0.8, opacity 1→0.4 (NUNCA chega a 0 — no demo o current fica
+        // visível, recuado, atrás da cortina; ver bloco do fundo abaixo pro
+        // porquê isso não reabre a faixa creme). No wrapper `recede`, NUNCA
+        // em pin.current (é nele que o próprio GSAP escreve o transform do
+        // pin; ver o useRef de `recede`).
+        //
+        // y tem DOIS termos, não um. No demo, o clique NÃO rola a página —
+        // o -30vh·eased é o único movimento do `current`. Aqui, uma vez
+        // despinada, a ARoberta é conteúdo normal e o scroll já a desloca
+        // sozinho em -p·vh (p = mesma progressão da janela, ver acima); esse
+        // termo NÃO existe no demo, é artefato do port, não fidelidade a
+        // ele. Sem compensar, esse deslize sempre vence o contra-movimento
+        // do demo (que tem teto de -0.4vh com o scale) e a caixa nunca fica
+        // parada — daí a máscara nunca alcançava o rodapé dela (medido:
+        // p≈0.5 tinha inset em 421.6 contra rodapé em 259.1, 162px invertido).
+        // `p*vh` cancela exatamente esse -p·vh do scroll (crava o topo da
+        // caixa em screen-y=0, como no demo parado); `-0.3*vh*eased` é o
+        // -30vh literal do demo, agora medido a partir desse repouso em vez
+        // de somado a um deslize. Em px, não em string `vh`: `vh` aqui já é
+        // window.innerHeight (número), e a soma dos dois termos só faz
+        // sentido feita nessa unidade comum.
         if (recede.current) {
           gsap.set(recede.current, {
-            y: `${-30 * eased}vh`,
+            y: p * vh - 0.3 * vh * eased,
             scale: 1 - 0.2 * eased,
             opacity: 1 - 0.6 * eased,
             force3D: true,
           });
         }
 
-        // p===0: borda de baixo da janela — Features ainda fora da tela,
-        // ARoberta dona da tela. Valor de repouso é NENHUM clip-path (não
-        // `inset(0 0 0 0)`, que é visualmente idêntico mas deixa um estilo
-        // gravado à toa em cima de um elemento que não é nosso — ver a nota
-        // do cleanup abaixo). Escrito uma única vez ao tocar essa borda,
-        // nunca por frame: o early-out acima já garante isso.
-        if (p <= 0) {
-          gsap.set(featuresEl, { clipPath: "none" });
-          return;
-        }
+        // Fundo escurece pro preto do Features — FRONT-LOADED e já concluído
+        // bem antes do recuo/cortina terem ido a algum lugar (ver bloco do
+        // BG_DONE_AT acima). `p / BG_DONE_AT` reescala a janela real (0→1)
+        // pra a janela CURTA em que o escurecimento acontece; clampado em 1
+        // pra travar em BG_FEATURES pro resto do caminho (não desanda depois
+        // de completo).
+        //
+        // DOIS alvos, não um: `root.current` (#a-roberta) E `document.body`.
+        // Medido no browser (ver relatório) — escurecer só a section não
+        // basta. O vão não fica contido dentro da caixa da ARoberta: com o
+        // clip voltando a ser dirigido pela ease (não mais colado no
+        // naturalTop), a borda da cortina pode abrir bem ALÉM do rodapé
+        // real de #a-roberta (`naturalTop` é literalmente esse rodapé) —
+        // nesse trecho extra, a tela já está FORA da caixa da ARoberta, e o
+        // clip-path do Features ainda não chegou lá (ele só pinta a partir
+        // da própria borda que está abrindo). O que aparece nesse
+        // interstício não é o fundo da ARoberta — é o que estiver
+        // estruturalmente atrás de TUDO ali, e neste site isso pode ser um
+        // painel translúcido do rodapé (deslocado pra cima por margin
+        // negativa, ver o commit "Devolve o rodapé à noite") que deixa
+        // passar o `bg-neutro-50` do `<body>` por trás dele — o creme que a
+        // Laura via não vinha da ARoberta, vinha do HTML por trás de tudo.
+        // Escurecer o `body` fecha essa última costura: agora não existe
+        // NENHUMA camada clara possível atrás do efeito inteiro, custe o que
+        // custar de DOM estar exposto no vão. `gsap.set` com array de alvos
+        // aplica a mesma cor aos dois num só write. Inline ganha das classes
+        // (bg-neutro-50 em ambos); o cleanup (e o repouso de borda acima)
+        // desfazem com clearProps nos dois, senão section E body ficam
+        // pretos pra sempre depois de sair da janela.
+        const easedBg = bgEase(Math.min(1, p / BG_DONE_AT));
+        gsap.set([root.current, document.body], {
+          backgroundColor: gsap.utils.interpolate(BG_REST, BG_FEATURES, easedBg),
+        });
 
-        // Cortina — clipPath do Features em PIXELS relativos à PRÓPRIA caixa
-        // dele (~2000px de altura), não em %: % relativo à caixa inteira
-        // faria o corte varrer a section toda, e só a fatia que cabe na tela
-        // importa. `gap` é o quanto do topo da tela deveria ficar livre
-        // (mostrando a ARoberta atrás) segundo o ease; como o Features já
-        // cobre sozinho tudo abaixo do próprio rect.top, só falta esconder a
-        // diferença entre esse gap desejado e o rect.top real.
-        const gap = (1 - eased) * vh;
-        // rect.top vira NEGATIVO assim que o Features passa do topo da tela
-        // (scroll continua depois da chegada). Sem o clamp aqui, `gap -
-        // rect.top` cresce sem fim depois disso (subtrair um número cada vez
-        // mais negativo é somar) e o Features reaparece cortado por cima —
-        // medido: 300px de corte a só 300px de scroll depois da chegada.
-        // Clampado em 0, chegou = ficou aberto pra sempre (e o early-out
-        // acima, com p estável em 1, garante que isso só é escrito UMA vez
-        // ao chegar — não a cada frame depois).
-        const topPx = Math.max(0, gap - Math.max(0, rect.top));
-        gsap.set(featuresEl, { clipPath: `inset(${topPx}px 0px 0px 0px)` });
+        // #features fica CRAVADO no topo da tela — y cancela exatamente o
+        // naturalTop (screen-y do topo do elemento vira 0, imóvel, conteúdo
+        // não desliza) — e o clipPath volta a sair DIRETO do ease, em pixels
+        // no espaço LOCAL do próprio elemento (~2000px de altura; não em %,
+        // que varreria a caixa toda em vez de só a fatia que cabe na tela).
+        // É JUSTAMENTE essa ease — não colada em `naturalTop` — que faz o
+        // Features SOBREPOR a ARoberta em vez de só preencher o vazio dela
+        // (ver bloco grande acima, segunda/quarta rodada): a cortina abre no
+        // seu próprio ritmo, igual ao demo. clip-path é resolvido no espaço
+        // local ANTES do transform, então com y=-naturalTop um corte em
+        // local-y=X cai em screen-y=X. z-index 10 garante que ele pinta por
+        // cima da ARoberta que recua atrás (#features já é
+        // position:relative, daí z-index pega).
+        gsap.set(featuresEl, {
+          y: -naturalTop,
+          clipPath: `inset(${(1 - eased) * vh}px 0px 0px 0px)`,
+          zIndex: 10,
+          force3D: true,
+        });
       };
       applyTransition();
       gsap.ticker.add(applyTransition);
@@ -828,15 +991,25 @@ export default function ARoberta() {
       return () => {
         marquee.kill();
         gsap.ticker.remove(applyTransition);
-        // O Features é de OUTRO componente e vive montado o tempo todo — ao
-        // contrário de `recede` (que some com o resto do JSX pinned), o
-        // clip-path que gravamos nele SOBREVIVERIA ao revert do contexto se
-        // não for desfeito explicitamente aqui (gsap.context só reverte o
-        // que foi criado de forma síncrona dentro do callback; nada que o
-        // ticker escreveu depois). Sem isso, trocar pra mobile/stacked no
-        // meio da transição deixaria o Features preso, meio cortado, pra
-        // sempre.
-        if (featuresEl) gsap.set(featuresEl, { clipPath: "none" });
+        // O Features é de OUTRO componente, a section #a-roberta (root) e o
+        // <body> vivem montados o tempo todo — ao contrário de `recede` (que
+        // some com o resto do JSX pinned quando o mode trocar), os estilos
+        // que gravamos neles (y/clipPath/zIndex no Features, backgroundColor
+        // no root E no body) SOBREVIVERIAM ao revert do contexto se não
+        // forem desfeitos explicitamente aqui (gsap.context só reverte o que
+        // foi criado de forma síncrona dentro do callback; nada que o ticker
+        // escreveu depois). Sem isso, trocar pra mobile/stacked no meio da
+        // transição deixaria o Features preso e/ou a página INTEIRA (não só
+        // a ARoberta) com fundo preto pra sempre.
+        if (featuresEl) {
+          gsap.set(featuresEl, { y: 0, clipPath: "none", clearProps: "zIndex" });
+        }
+        if (recede.current) {
+          gsap.set(recede.current, { y: 0, scale: 1, opacity: 1 });
+        }
+        if (root.current) {
+          gsap.set([root.current, document.body], { clearProps: "backgroundColor" });
+        }
       };
     },
     { scope: root, dependencies: [mode] },
