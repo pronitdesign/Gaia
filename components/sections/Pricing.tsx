@@ -74,6 +74,12 @@ const NOISE =
    cada render não muda nada. */
 const PRICING_SKY = pricingGradientCss();
 
+/* a dissolução do recife na água — ver o comentário longo na faixa, lá embaixo,
+   pro porquê de existir. Aqui só o número: 22% é a travessia, e ela é ASSIMÉTRICA
+   de propósito (nada em baixo/nas laterais) porque só a borda de cima do asset
+   encosta no gradiente; as outras três morrem fora da tela. */
+const REEF_MASK = "linear-gradient(to bottom, transparent 0%, #000 22%)";
+
 /* vidro fumê — versão MOBILE: card alto e estreito, single column. Um
    gradiente diagonal correria quase na vertical nessa proporção e a região
    mais rala cairia embaixo do checklist/CTA, matando o contraste do texto
@@ -241,23 +247,39 @@ export default function Pricing() {
     >
       {/* AMBIENTE — a cena NÃO é mais o fundo inteiro da seção: é uma faixa
           de rodapé, o "chão" da section. h-[40%] ancorado em bottom-0 (não
-          inset-0): céu noturno/twilight à esquerda, o monograma "A" luminoso
-          à direita sobre musgo e cristais, ocupando só os 40% de baixo. Os
-          60% de cima não herdam mais o creme do body — a section tem céu
-          próprio (PRICING_STOPS em lib/sky), que resolve no azul exato deste
-          mesmo asset na altura onde o corte do object-cover cai, pra emenda
-          entre a faixa e o resto da section sumir em vez de bater contra o
-          creme. z-0 pra ficar atrás de tudo; por cima da faixa
-          seguem as cáusticas do Underwater e o film grain, na mesma ordem de
-          antes. Ver o cabeçalho de Underwater.tsx pro porquê da água ser
-          clara (a pill escura do CTA foi desenhada pra viver sobre o
-          creme). */}
+          inset-0): o recife, com o monograma "A" luminoso ao centro-direita
+          sobre corais, ocupando só os 40% de baixo. Os 60% de cima não herdam
+          o creme do body — a section tem água própria (PRICING_STOPS em
+          lib/sky), que desce do creme do Mergulho até o teal deste asset. z-0
+          pra ficar atrás de tudo; por cima da faixa seguem as cáusticas do
+          Underwater e o film grain, na mesma ordem de antes. Ver o cabeçalho
+          de Underwater.tsx pro porquê da água ser clara (a pill escura do CTA
+          foi desenhada pra viver sobre o creme).
+
+          A MÁSCARA NÃO É ENFEITE — é o que faz a emenda existir.
+
+          O asset antigo era céu liso: uma cor só na borda do corte, então
+          bastava o gradiente terminar naquela cor exata e a emenda sumia sem
+          máscara nenhuma. Este não é. A borda de cima do recife varia no
+          horizontal — os cantos morrem em ~#02243C e os god rays do meio
+          batem ~#86BFCD. Contra isso NENHUMA cor única de gradiente fecha a
+          conta: medido sem máscara, a emenda dava um degrau de ~180/255 num
+          único pixel de altura, nos dois cantos. Uma cor não resolve variação;
+          só a dissolução resolve. Daí o mesmo recurso da DIVE_MASK do
+          Underwater (transparent → black nos primeiros %): o recife entra por
+          fade em cima e a linha reta não tem onde aparecer. 22% de 40% da
+          section ≈ 105px de travessia a 1440 — o bastante pra sumir, pouco o
+          bastante pra não lavar o coral. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[40%]"
+        style={{
+          maskImage: REEF_MASK,
+          WebkitMaskImage: REEF_MASK,
+        }}
       >
         <Image
-          src="/pricing-hero-bg.webp"
+          src="/pricing-reef-bg.webp"
           alt=""
           fill
           priority={false}

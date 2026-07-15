@@ -172,19 +172,27 @@ function Caustics({ reduce }: { reduce: boolean }) {
       // uLight tem que ser BRANCO PURO: é o neutro do multiply, o valor que
       // deixa o fundo intacto sob as cristas da cáustica.
       uLight: { value: new THREE.Color("#FFFFFF") },
-      /* A tinta da água entre os fios. AZUL, não mais lavanda (#A08FC4).
+      /* A tinta da água entre os fios. TEAL, não mais periwinkle (#7FA3CE) —
+         e antes disso já tinha sido lavanda (#A08FC4).
 
          Enquanto a seção não tinha fundo próprio, esta cor era a única coisa
          pintando o Pricing: multiply de lavanda sobre o creme do body dava todo
-         o roxo da seção. Agora quem pinta é o céu (PRICING_STOPS em lib/sky), e
+         o roxo da seção. Agora quem pinta é a água (PRICING_STOPS em lib/sky), e
          esta camada voltou ao papel que devia ter — a água tinge o que já está
-         lá. Lavanda sobre um céu azul só sujaria o azul de volta pra roxo.
+         lá. Lavanda sobre um fundo azul só sujaria o azul de volta pra roxo.
 
-         Amostrada do próprio céu de /pricing-hero-bg.webp, um degrau acima do
-         #5E87B8 da emenda: como é multiply, ela precisa ser mais CLARA que a
-         cor final que se quer — sobre o céu pálido do topo ela cai em ~#A2BBD9,
-         sobre o azul da base em ~#4B73A9. */
-      uDeep: { value: new THREE.Color("#7FA3CE") },
+         AS TRÊS COISAS SÃO UM PARAFUSO SÓ, e é por isso que ela mudou de novo:
+         asset de fundo, PRICING_STOPS e este uDeep. O periwinkle era amostrado
+         do céu do asset ANTIGO (o monólito no musgo). O asset virou recife
+         ciano, os stops seguiram pro teal, e uma tinta periwinkle por cima disso
+         puxaria o recife de volta pro roxo — o mesmo erro da lavanda, só que uma
+         geração depois. Trocou o asset? Estas três andam juntas.
+
+         Como é multiply, ela precisa ser mais CLARA que a cor final que se quer:
+         multiply só escurece, e um teal "correto" aqui chegaria ao olho como
+         teal-noite. Sobre a água pálida do topo ela cai em ~#A8C6CE, sobre o
+         teal da base em ~#4E8FA0. */
+      uDeep: { value: new THREE.Color("#8FC0CE") },
       uIntensity: { value: 0.6 },
     }),
     [],

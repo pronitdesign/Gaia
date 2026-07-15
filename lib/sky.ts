@@ -86,33 +86,51 @@ export const DIVE_STOPS: SkyStop[] = [
   { color: "#FAF9F5", pos: 1.0 },
 ];
 
-/* O céu do PRICING — o terceiro da cadeia, e o primeiro que é AZUL.
+/* A ÁGUA DO PRICING — o terceiro da cadeia, e o primeiro que não é céu.
 
-   Nasce no #FAF9F5 exato em que o Mergulho morre (ver DIVE_STOPS) e resolve no
-   #5E87B8 do céu de /pricing-hero-bg.webp, na altura precisa em que o corte do
-   object-cover cai — medido, não estimado: a faixa é h-[40%] com object-cover
-   de um asset 2400×1339, o que mostra a fatia y∈[0.232, 0.768] dele, e o céu
-   naquela borda de cima é #5E87B8. Por isso o stop de 0.60 (topo da faixa) é
-   essa cor: a emenda entre o gradiente e a imagem não existe como linha.
+   Nasce no #FAF9F5 exato em que o Mergulho morre (ver DIVE_STOPS) e desce até o
+   teal de /pricing-reef-bg.webp, o recife que ocupa os 40% de baixo da seção.
 
-   POR QUE CLARO EM CIMA, E NÃO O AZUL FUNDO DO TOPO DO ASSET: um céu de verdade
-   escurece pra cima, e extrapolar a rampa do asset até o topo da seção daria uns
-   #2E6099. Só que é sobre esses 60% de cima que "Sem surpresa no fim do mês."
-   (text-neutro-800) é lida, e texto escuro sobre azul-noite não se lê. A mesma
-   régua do Underwater ("por que a água é clara"): a profundidade vem da luz, não
-   do escuro. Este céu é a inversão de um céu — claro em cima, saturando ao
-   descer — pelo mesmo motivo que o do Mergulho é.
+   ELE ERA PERIWINKLE (#5E87B8) E VIROU TEAL — a troca do asset é que mandou.
 
-   A travessia creme→azul mora nos primeiros 10%, espelhando a DIVE_MASK do
+   O asset antigo era um monólito sobre musgo num céu de twilight, e o
+   #5E87B8 não era escolha estética: era o céu DELE amostrado na altura exata em
+   que o corte do object-cover caía, pra emenda não existir como linha. Trocado o
+   asset, aquela cor virou uma dívida — periwinkle encostado num recife ciano lê
+   como duas seções coladas, não como uma. Os stops de baixo agora perseguem o
+   teal do recife pelo mesmo motivo que perseguiam o azul do céu antes: a emenda
+   é com a imagem que está lá.
+
+   E A EMENDA NÃO SE RESOLVE MAIS SÓ AQUI. O céu antigo era liso — uma cor só na
+   borda do corte, então um stop bastava. A borda do recife varia no horizontal
+   (cantos ~#02243C, god rays ~#86BFCD): cor nenhuma cobre isso. Quem fecha é a
+   REEF_MASK em Pricing.tsx, que dissolve o topo do asset. Estes stops fazem
+   metade do trabalho — chegar no teal certo; a máscara faz a outra metade.
+   Mexer num sem olhar o outro é remendar meia emenda.
+
+   POR QUE CLARO EM CIMA, E NÃO O TEAL FUNDO DO TOPO DO ASSET: é sobre esses 60%
+   de cima que "Sem surpresa no fim do mês." (text-neutro-800) é lida, e texto
+   escuro sobre água-noite não se lê. A mesma régua do Underwater ("por que a
+   água é clara"): a profundidade vem da luz, não do escuro. Aqui isso deixou até
+   de ser inversão e virou literal — água clara na superfície escurecendo pro
+   fundo é o que água faz. O gradiente virou o que a seção sempre fingiu ser.
+
+   A travessia creme→água mora nos primeiros 10%, espelhando a DIVE_MASK do
    Underwater (transparent 0% → black 10%): o leitor sai do creme do Mergulho e
-   entra no azul sem que apareça um corte reto entre as seções. */
+   entra na água sem que apareça um corte reto entre as seções.
+
+   OS VALORES SÃO PRÉ-MULTIPLY, e é por isso que parecem claros demais pro que se
+   vê na tela. As cáusticas do Underwater passam por cima em multiply (uDeep), e
+   multiply só escurece: medido, o #5E87B8 antigo chegava ao olho como ~#375A92
+   nos cantos. Quem calibrar estes stops contra screenshot sem descontar isso vai
+   clareá-los pra "corrigir" e estourar a água. */
 export const PRICING_STOPS: SkyStop[] = [
   { color: "#FAF9F5", pos: 0.0 },
-  { color: "#E8EFF5", pos: 0.1 },
-  { color: "#C2D2E4", pos: 0.26 },
-  { color: "#9DB8D6", pos: 0.43 },
-  { color: "#5E87B8", pos: 0.6 },
-  { color: "#5E87B8", pos: 1.0 },
+  { color: "#E7F0F3", pos: 0.1 },
+  { color: "#BCD8E1", pos: 0.26 },
+  { color: "#8CBDCD", pos: 0.43 },
+  { color: "#69B0C0", pos: 0.6 },
+  { color: "#5AA2B4", pos: 1.0 },
 ];
 
 /**
