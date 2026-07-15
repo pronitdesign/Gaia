@@ -34,6 +34,12 @@ import { WaterContext } from "@/components/iphone3d/water/WaterContext";
 export type WaterState = {
   /** 0→1: quanto da água mostrar. 0 = ausente. */
   amount: number;
+  /** 1 = mar correndo, 0 = parado. A entrega (ver deliver() em ScrollPhone)
+   *  trava o fluxo no instante em que o phone toca a superfície — congelar
+   *  em vez de deixar o flow map continuar é o que faz o pico do mergulho
+   *  ler como um FRAME, não como uma travessia que segue rolando embaixo do
+   *  usuário enquanto a câmera automática o leva pro pouso. */
+  flow: number;
 };
 
 /* Altura da superfície no mundo. FIXA — quem se move é a câmera.
@@ -64,11 +70,40 @@ const SPAN = 900;
    rasante quem manda é o reflexo (ver DIVE_STOPS em lib/sky). Os dois juntos é
    que pintam: o céu dá a cor, este tom assina.
 
-   Calibrada contra o submerso do Pricing (Underwater.tsx, uDeep #A08FC4 sobre
-   creme): mergulhar tem que ser passagem contínua de tom, não baque. A superfície
-   vista de cima é mais clara que a água vista de dentro, então este tom fica um
-   degrau acima daquele. Se mexer num, olhe o outro. */
+   Calibrada contra o submerso do Pricing: mergulhar tem que ser passagem
+   contínua de tom, não baque. A superfície vista de cima é mais clara que a água
+   vista de dentro, então este tom fica um degrau acima daquele. Se mexer num,
+   olhe o outro.
+
+   ATENÇÃO — a calibragem está MEIA: este tom ainda é lavanda, e o submerso do
+   Pricing virou AZUL (Underwater.tsx, uDeep #7FA3CE sobre o céu de
+   PRICING_STOPS). A passagem não quebrou porque o DIVE_STOPS resolve em creme
+   antes da emenda, então as duas cores não se encostam — mas a água do Mergulho
+   e a do Pricing deixaram de ser a mesma água. Se o Pricing azul ficar, este tom
+   é o próximo a virar. */
 const WATER_COLOR = "#B7A6D3";
+
+/* Velocidade do flow map. Constante de MÓDULO, não prop viva do JSX: a config
+   do WaterSurfaceComplex é um useMemo cujas deps reconstroem os dois render
+   targets — variar isto por frame (que é o que a entrega precisa) recriaria a
+   água inteira a 60fps. Quem varia por frame é o campo `flowSpeed` da MESH
+   (ver WaterAmount), não este número; ele só fixa o ritmo de quando o mar
+   está correndo. */
+const FLOW_SPEED = 0.02;
+
+/* Onde a água dissolve na página, em distância do olho — ver u_fade em
+   WaterComplex pra POR QUE isto existe e por que a névoa não dá conta.
+
+   Os números saem da geometria da câmera, não do gosto. No pico o olho está a
+   ~0.38 acima da superfície, então a altura na tela é atan(0.38/r): r=12 cai a
+   ~1.8° abaixo do horizonte (y≈212 num viewport de 900) e r=40 a ~0.5° (y≈190).
+   A dissolução inteira mora nesses ~22px logo abaixo do horizonte — que é
+   exatamente onde a borda dura do plano aparecia. Fora dessa faixa a água é
+   cheia, e o phone cruza a ~4 do olho, bem dentro do cheio.
+
+   Constante de MÓDULO, não literal inline: a config do WaterSurfaceComplex é um
+   useMemo cujas deps reconstroem a água inteira (dois render targets). */
+const WATER_FADE: [number, number] = [12, 40];
 
 /* Escreve u_amount na material da água. Precisa ser FILHO do
    WaterSurfaceComplex, porque é ele quem provê o WaterContext com o ref da
@@ -109,6 +144,14 @@ function WaterAmount({ stateRef }: { stateRef: React.MutableRefObject<WaterState
     const d = stateRef.current.amount;
     const t = Math.min(1, Math.max(0, d / 0.22));
     m.uniforms.u_amount.value = t * t * (3 - 2 * t);
+
+    /* O mesh (não a config do useMemo) é quem recebe o campo mutável — ver o
+       comentário de FLOW_SPEED. Multiplicar por `flow` é o que congela o mar
+       no pico da entrega sem tocar no clock interno do WaterComplex: ele
+       segue descontando delta a cada frame, só que contra um flowSpeed=0, e
+       por isso não acumula salto pra quando o fluxo voltar. */
+    const mesh = ref?.current;
+    if (mesh) mesh.flowSpeed = FLOW_SPEED * stateRef.current.flow;
   });
   return null;
 }
@@ -144,13 +187,33 @@ export default function WaterScene({
         // elas esticariam em borrões do tamanho do oceano.
         scale={18}
         flowDirection={[1.0, 0.35]}
-        flowSpeed={0.02}
+        flowSpeed={FLOW_SPEED}
         // reflectivity alimenta o termo de Fresnel: quanto o reflexo ganha da
         // refração. Perto de 1 vira espelho puro (lê como vidro); baixo demais e
         // o reflexo do phone some.
-        reflectivity={0.6}
+        //
+        // Baixado de 0.6 → 0.35, e isto foi MEDIDO contra a queixa "capinha",
+        // não escolhido por gosto. A tentativa óbvia — subir pra 0.88, virar
+        // quase espelho — foi renderizada e REJEITADA: no render, o degrau
+        // continuava exatamente no mesmo lugar, cortando o corpo do phone; só
+        // trocou de tom (de tingido pra mais prateado). Reflectivity alta não
+        // esconde o submerso, só troca a cor da laje. Não subir este número de
+        // volta achando que é regressão — já foi tentado.
+        //
+        // 0.35 vai no sentido contrário: MAIS refração, não menos. É a
+        // refração (não o reflexo) que deixa o corpo submerso aparecer com
+        // distorção de onda em vez de um corte reto — e é essa distorção,
+        // mais a normal map do WaterSurfaceComplex, que quebra a linha do
+        // horizonte em vez de deixá-la um degrau duro atravessando o quadro.
+        // A ondulação que isso traz na superfície é INTENCIONAL: é o que faz
+        // a água ler como água, não como vidro. Ver o ataque ao tingimento em
+        // WaterComplex.ts (`base = mix(tintedRefract, ...)`), que anda junto
+        // com esta mudança — sem ele, mais refração só mostraria mais do
+        // aparelho pintado de WATER_COLOR, o mesmo bug com o dial invertido.
+        reflectivity={0.35}
         fxDistortionFactor={0.06}
         fxDisplayColorAlpha={0.0}
+        fade={WATER_FADE}
       >
         <WaterAmount stateRef={stateRef} />
         {/* rastro de ondas no ponteiro. É o filho que preenche u_fx — sem ele o

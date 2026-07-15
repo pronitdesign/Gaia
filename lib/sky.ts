@@ -86,6 +86,35 @@ export const DIVE_STOPS: SkyStop[] = [
   { color: "#FAF9F5", pos: 1.0 },
 ];
 
+/* O céu do PRICING — o terceiro da cadeia, e o primeiro que é AZUL.
+
+   Nasce no #FAF9F5 exato em que o Mergulho morre (ver DIVE_STOPS) e resolve no
+   #5E87B8 do céu de /pricing-hero-bg.webp, na altura precisa em que o corte do
+   object-cover cai — medido, não estimado: a faixa é h-[40%] com object-cover
+   de um asset 2400×1339, o que mostra a fatia y∈[0.232, 0.768] dele, e o céu
+   naquela borda de cima é #5E87B8. Por isso o stop de 0.60 (topo da faixa) é
+   essa cor: a emenda entre o gradiente e a imagem não existe como linha.
+
+   POR QUE CLARO EM CIMA, E NÃO O AZUL FUNDO DO TOPO DO ASSET: um céu de verdade
+   escurece pra cima, e extrapolar a rampa do asset até o topo da seção daria uns
+   #2E6099. Só que é sobre esses 60% de cima que "Sem surpresa no fim do mês."
+   (text-neutro-800) é lida, e texto escuro sobre azul-noite não se lê. A mesma
+   régua do Underwater ("por que a água é clara"): a profundidade vem da luz, não
+   do escuro. Este céu é a inversão de um céu — claro em cima, saturando ao
+   descer — pelo mesmo motivo que o do Mergulho é.
+
+   A travessia creme→azul mora nos primeiros 10%, espelhando a DIVE_MASK do
+   Underwater (transparent 0% → black 10%): o leitor sai do creme do Mergulho e
+   entra no azul sem que apareça um corte reto entre as seções. */
+export const PRICING_STOPS: SkyStop[] = [
+  { color: "#FAF9F5", pos: 0.0 },
+  { color: "#E8EFF5", pos: 0.1 },
+  { color: "#C2D2E4", pos: 0.26 },
+  { color: "#9DB8D6", pos: 0.43 },
+  { color: "#5E87B8", pos: 0.6 },
+  { color: "#5E87B8", pos: 1.0 },
+];
+
 /**
  * A cor do gradiente na fração `t`, em [r,g,b] 0–1.
  *
@@ -137,6 +166,10 @@ export const skyGradientCss = (angle = "180deg") => gradientCss(SKY_STOPS, angle
 
 /** O gradiente CSS do Mergulho. Sky3D lê os MESMOS stops. */
 export const diveGradientCss = (angle = "180deg") => gradientCss(DIVE_STOPS, angle);
+
+/** O gradiente CSS do Pricing — o fundo da seção, sob a faixa do asset. */
+export const pricingGradientCss = (angle = "180deg") =>
+  gradientCss(PRICING_STOPS, angle);
 
 /**
  * Onde a superfície mora, em fração da seção do Mergulho.

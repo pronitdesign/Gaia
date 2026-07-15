@@ -18,6 +18,8 @@ type Props = {
 	reflectivity?: number;
 	fxDistortionFactor?: number;
 	fxDisplayColorAlpha?: number;
+	/** [GAIA] Ver `u_fade` em WaterComplex. [cheia, sumida] em distância do olho. */
+	fade?: Vector2 | [number, number];
 };
 
 export default function WaterSurfaceComplex({
@@ -33,6 +35,7 @@ export default function WaterSurfaceComplex({
 	reflectivity = 1.2,
 	fxDistortionFactor = 0.2,
 	fxDisplayColorAlpha = 0.0,
+	fade,
 }: Props) {
 	const ref = useRef<any>();
 	const refPointer = useRef(new Vector2(0, 0));
@@ -61,10 +64,16 @@ export default function WaterSurfaceComplex({
 			encoding: (gl as any).encoding,
 			fxDistortionFactor: fxDistortionFactor,
 			fxDisplayColorAlpha: fxDisplayColorAlpha,
+			fade: fade,
 		}),
+		// [GAIA] Estas deps reconstroem a WaterComplex INTEIRA — dois render
+		// targets e dois passes. Quem passa `fade` tem que passar um valor
+		// ESTÁVEL (constante de módulo): um literal `[a,b]` inline é um objeto
+		// novo a cada render e recriaria a água todo frame.
 		[
 			color,
 			dimensions,
+			fade,
 			flowDirection,
 			flowSpeed,
 			fxDisplayColorAlpha,

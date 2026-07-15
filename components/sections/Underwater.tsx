@@ -16,8 +16,13 @@ POR QUE A ÁGUA É CLARA: os cards do Pricing são "vidro claro frosted sobre o
 fundo neutro-50" e o CTA é uma pill ESCURA desenhada pra viver sobre creme. Água
 funda e escura apagaria a pill contra o fundo e mataria a legibilidade do preço.
 Então isto é água RASA: logo abaixo de uma superfície iluminada, pálida e
-luminosa — o que também casa com o gradiente do Manifesto, que morre em lavanda
-pálida. A profundidade vem da luz, não do escuro.
+luminosa. A profundidade vem da luz, não do escuro — a mesma régua que faz o céu
+da seção ser claro em cima (ver PRICING_STOPS em lib/sky) em vez de escurecer
+pra cima como um céu de verdade.
+
+E ela é AZUL desde que a seção ganhou céu próprio. Antes esta camada era o único
+pigmento do Pricing e tingia o creme do body de lavanda; hoje o azul vem do céu
+e ela só assina por cima. Ver uDeep.
 
 BLEND — e a lição que veio junto: `multiply`, não `screen`.
 
@@ -167,9 +172,19 @@ function Caustics({ reduce }: { reduce: boolean }) {
       // uLight tem que ser BRANCO PURO: é o neutro do multiply, o valor que
       // deixa o fundo intacto sob as cristas da cáustica.
       uLight: { value: new THREE.Color("#FFFFFF") },
-      // a tinta da água entre os fios — lavanda da faixa onde ela vive
-      // (lib/sky: #A493C2 → #D5CCE0)
-      uDeep: { value: new THREE.Color("#A08FC4") },
+      /* A tinta da água entre os fios. AZUL, não mais lavanda (#A08FC4).
+
+         Enquanto a seção não tinha fundo próprio, esta cor era a única coisa
+         pintando o Pricing: multiply de lavanda sobre o creme do body dava todo
+         o roxo da seção. Agora quem pinta é o céu (PRICING_STOPS em lib/sky), e
+         esta camada voltou ao papel que devia ter — a água tinge o que já está
+         lá. Lavanda sobre um céu azul só sujaria o azul de volta pra roxo.
+
+         Amostrada do próprio céu de /pricing-hero-bg.webp, um degrau acima do
+         #5E87B8 da emenda: como é multiply, ela precisa ser mais CLARA que a
+         cor final que se quer — sobre o céu pálido do topo ela cai em ~#A2BBD9,
+         sobre o azul da base em ~#4B73A9. */
+      uDeep: { value: new THREE.Color("#7FA3CE") },
       uIntensity: { value: 0.6 },
     }),
     [],

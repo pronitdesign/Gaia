@@ -32,6 +32,8 @@ type WaterOptions = {
 	encoding?: 3000 | 3001 | any;
 	fxDisplayColorAlpha?: number;
 	fxDistortionFactor?: number;
+	/** [GAIA] Ver `u_fade` nos uniforms. [cheia, sumida] em distância do olho. */
+	fade?: Vector2 | [number, number];
 };
 
 class WaterComplex extends Mesh {
@@ -79,6 +81,30 @@ class WaterComplex extends Mesh {
 			   do Pricing, senão o Canvas (z-[60], por cima da página inteira) a
 			   deixaria boiando sobre as outras seções. */
 			u_amount: { value: 1.0 },
+
+			/* [GAIA] Onde a água DISSOLVE na página, em distância do olho.
+			   x = ainda cheia; y = já sumiu. Entre os dois, smoothstep no alpha.
+
+			   É isto que apaga o corte reto no horizonte — NÃO a névoa. A névoa não
+			   pode fazer esse trabalho nesta câmera, e isso é geometria, não tuning:
+			   no pico do mergulho o olho fica ~0.38 acima da superfície, e distância
+			   na água vira altura de tela por atan(0.38/r), que satura brutalmente.
+			   Com FOG_FAR=320, o ponto 100% enevoado cai a 0.05° abaixo do
+			   horizonte — UM PIXEL. A rampa inteira da névoa vivia dentro do último
+			   pixel do quadro, enquanto os ~700px de água visível estavam todos em
+			   r<30, praticamente sem névoa. Medido: em y=190 a água tinha 3.7% de
+			   névoa, e de y=182 a y=900 a cor não se movia — degrau seco de
+			   (181,165,207) pra (151,123,187) na linha do horizonte. Nenhum valor de
+			   FOG_NEAR/FOG_FAR salvava isso.
+
+			   Alpha resolve melhor do que névoa resolveria: névoa acerta UMA cor
+			   (por isso o FogSync amostra o gradiente por frame, e ainda assim só
+			   acerta naquela linha). Alpha não acerta cor nenhuma — ele SOME, e o
+			   que aparece é o gradiente CSS de verdade, com o grão e o halo dele. O
+			   Canvas é overlay transparente sobre a página: a costura perfeita
+			   sempre esteve embaixo, bastava parar de pintar por cima dela.
+			   Medido depois: degrau de (30,42,20) → (1,1,0). */
+			u_fade: { value: new Vector2(12.0, 40.0) },
 		},
 
 		vertexShader: /* glsl */ `
@@ -136,7 +162,8 @@ class WaterComplex extends Mesh {
             uniform float fxDistortionFactor;
             uniform float fxDisplayColorAlpha;
             uniform float u_amount;
-    
+            uniform vec2 u_fade;
+
             varying vec4 vCoord;
             varying vec2 vUv;
             varying vec3 vToEye;
@@ -199,10 +226,38 @@ class WaterComplex extends Mesh {
                 // rasante → reflete o céu; a pino → enxerga dentro d'água.
                 // Sem ele não existe "atravessar", só "desaparecer".
                 float luminance = dot(fx.rgb * fxDisplayColorAlpha, vec3(0.299, 0.587, 0.114));
-                vec3 base = color * mix( refractColor.rgb, reflectColor.rgb, reflectance );
+
+                // [GAIA] Tingimento ASSIMETRICO entre reflexo e refracao.
+                //
+                // Antes, color multiplicava o mix inteiro - reflexo E refracao pelo
+                // mesmo peso. Isso pintava o phone SUBMERSO (o que aparece via
+                // refracao, olhando pra dentro dagua) do tom inteiro de
+                // WATER_COLOR, e um objeto pintado do tom da agua nao le como
+                // submerso: le como encapado. Foi a queixa "ele ta tipo com
+                // capinha, mudando de cor meio quebrado" - e subir reflectivity pra
+                // esconder isso atras de mais reflexo so trocou o TOM da capinha,
+                // nao tirou a capinha (testado e descartado; ver reflectivity em
+                // WaterScene.tsx).
+                //
+                // A distincao certa nao e reflexo-alto vs refracao-alta, e sim QUEM
+                // cada um tinge. Reflexo e a cor da agua que se ve (o ceu batendo
+                // na superficie) - faz sentido ele carregar o tom inteiro. Refracao
+                // e o que esta DENTRO dela, olhando atraves - precisa manter a cor
+                // REAL do objeto, so ligeiramente tingida (25%), senao "atravessar"
+                // volta a ser "desaparecer atras de uma cor chapada".
+                vec3 tintedRefract = mix(refractColor.rgb, color * refractColor.rgb, 0.25);
+                vec3 base = mix(tintedRefract, color * reflectColor.rgb, reflectance);
                 vec3 mixedColor = mix(base, fx.rgb * fxDisplayColorAlpha, luminance * fxDisplayColorAlpha);
 
-                gl_FragColor = vec4(mixedColor, u_amount);
+                /* [GAIA] A dissolução. Ver u_fade nos uniforms.
+
+                   length(vToEye), não a profundidade de câmera: o que decide a
+                   altura na tela num plano horizontal é a distância RADIAL até o
+                   olho. Profundidade em Z daria uma faixa reta e a borda voltaria,
+                   torta. */
+                float fade = 1.0 - smoothstep( u_fade.x, u_fade.y, length( vToEye ) );
+
+                gl_FragColor = vec4(mixedColor, u_amount * fade);
     
                 #include <tonemapping_fragment>
                 #include <colorspace_fragment>
@@ -210,6 +265,15 @@ class WaterComplex extends Mesh {
     
             }`,
 	};
+
+	/** [GAIA] Velocidade do fluxo, exposta como campo mutável — não const de
+	 *  closure. A entrega (ScrollPhone.deliver()) precisa PARAR o mar no
+	 *  instante do gatilho sem recriar a instância (que já vinha de um
+	 *  useMemo caro, dois render targets). `updateFlow()` lê este campo a
+	 *  cada frame, então zerá-lo congela o fluxo imediatamente; `clock`
+	 *  continua descontando o tempo mesmo assim, então voltar a 1 não herda
+	 *  um salto acumulado do período parado. */
+	flowSpeed = 0.03;
 
 	/** [GAIA] 1×1 preto, compartilhado. Ver o uso em `// fx` no constructor. */
 	private static _fxFallback: Texture | null = null;
@@ -239,7 +303,7 @@ class WaterComplex extends Mesh {
 		const textureHeight = options.textureHeight || 512;
 		const clipBias = options.clipBias || 0;
 		const flowDirection = options.flowDirection || new Vector2(1, 0);
-		const flowSpeed = options.flowSpeed || 0.03;
+		scope.flowSpeed = options.flowSpeed || 0.03;
 		const reflectivity = options.reflectivity || 0.02;
 		const scale = options.scale || 1;
 		const shader: any = options.shader || WaterComplex.WaterShader;
@@ -350,6 +414,14 @@ class WaterComplex extends Mesh {
 		(this.material as any).uniforms['fxDisplayColorAlpha'].value =
 			fxDisplayColorAlpha;
 
+		// dissolução
+		if (options.fade !== undefined) {
+			const f = options.fade;
+			(this.material as any).uniforms['u_fade'].value = Array.isArray(f)
+				? new Vector2(f[0], f[1])
+				: f.clone();
+		}
+
 		// inital values
 
 		(this.material as any).uniforms['config'].value.x = 0; // flowMapOffset0
@@ -388,7 +460,7 @@ class WaterComplex extends Mesh {
 			const delta = clock.getDelta();
 			const config = (scope.material as any).uniforms['config'];
 
-			config.value.x += flowSpeed * delta; // flowMapOffset0
+			config.value.x += scope.flowSpeed * delta; // flowMapOffset0
 			config.value.y = config.value.x + halfCycle; // flowMapOffset1
 
 			// Important: The distance between offsets should be always the value of "halfCycle".

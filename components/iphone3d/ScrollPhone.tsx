@@ -31,13 +31,18 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { gsap } from "gsap";
+import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import IPhoneModel from "@/components/iphone3d/IPhoneModel";
 import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 import Sky3D from "@/components/iphone3d/Sky3D";
-import Depth from "@/components/iphone3d/Depth";
 import WaterScene, { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
 import { DIVE_STOPS, SKY_STOPS, sampleStops } from "@/lib/sky";
+
+// A ENTREGA usa scrollTo — sem registrar o plugin, gsap.to({ scrollTo }) é
+// no-op silencioso (a propriedade não existe) e o phone travaria no pico do
+// mergulho pra sempre, porque a timeline "completaria" sem mover a página.
+gsap.registerPlugin(ScrollToPlugin);
 
 const TWO_PI = Math.PI * 2;
 // Yaw nas duas pontas: Features reto de frente (Math.PI), Pricing em 3/4 mais
@@ -49,15 +54,37 @@ const START_TILT: [number, number] = [0, 0]; // reto, sem inclinação
 const END_TILT: [number, number] = [0.1, -0.19]; // [x, z] = PHONE_POSE do Pricing
 const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário
 // END_G morreu como constante — virou lerp(START_G, endG, eP) em place(), com
-// endG = rect.height / REF_H lido AO VIVO de [data-phone-end] a cada frame.
-// Era 820/900 fixo, calibrado à mão pro slot 461×820 do Pricing; quando o
-// Pricing mudou o slot pra outro tamanho (405×720 na 1ª tentativa, depois
-// breakpoints em px), o número ficou pra trás e o phone passou a renderizar
-// maior que o espaço reservado, cobrindo o texto ao lado. Constante e DOM
-// não têm como ficar sincronizados por acordo tácito — só lendo o rect é que
-// o slot vira fonte única da verdade, e o phone acompanha qualquer tamanho
-// que o Pricing decidir (inclusive por breakpoint) sem ninguém ter que
-// lembrar de atualizar os dois lados.
+// endG derivado do rect AO VIVO de [data-phone-end] a cada frame (ver
+// PHONE_FILL abaixo pra fórmula exata). Era 820/900 fixo, calibrado à mão
+// pro slot 461×820 do Pricing; quando o Pricing mudou de tamanho (405×720,
+// depois breakpoints em px), o número ficou pra trás e o phone passou a
+// renderizar maior que o espaço reservado, cobrindo o texto ao lado.
+// Constante e DOM não têm como ficar sincronizados por acordo tácito — só
+// lendo o rect é que o slot vira fonte única da verdade.
+//
+// Mas ler `rect.height/REF_H` sozinho não bastou: medido no render, o phone
+// só preenchia ~75% da altura do slot (508/676 em xl, 372/498 em lg) — o
+// resto virava buraco morto no rodapé do card, porque o slot dita a altura
+// do CARD (ver Pricing.tsx) mas o phone não dita a altura do SLOT. PHONE_FILL
+// é essa razão medida; dividir endG por ela faz a altura RENDERIZADA do
+// phone igualar a altura do slot, então "reservar 500px" passa a significar
+// "o phone tem 500px", não "o phone tem 375px dentro de uma moldura de
+// 500px". Não é uma constante que sobrevive a qualquer mudança de
+// modelo/pose sem reconferir — é a mesma calibração manual que END_G sempre
+// foi, só que agora RELATIVA (fração do slot), não absoluta (px fixo), e
+// por isso sobrevive a qualquer tamanho de slot que o Pricing declarar.
+const PHONE_FILL = 0.75;
+// Com PHONE_FILL certo, o phone ainda pousava DESLOCADO pra cima dentro do
+// slot — 30px de folga em cima contra 138px embaixo, medido @1440 (14 vs
+// 112 @1024, mesma proporção). Não é erro de escala: é o PIVOT do glb, que
+// não fica no centro visual do aparelho (ver IPhoneModel — a malha nunca
+// foi centrada no local origin). placeWorld mira a ORIGEM do group no
+// centro do slot; se a malha visual fica acima dessa origem, o efeito é o
+// aparelho inteiro nascer alto. Corrigido em place(): o alvo vertical usado
+// pro pouso soma uma fração da altura do slot, então a origem mira um pouco
+// ABAIXO do centro geométrico — o suficiente pra o CENTRO VISUAL do phone
+// (não a origem) acabar no centro do slot.
+const PHONE_PIVOT_BIAS = 0.12; // fração de rect.height, medida no render (xl/lg)
 
 /* CÂMERA — conhecida aqui fora porque place() roda no gsap.ticker, fora do
    React. Se mudar no <PerspectiveCamera>, mude aqui. */
@@ -87,24 +114,39 @@ const DIVE_PITCH = -0.30; // ~17°
 const DIVE_DROP = 0.9;
 /** Quanto o phone encolhe no pico do mergulho. Ver o uso em placeWorld. */
 const DIVE_SHRINK = 0.42;
+/** Abaixo deste dive o piso da água larga o phone. Ver o uso em placeWorld. */
+const FLOOR_FADE = 0.15;
 
-/* NÉVOA — o que apaga o corte no horizonte.
+/* NÉVOA — o que entrega a seção nas bordas da janela.
 
-   Sem névoa a água acaba numa linha reta contra o céu, e essa linha lê como
-   emenda de seção, não como distância. Água não termina: ela dissolve na cor do
-   céu conforme se afasta.
+   ATENÇÃO: ela NÃO apaga o horizonte, e este arquivo já afirmou que sim. Não
+   afirma mais porque foi medido. Quem apaga o horizonte é o alpha da água (ver
+   u_fade em WaterComplex).
 
-   Mas a cor da névoa NÃO pode ser fixa. Ela tem que ser a cor do céu exatamente
-   na altura do horizonte — e essa altura muda a cada frame, porque a câmera
-   inclina no mergulho e a seção rola. Um hex fixo casa num frame e deixa um
-   degrau em todos os outros; e degrau é justamente o corte que se quer sumir.
-   Por isso FogSync amostra DIVE_STOPS por frame na fração do gradiente onde o
-   horizonte cai.
+   Por que a névoa não pode fazer aquilo, e nenhum número salvaria: no pico do
+   mergulho o olho fica ~0.38 acima da superfície. Num plano horizontal, distância
+   vira altura de tela por atan(0.38/r) — que satura brutalmente. Com FOG_FAR=320,
+   o ponto 100% enevoado cai a 0.05° abaixo do horizonte: UM PIXEL. A rampa
+   inteira da névoa vivia dentro do último pixel do quadro, enquanto os ~700px de
+   água visível estavam todos em r<30, praticamente sem névoa nenhuma. Medido: a
+   água em y=190 tinha 3.7% de névoa, e de y=182 a y=900 a cor não se movia — um
+   degrau seco de (181,165,207) pra (151,123,187) na linha do horizonte. Foi por
+   isso que ele sobreviveu a tantas rodadas de tuning aqui.
 
-   FOG_NEAR/FOG_FAR são a névoa NO PICO: só distância, phone (a ~4 da câmera)
-   limpo.
+   O que a névoa AINDA faz, e bem: fechar (near→0, far→HAZE_FAR) nas pontas da
+   janela e engolir a cena até o quadro virar uma cor só. É nesse quadro que a
+   água desmonta sem ninguém ver, e é o oposto na entrada — ela nasce de dentro da
+   névoa. Isso é distância CURTA (HAZE_FAR=3, menor que CAM_Z), e distância curta
+   a geometria acima não estraga. É como a peachweb entrega a seção dela.
 
-   NAS BORDAS DA JANELA ELA FECHA E ENGOLE TUDO — e é isto que entrega a seção.
+   A cor da névoa não pode ser fixa: tem que ser a cor do céu na altura do
+   horizonte, e essa altura muda por frame (a câmera inclina, a seção rola). Um
+   hex fixo casa num frame e deixa degrau em todos os outros. Por isso FogSync
+   amostra os stops por frame — e continua valendo pro fechamento das pontas.
+
+   FOG_NEAR/FOG_FAR são a névoa ABERTA, no pico: na prática, névoa nenhuma no que
+   se vê. Mantidos porque são o alvo do lerp de abertura, não porque a distância
+   deles signifique alguma coisa em quadro.
 
    É como a peachweb resolve, e é o oposto do que eu vinha tentando. Eu passei
    rodadas caçando a linha do horizonte pra escondê-la. Eles não escondem: no fim
@@ -283,10 +325,18 @@ export default function ScrollPhone() {
   // Água montada? Estado (não ref) porque montar/desmontar é o que evita pagar
   // os passes de reflexão+refração nas seções que não têm água.
   const [waterOn, setWaterOn] = useState(false);
-  const water = useRef<WaterState>({ amount: 0 });
+  // flow começa em 1 (mar correndo): a ENTREGA (ver deliver()) é a única
+  // coisa que o zera, e só no trecho travado do pico.
+  const water = useRef<WaterState>({ amount: 0, flow: 1 });
   // 0→1 do mergulho. Escrito por setDive() e lido por placeWorld() no MESMO
   // frame — o phone deita no mesmo compasso em que a câmera afunda.
   const dive = useRef(0);
+  // PISO do mergulho: fora da entrega fica 0 e dive volta a ser só o bump de
+  // sempre (Math.max com 0 é no-op). Durante a entrega ele é o que segura o
+  // phone deitado na água enquanto o gsap rola a página sozinho — sem um
+  // piso, dive voltaria a cair assim que p passasse de wp, e o "quadro
+  // travado" da entrega nunca existiria.
+  const hold = useRef(0);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -301,11 +351,28 @@ export default function ScrollPhone() {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const altRef = { current: false };
     const wetRef = { current: false };
+    // armed: pode disparar a entrega. Começa FALSE — o gatilho é uma
+    // TRAVESSIA (armar embaixo, cruzar em cima), não um estado, e só quem foi
+    // visto ACIMA da linha d'água pode cruzá-la. Começar true sequestraria
+    // quem chega com o scroll já restaurado abaixo de wp: reload no meio da
+    // página, voltar pelo histórico, ou um deep-link direto pro Pricing — o
+    // browser restaura o scrollY ANTES deste efeito montar, o primeiro
+    // update() já acha p >= wp, e alguém que nunca olhou pra água seria
+    // arrastado por ela. O mesmo branch de histerese que rearma subindo
+    // (p < wp − 0.02, abaixo) também arma na carga: quem carrega no topo
+    // passa por cima da água antes de chegar em wp e arma no caminho — o
+    // fluxo normal não muda em nada. delivering: a cena já tomou o scroll —
+    // existe pra barrar retrigger (o phone continua cruzando p>=wp durante a
+    // própria entrega) e pra place() saber que hold, não bump, é quem manda.
+    const armed = { current: false };
+    const delivering = { current: false };
+    // referência viva da timeline em voo — o escape (item d) e o cleanup
+    // (item f) precisam matar a MESMA instância, não uma nova.
+    let deliverTl: gsap.core.Timeline | null = null;
 
     const ndc = new THREE.Vector3();
     const dir = new THREE.Vector3();
     const onScreen = new THREE.Vector3();
-    const onWater = new THREE.Vector3();
 
     /* Posiciona o grupo 3D a partir de coordenadas de TELA, usando a MATRIZ da
        câmera — não trigonometria à mão.
@@ -319,7 +386,23 @@ export default function ScrollPhone() {
        unproject() usa a matrizWorld real, então funciona pra qualquer pose. O
        phone fica na tela onde o layout mandou, inclinando a câmera ou não.
        Manter a distância fixa em CAM_Z preserva o tamanho em tela: perspectiva
-       encolhe com a distância, e é a distância que seguramos. */
+       encolhe com a distância, e é a distância que seguramos.
+
+       NO MERGULHO O PHONE SOLTA DO DOM.
+
+       Fora do mergulho ele é escravo do layout: nasce no card de Prontuário e
+       pousa no slot do Pricing, pixel-exato, lendo os rects vivos. Isso é
+       inegociável nas duas pontas.
+
+       No meio, não dá pra ser as três coisas ao mesmo tempo — colado à tela,
+       com a câmera se movendo, e cruzando uma água estática. É uma posição com
+       três donos. Medido: com pitch de 17° e queda de 0.9, a tela em cy=698
+       cai no mundo em y ≈ -3.0, e a água está em -1.2. O phone não cruzava a
+       superfície, afundava 1.8 abaixo dela e escurecia.
+
+       Este bloco escreve a posição PROJETADA (onScreen) e já resolve o
+       encontro com a água: clamp da ORIGEM do group em WATER_Y logo abaixo
+       (ver o comentário ali pro porquê do clamp simples, e não por bbox). */
     const placeWorld = (cx: number, cy: number, g: number) => {
       const el = group.current;
       const camera = cam.current;
@@ -333,44 +416,62 @@ export default function ScrollPhone() {
       ndc.unproject(camera);
       dir.copy(ndc).sub(camera.position).normalize();
       onScreen.copy(camera.position).addScaledVector(dir, CAM_Z);
-
-      /* NO MERGULHO O PHONE SOLTA DO DOM.
-
-         Fora do mergulho ele é escravo do layout: nasce no card de Prontuário e
-         pousa no slot do Pricing, pixel-exato, lendo os rects vivos. Isso é
-         inegociável nas duas pontas.
-
-         No meio, não dá pra ser as três coisas ao mesmo tempo — colado à tela,
-         com a câmera se movendo, e cruzando uma água estática. É uma posição com
-         três donos. Medido: com pitch de 17° e queda de 0.9, a tela em cy=698
-         cai no mundo em y ≈ -3.0, e a água está em -1.2. O phone não cruzava a
-         superfície, afundava 1.8 abaixo dela e escurecia.
-
-         Então no pico do mergulho ele vai pra SUPERFÍCIE (mesmo x, y = WATER_Y):
-         deitado, cortado pela linha d'água, entrando pela metade. O lerp por dive
-         devolve ele ao layout nas duas pontas, sem costura, porque dive é um bump
-         que morre em 0 lá. */
-      /* O PHONE CAVALGA A SUPERFÍCIE — nunca afunda enquanto a água existe.
-
-         A versão anterior lerpava a posição dele ATÉ a superfície por dive, e
-         isso o deixava submerso em todo o percurso menos no pico exato: em
-         dive=0.69 ele caía em y ≈ -1.76 com a água em -1.2, meio metro embaixo.
-         Como a água é translúcida, ele aparecia ATRAVÉS dela — o fantasma cinza.
-         Só em dive=1 ele encostava na superfície. Ou seja, passava o mergulho
-         quase inteiro afogado.
-
-         Agora o Y dele é limitado pela superfície assim que a água nasce: ele
-         desce, TOCA a água e deita nela, e só volta a afundar quando o mergulho
-         acaba e a água já saiu. O smoothstep curto faz esse trave nascer sem
-         solavanco; o clamp em si é max(), que só age quando ele passaria pra
-         baixo. Acima da linha, nada muda — a descida continua sendo do layout. */
-      const ride = smoothstep(0.0, 0.15, dive.current);
-      onWater.set(
-        onScreen.x,
-        lerp(onScreen.y, Math.max(onScreen.y, WATER_Y), ride),
-        onScreen.z,
-      );
-      el.position.lerpVectors(onScreen, onWater, ride);
+      // CLAMP DA ORIGEM, NÃO DA BBOX — esta segunda tentativa (a primeira foi
+      // a origem crua, sem clamp nenhum, que afundava o phone visivelmente
+      // abaixo d'água) já passou por um caminho mais sofisticado e ele
+      // FALHOU. Registrando pra ninguém repetir:
+      //
+      // A tentativa era medir a bbox REAL do group depois da rotação
+      // (box.setFromObject(el, false)) e subir o group só o quanto faltasse
+      // pro FUNDO da bbox — não a origem — encostar em WATER_Y. Parecia mais
+      // correto (o pivot do glb não é o centro visual, ver PHONE_PIVOT_BIAS),
+      // mas box.setFromObject no modo não-preciso transforma os 8 CANTOS do
+      // bbox local cacheado de cada mesh pela matriz de mundo — não os
+      // vértices reais. Pra um corpo fino e comprido como o phone, rotacionado
+      // (~40° de yaw efetivo no pico do mergulho, mais tilt/roll), isso infla
+      // o AABB muito além do que o corpo ocupa de verdade: a rotação joga os
+      // cantos da caixa local pra longe, em direções que a malha real nunca
+      // alcança.
+      //
+      // Medido no pico (dive≈0.96): bbox não-precisa deu minY = -4.04; a bbox
+      // PRECISA (setFromObject(el, true), por vértice) deu minY = -1.17 — e o
+      // fundo visível REAL já estava a 0.025 de WATER_Y (-1.2), praticamente
+      // encostado. Overshoot de ~2.87 unidades, quase 2× a altura do próprio
+      // phone (~1.40). O lift calculado em cima do número errado erguia o
+      // aparelho bem mais que o necessário e abria um vão visível entre a
+      // ponta dele e o começo do reflexo — "o phone não entra na água".
+      //
+      // Voltamos ao clamp direto na ORIGEM. É mais grosseiro (não sabe onde
+      // o corpo termina), mas não mente: WATER_Y é uma constante confiável,
+      // o bbox não-preciso rotacionado não é.
+      // O PISO SÓ TEM A AUTORIDADE QUE A ÁGUA TEM.
+      //
+      // Este clamp já foi incondicional, e foi assim que o phone vazou pra FORA
+      // do mergulho — o bug que originou este bloco. Acima do card do Features,
+      // p fica preso em 0 (update() clampeia em [0,1]) mas cy NÃO: ele segue o
+      // rect vivo da âncora e vai a 8402 com a página no topo. O phone está em
+      // worldY -33, muito abaixo da dobra, corretamente fora de quadro — e o
+      // Math.max o erguia pra WATER_Y assim mesmo, que é screenY 740, dentro da
+      // tela. Em escala 1.06, num overlay z-[60], o aparelho cobria o
+      // ComoComeçar e o ARoberta inteiros. "Abaixo da dobra" não é "afundado";
+      // o clamp não sabia a diferença porque não perguntava se havia água ali.
+      //
+      // Agora pergunta. O gate segue dive — a MESMA grandeza que monta a água e
+      // dita a opacidade dela (water.amount = dive, ver setDive). Onde não há
+      // água não há piso, e fora do mergulho gate=0 faz disto um no-op exato.
+      //
+      // FLOOR_FADE é menor que o dive de qualquer frame visível do mergulho,
+      // então no miolo gate=1 e o clamp é bit a bit o de antes: o phone segue de
+      // pé na superfície, com reflexo. O fade existe só pra o piso SOLTAR o
+      // phone de forma contínua nas pontas. Um gate seco (if dive > 0) não
+      // serve: ele largaria o aparelho em p≈0.91 caindo de -1.2 pra -1.9, um
+      // salto de 150px em quadro, porque o piso também mascara o cy real do
+      // trecho final (ver CY PASSA PELO MERGULHO — o alvo do DOM só volta a
+      // subir acima de WATER_Y em p≈0.98). Onde o gate ainda desliza, a água
+      // está abaixo de 15% e ninguém vê o phone cruzá-la.
+      const gate = smoothstep(0, FLOOR_FADE, dive.current);
+      onScreen.y = lerp(onScreen.y, Math.max(onScreen.y, WATER_Y), gate);
+      el.position.copy(onScreen);
 
       /* Na superfície o phone fica mais perto da câmera (ela desceu até quase
          rasar a água), e perspectiva o infla até encher o quadro. DIVE_SHRINK
@@ -407,13 +508,32 @@ export default function ScrollPhone() {
          acompanha sozinho. É o mesmo motivo de tudo aqui ler rect vivo. */
       const waterEl = document.querySelector<HTMLElement>("[data-phone-water]");
       const aC = a.top + a.height / 2;
-      const bC = b.top + b.height / 2;
+      // bC não é o centro geométrico do slot — é o ALVO de pouso, deslocado
+      // pra baixo por PHONE_PIVOT_BIAS pra compensar o pivot do glb (ver
+      // comentário da constante). Feito aqui, não só no ponto final: bC
+      // também é o destino de todo o segundo trecho do lerp (depois da
+      // água), então a correção já nasce embutida em toda a curva de pouso,
+      // em vez de ser um remendo aplicado só depois do cy calculado.
+      const bC = b.top + b.height / 2 + PHONE_PIVOT_BIAS * b.height;
       let cy: number;
       if (waterEl) {
         const w = waterEl.getBoundingClientRect();
         const wC = w.top + w.height / 2;
         const span = bC - aC;
         const wp = span === 0 ? 0.5 : Math.min(0.98, Math.max(0.02, (wC - aC) / span));
+
+        /* O GATILHO. Fora do reduced-motion (ver item e): quando o phone TOCA
+           a água descendo, a cena assume — o usuário parou de dirigir, a
+           entrega dirige. A histerese (rearma só abaixo de wp − 0.02, não
+           logo que p < wp) existe pra quem oscila bem em cima da linha não
+           reativar o gatilho a cada frame tremido. */
+        if (!reduce) {
+          if (p >= wp && armed.current && !delivering.current) {
+            deliver();
+          } else if (p < wp - 0.02) {
+            armed.current = true;
+          }
+        }
 
         /* A divisão é em p, NÃO em eP — e isto é a diferença entre funcionar e
            não funcionar, não estilo.
@@ -436,18 +556,26 @@ export default function ScrollPhone() {
 
         /* Mergulho centrado em wp: pico exato no frame em que o phone toca a
            superfície. É isto que impede água e phone de se desencontrarem quando
-           alguém mexer em qualquer altura da página. */
-        setDive(bump((p - wp + DIVE_SPAN) / (2 * DIVE_SPAN)));
+           alguém mexer em qualquer altura da página.
+
+           max(bump, hold): fora da entrega hold é 0 e isto é bump puro, bit a
+           bit igual a antes. Durante a entrega hold segura 1 (ver deliver()) —
+           o mergulho não pode voltar a cair só porque o scroll automático
+           empurrou p pra além de wp + DIVE_SPAN, senão o phone sairia da água
+           antes da cena decidir soltá-lo. */
+        setDive(Math.max(bump((p - wp + DIVE_SPAN) / (2 * DIVE_SPAN)), hold.current));
       } else {
         cy = lerp(aC, bC, eP);
         setDive(0);
       }
       // escala final derivada do rect VIVO do slot — ver comentário de
-      // START_G/END_G acima. REF_H é o mesmo 900 de referência usado na
+      // START_G/PHONE_FILL acima. REF_H é o mesmo 900 de referência usado na
       // COMPENSAÇÃO DE ESCALA (ver topo do arquivo): o slot foi desenhado
       // pensando numa janela de 900px, então dividir por REF_H (não por
       // window.innerHeight) devolve a mesma fração que 820/900 já entregava.
-      const endG = b.height / REF_H;
+      // /PHONE_FILL é o que faz a altura RENDERIZADA igualar a altura do
+      // slot em vez de só 75% dela — ver comentário da constante.
+      const endG = b.height / PHONE_FILL / REF_H;
       placeWorld(cx, cy, lerp(START_G, endG, eP));
       if (group.current) {
         // No fundo do mergulho o phone deita na superfície, no MESMO compasso da
@@ -455,7 +583,8 @@ export default function ScrollPhone() {
         // volta em 0 nas duas pontas — o Features espera reto, o Pricing espera
         // END_TILT. Não passar por bump() de novo: bump(bump(x)) é outra curva.
         const roll = DIVE_ROLL * dive.current;
-        group.current.rotation.set(
+        const el = group.current;
+        el.rotation.set(
           lerp(START_TILT[0], END_TILT[0], eP),
           lerp(START_YAW, END_YAW, eP) + eS * TWO_PI, // 3/4 nas pontas + giro completo
           lerp(START_TILT[1], END_TILT[1], eP) + roll,
@@ -495,6 +624,82 @@ export default function ScrollPhone() {
       }
     };
 
+    /* O USUÁRIO SEMPRE PODE ESCAPAR.
+
+       A entrega toma o scroll de propósito — mas só enquanto ninguém pediu o
+       contrário. wheel/touchstart/keydown são o único sinal que conta como
+       "eu quero dirigir": scroll NÃO serve, porque é o próprio scrollTo quem
+       dispara evento de scroll, e usar scroll como sinal faria a entrega se
+       auto-abortar no primeiro frame.
+
+       armed fica false depois de um escape — quem recusou a entrega não deve
+       ser resequestrado assim que o dedo sair da tela; só rearma subindo de
+       volta pra cima de wp (a mesma histerese de sempre). */
+    const onUserEscape = () => {
+      if (!delivering.current) return;
+      deliverTl?.kill();
+      deliverTl = null;
+      gsap.to(hold, { current: 0, duration: 0.3, ease: "power2.out" });
+      water.current.flow = 1;
+      delivering.current = false;
+      armed.current = false;
+      stopEscapeListeners();
+    };
+
+    function startEscapeListeners() {
+      window.addEventListener("wheel", onUserEscape, { passive: true });
+      window.addEventListener("touchstart", onUserEscape, { passive: true });
+      window.addEventListener("keydown", onUserEscape);
+    }
+    function stopEscapeListeners() {
+      window.removeEventListener("wheel", onUserEscape);
+      window.removeEventListener("touchstart", onUserEscape);
+      window.removeEventListener("keydown", onUserEscape);
+    }
+
+    /* A ENTREGA. Dispara quando o phone TOCA a água (ver o gatilho em place()):
+       o mar para, o mergulho trava no pico, e a página termina sozinha o
+       trajeto até o pouso — a mesma conta de scroll que update() já usa pra
+       decidir p=1, não um segundo dono da posição de pouso. */
+    const deliver = () => {
+      const end = document.querySelector<HTMLElement>("[data-phone-end]");
+      if (!end) return;
+      const b = end.getBoundingClientRect();
+      // endC é o CENTRO cru do slot — o mesmo que update() usa pra achar
+      // p=1 (target = innerHeight·0.72). Não é bC de place(): aquele soma
+      // PHONE_PIVOT_BIAS porque mira onde a ORIGEM do group deve ficar, não
+      // onde o scroll deve parar. Somar os dois aqui pousaria o phone um
+      // pouco além do ponto que update() considera "chegou".
+      const endC = b.top + b.height / 2;
+
+      armed.current = false;
+      delivering.current = true;
+      water.current.flow = 0; // pare o mar — ver FLOW_SPEED/WaterAmount
+      hold.current = 1; // trava o mergulho no pico enquanto a cena dirige
+
+      startEscapeListeners();
+
+      // scrollY + (endC - alvo) é o delta que faz endC CAIR no alvo — a
+      // mesma equação de update(), resolvida pra scrollY em vez de p.
+      const targetY = window.scrollY + (endC - window.innerHeight * 0.72);
+
+      deliverTl = gsap.timeline({
+        onComplete: () => {
+          delivering.current = false;
+          water.current.flow = 1;
+          stopEscapeListeners();
+          deliverTl = null;
+        },
+      });
+      deliverTl
+        .to(window, { duration: 1.4, scrollTo: { y: targetY }, ease: "power2.inOut" }, 0)
+        // metade da entrega é o frame TRAVADO (mar parado, phone deitado na
+        // superfície); a outra metade dissolve o hold — a névoa fecha
+        // sozinha quando dive cai abaixo de HAZE_UNTIL (ver NÉVOA no topo do
+        // arquivo), então não há corte pra esconder aqui, só o piso caindo.
+        .to(hold, { current: 0, duration: 0.7, ease: "power2.in" }, 0.7);
+    };
+
     // reduced-motion: sem viagem — estaciona no slot do Pricing (tela Início).
     // E sem água: ela é movimento por definição, e o custo dos passes de
     // reflexão não se justifica pra quem pediu pra não se mexer.
@@ -531,7 +736,14 @@ export default function ScrollPhone() {
 
     gsap.ticker.add(update);
     update();
-    return () => gsap.ticker.remove(update);
+    return () => {
+      gsap.ticker.remove(update);
+      // sem isto, um resize/unmount no meio da entrega deixa a timeline
+      // órfã mexendo em window.scrollTo depois que ninguém mais lê dive —
+      // e os listeners de escape ficariam presos ao document para sempre.
+      deliverTl?.kill();
+      stopEscapeListeners();
+    };
   }, [enabled]);
 
   if (!enabled) return null;
@@ -550,8 +762,7 @@ export default function ScrollPhone() {
         style={{ pointerEvents: "none" }}
         /* ACES: a peachweb usa (TONE_MAPPING mode 6) e é o único item do
            stack de render dela que nos faltava — o resto (DOF, vignette, bloom)
-           eles têm praticamente desligado. Uma linha, e tem que entrar JUNTO com
-           o Depth: ligar depois obrigaria a re-tunar a cor de todas as dunas.
+           eles têm praticamente desligado.
            alpha:true preservado — o Canvas é overlay sobre o DOM. */
         gl={{
           alpha: true,
@@ -574,13 +785,6 @@ export default function ScrollPhone() {
             <fog attach="fog" args={["#EFEAF4", FOG_NEAR, FOG_FAR]} />
             <FogSync diveRef={dive} />
             <Sky3D />
-            {/* IRMÃO da água, JAMAIS filho do <group ref={group}> do phone.
-                Depth é a única coisa em cena capaz de reportar que a câmera se
-                moveu — o phone não pode (placeWorld o reposiciona a partir da
-                matriz da câmera todo frame), a água é um plano uniforme e o céu
-                é uma cúpula. Se isto virar filho do phone, herda o mesmo defeito
-                e o arquivo perde a razão de existir. Ver Depth.tsx. */}
-            <Depth />
             <WaterScene stateRef={water} />
           </Suspense>
         )}

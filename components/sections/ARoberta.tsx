@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { CustomEase } from "gsap/CustomEase";
 import { Badge } from "@/components/ui/Badge";
 import {
   IconShield,
@@ -12,7 +13,18 @@ import {
   IconCheck,
 } from "@/components/ui/icons";
 
-gsap.registerPlugin(ScrollTrigger);
+gsap.registerPlugin(ScrollTrigger, CustomEase);
+
+// Ease exata da transição de página do demo codrops (blenkcode/codrops-demo,
+// src/lib/index.js — customEases.pageTransition), replicada byte a byte pelo
+// path SVG, não aproximada por um ease nomeado do GSAP. É o que dá ao
+// recuo-da-ARoberta + cortina-do-Features (ver useGSAP abaixo) a mesma
+// assinatura de movimento do defaultTransition original — registrada uma vez
+// no módulo, não a cada render.
+CustomEase.create(
+  "pageTransition",
+  "M0,0 C0.38,0.05 0.48,0.58 0.65,0.82 0.82,1 1,1 1,1",
+);
 
 // Fundo da section — orquídea vinho cinematográfica sobre selva escura (foto completa,
 // não mais a chapa gradiente+multiply). Por ser foto escura, a camada de flor multiply
@@ -513,6 +525,13 @@ function animateCounts(useST: boolean) {
 export default function ARoberta() {
   const root = useRef<HTMLElement>(null);
   const pin = useRef<HTMLDivElement>(null);
+  // Wrapper do recuo (transição pra Features). NUNCA anima `pin.current`
+  // diretamente: é nele que o próprio GSAP escreve transform pra manter o
+  // pin colado à tela (ver o scrollTrigger no useGSAP) — uma segunda mão de
+  // transform ali brigaria com a do pin e quebraria o efeito. `recede`
+  // existe só pra isso: um filho direto de `pin`, do tamanho dele, que pode
+  // receber y/scale/opacity sem tocar no elemento que o pin já controla.
+  const recede = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
   const topMask = useRef<HTMLDivElement>(null);
@@ -693,8 +712,131 @@ export default function ARoberta() {
           0.85,
         );
 
+      // ── Transição pra Features (scroll-scrub do defaultTransition do
+      // codrops — blenkcode/codrops-demo, src/transitions/animations/default.js) ──
+      //
+      // O demo dispara num clique: current recua (y -30vh, scale 0.8, opacity
+      // 0.4) enquanto next sobe por uma clipPath (inset 100%→0%), os dois ao
+      // mesmo tempo, no mesmo ease customizado (pageTransition).
+      //
+      // NÃO dá pra pendurar isso no `tl` acima — tentei, e o motivo é o ponto
+      // central desta seção (vale registrar pra ninguém repetir o mesmo
+      // caminho): todo pin do GSAP deixa um "resto" de scroll do tamanho da
+      // PRÓPRIA altura do pin (aqui, 100vh) depois que o scrub termina — o
+      // conteúdo pinado já soltou (unpin) e o Features, que vem em seguida,
+      // ainda está a 1 viewport de distância, chegando por scroll comum, FORA
+      // do scrub. Medido com end:"+=140%": progress 0→1 do `tl` ocupa os
+      // primeiros ~1260px depois de "top top", e só ~900px MAIS TARDE
+      // (exatamente a altura do pin) o Features encosta no topo da tela — sem
+      // ele nunca ter ficado visível antes disso. Um beat preso ao `tl`
+      // (tentativa anterior: estender `end` e anexar um `.to()` no fim)
+      // sempre COMPLETA antes desse resto — a cortina "abria" e o recuo
+      // terminava com o Features inteiro fora da tela, e sobrava só scroll
+      // comum, sem ease nenhum, bem no trecho em que ele de fato aparece.
+      // Verificado no browser (ver relatório) antes de reescrever assim.
+      //
+      // Por isso o recuo e a cortina rodam num gsap.ticker próprio — mesmo
+      // mecanismo do ScrollPhone (medir o rect AO VIVO a cada frame, não
+      // confiar em progress de timeline) — com progresso derivado da posição
+      // REAL do Features na tela, não do scroll acumulado. Isso prende os
+      // dois exatamente à janela em que o Features está de fato entrando no
+      // viewport: os tais ~900px de "resto" do pin, que É o ~1 viewport
+      // pedido no brief, não uma fatia arbitrária do scrub.
+      const featuresEl = document.querySelector<HTMLElement>("#features");
+      const pageTransitionEase = gsap.parseEase("pageTransition");
+
+      // Último `p` efetivamente aplicado (não o lido no frame atual). O
+      // ticker roda em TODA sessão desktop, o tempo todo — não só na janela
+      // da transição — porque não há como saber de antemão quando o
+      // Features vai entrar na tela sem medir. Isso significa que, nos
+      // ~99% do scroll em que a seção está parada nas bordas (p em 0 antes
+      // de chegar, em 1 depois de passar), o rect ainda precisa ser lido
+      // (leitura é barata, e é a mesma que decide se saímos da borda), mas
+      // as ESCRITAS (gsap.set em `recede` e `featuresEl`) não podem repetir
+      // — cada `gsap.set` de clipPath/transform invalida layout, e o
+      // getBoundingClientRect do PRÓXIMO frame força o recalc: thrash por
+      // frame, numa página que já reparte orçamento com o WebGL do
+      // ScrollPhone. Medido antes/depois no relatório desta sessão.
+      let lastP: number | null = null;
+
+      const applyTransition = () => {
+        if (!featuresEl) return;
+        const vh = window.innerHeight;
+        const rect = featuresEl.getBoundingClientRect();
+        // p linear: 0 enquanto o Features não tocou a base da tela
+        // (rect.top ≥ vh), 1 quando o topo dele encosta no topo da tela
+        // (rect.top ≤ 0). O clamp segura os dois lados fora dessa janela —
+        // fora dela recuo e cortina ficam parados, sem custo extra.
+        const p = 1 - Math.min(1, Math.max(0, rect.top / vh));
+
+        // Early-out ANTES de qualquer gsap.set: se `p` não mudou desde o
+        // último frame aplicado (epsilon, não igualdade estrita — evita
+        // reabrir por ruído de sub-pixel), não há nada novo pra desenhar.
+        // Cobre os dois platôs de uma vez: p parado em 0 (Features ainda
+        // longe, abaixo) e p parado em 1 (chegou = aberto, já passou) —
+        // nos dois, os `gsap.set` abaixo NUNCA rodam fora da borda de
+        // entrada/saída, só na janela em que `p` de fato está variando.
+        if (lastP !== null && Math.abs(p - lastP) < 0.0005) return;
+        lastP = p;
+
+        const eased = pageTransitionEase(p);
+
+        // Recuo — no wrapper `recede`, NUNCA em pin.current (é nele que o
+        // próprio GSAP escreve o transform do pin; ver o useRef de `recede`).
+        if (recede.current) {
+          gsap.set(recede.current, {
+            y: `${-30 * eased}vh`,
+            scale: 1 - 0.2 * eased,
+            opacity: 1 - 0.6 * eased,
+            force3D: true,
+          });
+        }
+
+        // p===0: borda de baixo da janela — Features ainda fora da tela,
+        // ARoberta dona da tela. Valor de repouso é NENHUM clip-path (não
+        // `inset(0 0 0 0)`, que é visualmente idêntico mas deixa um estilo
+        // gravado à toa em cima de um elemento que não é nosso — ver a nota
+        // do cleanup abaixo). Escrito uma única vez ao tocar essa borda,
+        // nunca por frame: o early-out acima já garante isso.
+        if (p <= 0) {
+          gsap.set(featuresEl, { clipPath: "none" });
+          return;
+        }
+
+        // Cortina — clipPath do Features em PIXELS relativos à PRÓPRIA caixa
+        // dele (~2000px de altura), não em %: % relativo à caixa inteira
+        // faria o corte varrer a section toda, e só a fatia que cabe na tela
+        // importa. `gap` é o quanto do topo da tela deveria ficar livre
+        // (mostrando a ARoberta atrás) segundo o ease; como o Features já
+        // cobre sozinho tudo abaixo do próprio rect.top, só falta esconder a
+        // diferença entre esse gap desejado e o rect.top real.
+        const gap = (1 - eased) * vh;
+        // rect.top vira NEGATIVO assim que o Features passa do topo da tela
+        // (scroll continua depois da chegada). Sem o clamp aqui, `gap -
+        // rect.top` cresce sem fim depois disso (subtrair um número cada vez
+        // mais negativo é somar) e o Features reaparece cortado por cima —
+        // medido: 300px de corte a só 300px de scroll depois da chegada.
+        // Clampado em 0, chegou = ficou aberto pra sempre (e o early-out
+        // acima, com p estável em 1, garante que isso só é escrito UMA vez
+        // ao chegar — não a cada frame depois).
+        const topPx = Math.max(0, gap - Math.max(0, rect.top));
+        gsap.set(featuresEl, { clipPath: `inset(${topPx}px 0px 0px 0px)` });
+      };
+      applyTransition();
+      gsap.ticker.add(applyTransition);
+
       return () => {
         marquee.kill();
+        gsap.ticker.remove(applyTransition);
+        // O Features é de OUTRO componente e vive montado o tempo todo — ao
+        // contrário de `recede` (que some com o resto do JSX pinned), o
+        // clip-path que gravamos nele SOBREVIVERIA ao revert do contexto se
+        // não for desfeito explicitamente aqui (gsap.context só reverte o
+        // que foi criado de forma síncrona dentro do callback; nada que o
+        // ticker escreveu depois). Sem isso, trocar pra mobile/stacked no
+        // meio da transição deixaria o Features preso, meio cortado, pra
+        // sempre.
+        if (featuresEl) gsap.set(featuresEl, { clipPath: "none" });
       };
     },
     { scope: root, dependencies: [mode] },
@@ -704,11 +846,21 @@ export default function ARoberta() {
     <section
       ref={root}
       id="a-roberta"
-      className="relative z-10 bg-neutro-50"
+      className="relative bg-neutro-50"
       // overflow-x: clip corta o sangramento lateral dos lírios (sem scroll horizontal,
       // já que não há overflow-x global no body); overflow-y: visible libera o lírio a
-      // ATRAVESSAR a borda inferior pra dentro do Features. z-10 garante que ele pinte
-      // por cima do Features (que é sibling posterior, opaco). Antes: overflow-hidden.
+      // atravessar a borda inferior. Antes: overflow-hidden.
+      //
+      // z-10 SAIU DAQUI — e essa mudança inverte a frase que estava aqui. Ele
+      // existia pra ARoberta pintar POR CIMA do Features (sibling posterior,
+      // opaco), deixando o lírio atravessar a borda inferior pra dentro dele.
+      // A transição pra Features (ver a cortina/recuo no useGSAP acima) exige
+      // o INVERSO: o Features precisa subir por cima da ARoberta enquanto ela
+      // recua, não o contrário. Sem z-index aqui, a ordem de pintura volta a
+      // seguir a ordem do documento — Features, por vir depois no DOM, pinta
+      // em cima — que é exatamente o que a cortina precisa. Efeito colateral
+      // aceito: o lírio não sangra mais visualmente pro Features; ele recua
+      // JUNTO com o resto (dentro do wrapper `recede`) em vez de atravessar.
       style={{ overflowX: "clip", overflowY: "visible" }}
     >
       {mode === "pinned" ? (
@@ -717,6 +869,11 @@ export default function ARoberta() {
           className="relative h-screen"
           style={{ overflowX: "clip", overflowY: "visible" }}
         >
+        {/* Wrapper do recuo — ver a nota no useRef de `recede`. Tudo que
+            antes vivia direto dentro de `pin` mudou de pai pra cá; nenhum
+            filho mudou de posição visual (mesmo tamanho, sem offset), então
+            a única diferença é ter um alvo seguro pro tween de recuo. */}
+        <div ref={recede} className="relative h-full w-full will-change-transform">
           <Afluente veil={false} />
 
           {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo
@@ -867,6 +1024,7 @@ export default function ARoberta() {
               style={{ transform: "scaleX(-1) rotate(18deg)" }}
             />
           </div>
+        </div>
         </div>
       ) : (
         // Fallback estático — mobile / prefers-reduced-motion
