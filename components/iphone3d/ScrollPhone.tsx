@@ -35,6 +35,7 @@ import IPhoneModel from "@/components/iphone3d/IPhoneModel";
 import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 import Sky3D from "@/components/iphone3d/Sky3D";
+import Depth from "@/components/iphone3d/Depth";
 import WaterScene, { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
 import { DIVE_STOPS, SKY_STOPS, sampleStops } from "@/lib/sky";
 
@@ -47,7 +48,16 @@ const END_YAW = Math.PI - 0.34; // 3/4 mais tortinho = PHONE_POSE do Pricing
 const START_TILT: [number, number] = [0, 0]; // reto, sem inclinação
 const END_TILT: [number, number] = [0.1, -0.19]; // [x, z] = PHONE_POSE do Pricing
 const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário
-const END_G = 820 / 900; // 0.911… → casa o slot 461×820 do Pricing
+// END_G morreu como constante — virou lerp(START_G, endG, eP) em place(), com
+// endG = rect.height / REF_H lido AO VIVO de [data-phone-end] a cada frame.
+// Era 820/900 fixo, calibrado à mão pro slot 461×820 do Pricing; quando o
+// Pricing mudou o slot pra outro tamanho (405×720 na 1ª tentativa, depois
+// breakpoints em px), o número ficou pra trás e o phone passou a renderizar
+// maior que o espaço reservado, cobrindo o texto ao lado. Constante e DOM
+// não têm como ficar sincronizados por acordo tácito — só lendo o rect é que
+// o slot vira fonte única da verdade, e o phone acompanha qualquer tamanho
+// que o Pricing decidir (inclusive por breakpoint) sem ninguém ter que
+// lembrar de atualizar os dois lados.
 
 /* CÂMERA — conhecida aqui fora porque place() roda no gsap.ticker, fora do
    React. Se mudar no <PerspectiveCamera>, mude aqui. */
@@ -432,7 +442,13 @@ export default function ScrollPhone() {
         cy = lerp(aC, bC, eP);
         setDive(0);
       }
-      placeWorld(cx, cy, lerp(START_G, END_G, eP));
+      // escala final derivada do rect VIVO do slot — ver comentário de
+      // START_G/END_G acima. REF_H é o mesmo 900 de referência usado na
+      // COMPENSAÇÃO DE ESCALA (ver topo do arquivo): o slot foi desenhado
+      // pensando numa janela de 900px, então dividir por REF_H (não por
+      // window.innerHeight) devolve a mesma fração que 820/900 já entregava.
+      const endG = b.height / REF_H;
+      placeWorld(cx, cy, lerp(START_G, endG, eP));
       if (group.current) {
         // No fundo do mergulho o phone deita na superfície, no MESMO compasso da
         // câmera. dive já é um bump (0 → 1 → 0), então ele resolve sozinho de
@@ -532,7 +548,16 @@ export default function ScrollPhone() {
       <Canvas
         className="!absolute inset-0"
         style={{ pointerEvents: "none" }}
-        gl={{ alpha: true, antialias: true }}
+        /* ACES: a peachweb usa (TONE_MAPPING mode 6) e é o único item do
+           stack de render dela que nos faltava — o resto (DOF, vignette, bloom)
+           eles têm praticamente desligado. Uma linha, e tem que entrar JUNTO com
+           o Depth: ligar depois obrigaria a re-tunar a cor de todas as dunas.
+           alpha:true preservado — o Canvas é overlay sobre o DOM. */
+        gl={{
+          alpha: true,
+          antialias: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+        }}
         dpr={[1, 2]}
       >
         <ambientLight intensity={0.3} />
@@ -549,6 +574,13 @@ export default function ScrollPhone() {
             <fog attach="fog" args={["#EFEAF4", FOG_NEAR, FOG_FAR]} />
             <FogSync diveRef={dive} />
             <Sky3D />
+            {/* IRMÃO da água, JAMAIS filho do <group ref={group}> do phone.
+                Depth é a única coisa em cena capaz de reportar que a câmera se
+                moveu — o phone não pode (placeWorld o reposiciona a partir da
+                matriz da câmera todo frame), a água é um plano uniforme e o céu
+                é uma cúpula. Se isto virar filho do phone, herda o mesmo defeito
+                e o arquivo perde a razão de existir. Ver Depth.tsx. */}
+            <Depth />
             <WaterScene stateRef={water} />
           </Suspense>
         )}
