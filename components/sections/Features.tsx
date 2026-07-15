@@ -5,6 +5,7 @@ import { useGSAP } from "@/lib/useGSAP";
 import { useAutoCycle } from "@/lib/useAutoCycle";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { SplitText } from "gsap/SplitText";
 import {
   IconSparkles,
   IconCheck,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/icons";
 import { MARINA, JOAO, CAIO, BIANCA, type Person } from "@/lib/people";
 
-gsap.registerPlugin(ScrollTrigger);
+gsap.registerPlugin(ScrollTrigger, SplitText);
 
 /* ── Features ──────────────────────────────────────────────────────────────
    Bento em camadas. TODO painel é vidro escuro frostado (mesma receita do
@@ -1401,37 +1402,276 @@ function ProntuarioStacked() {
 
 export default function Features() {
   const root = useRef<HTMLElement>(null);
+  // Instâncias de SplitText criadas pelo ENTER (ver useGSAP abaixo). Não são
+  // tweens — gsap.context/ScrollTrigger não as rastreia nem as reverte
+  // sozinho. Guardamos aqui pra reverter explicitamente no unmount, senão
+  // Fast Refresh duplica os wrappers de linha/char a cada remount.
+  const splitsRef = useRef<{ revert: () => void }[]>([]);
 
   useGSAP(
     () => {
-      gsap.from("[data-reveal]", {
-        y: 22,
-        opacity: 0,
-        duration: 0.9,
-        ease: "power3.out",
-        stagger: 0.08,
-        scrollTrigger: { trigger: root.current, start: "top 80%", once: true },
-      });
-      gsap.from("[data-card]", {
-        y: 40,
-        opacity: 0,
-        duration: 1,
-        ease: "power3.out",
-        stagger: 0.08,
-        scrollTrigger: { trigger: "[data-grid]", start: "top 82%", once: true },
-      });
-      // barras/medidores crescem da esquerda quando o bento entra
-      gsap.from("[data-bar]", {
-        scaleX: 0,
-        transformOrigin: "left center",
-        duration: 1.1,
-        ease: "power3.out",
-        stagger: 0.05,
-        scrollTrigger: { trigger: "[data-grid]", start: "top 78%", once: true },
+      /* ── ENTER — portado de Enter.js (demo codrops) ───────────────────────
+         No demo, ENTER(container, 0.32) dispara em PARALELO com a transição
+         de página (0.7s), em tempo real, a partir de init(), e anima TUDO
+         que chega numa timeline só (h1 + parágrafos + linhas decorativas).
+         Aqui não há transição de página — a "cortina" é a abertura do
+         #a-roberta sobre o #features (ver ARoberta.tsx, applyTransition):
+         p = 1 - naturalTop/vh vai de 0 a 1 em exatamente 1 viewport de
+         scroll, naturalTop é a posição NATURAL (não-transformada) do topo
+         do #features, e ENQUANTO a janela dura o #features fica CRAVADO na
+         tela (y:-naturalTop) com um clipPath que revela seu conteúdo de
+         cima pra baixo — não é um crossfade, é uma cortina literal.
+
+         CORREÇÃO (2ª rodada — a 1ª errou): eu tinha isolado só h2+badge
+         nesta timeline e deixado [data-card]/[data-bar] com o
+         scrollTrigger PRÓPRIO deles (trigger:"[data-grid]"). Isso quebra
+         especificamente NESTA seção porque o [data-grid] scrollTrigger
+         mede contra a posição NATURAL (não-transformada) do documento —
+         mas durante a janela da transição essa posição não tem mais
+         nenhuma relação com o que está na tela (o #features inteiro já
+         está cravado em y:-naturalTop). O resultado medido: a faixa dos
+         cards é revelada pela cortina em p≈0.51, mas o trigger deles só
+         disparava em p≈0.63 — a cortina abria e mostrava um retângulo
+         opacity:0 por um trecho inteiro do scroll antes dos cards
+         aparecerem. H2/badge não tinham esse problema porque já estavam
+         dentro da timeline única, disparada no ponto certo.
+
+         FIX: [data-card] e [data-bar] entraram pra dentro da MESMA
+         timeline do ENTER (ver abaixo), disparada UMA VEZ, no mesmo
+         instante que h2/badge — exatamente a estrutura do demo (uma
+         timeline só cuida de todo o conteúdo da página que chega).
+
+         GATILHO: tentei ancorar em trigger:"#a-roberta" com start:"bottom
+         55%" primeiro (ideia: #a-roberta nunca leva transform, então seria
+         a âncora "mais segura"). MEDIDO (scroll gradual monotônico, sem
+         busca binária) que isso NUNCA dispara — nem passando de naturalTop
+         até -864px (bem depois do fim da janela). Motivo: #a-roberta é ele
+         PRÓPRIO o trigger de pin de OUTRO ScrollTrigger (o da ARoberta,
+         que cria o pin-spacer). Quando um segundo ScrollTrigger é ancorado
+         num elemento que já é alvo de pin, o GSAP recalcula o range de
+         start/end considerando a DURAÇÃO DO PIN (o pin-spacer infla o
+         "tamanho" do trigger no espaço de scroll) — o resultado não bate
+         mais com a leitura direta de getBoundingClientRect().bottom que eu
+         fazia via JS pra achar naturalTop. Voltei pro que já tinha
+         funcionado e testado nas rodadas anteriores: trigger:root.current
+         (o próprio #features) com start:"top 55%". #features NÃO é alvo
+         de pin de ninguém (só recebe um gsap.set/transform manual do
+         ticker da ARoberta, que não registra pin nenhum no ScrollTrigger),
+         então o cálculo de start/end dele em refresh() fica simples e
+         bateu, nas duas rodadas de medição, com naturalTop=0.55*vh dentro
+         de ~5px.
+
+         CORREÇÃO (3ª rodada — retângulo preto): start:"top 55%" (p≈0.46)
+         ainda era TARDE DEMAIS. Medido (aba nova por ponto, scroll gradual
+         monotônico, sem busca binária — a mesma disciplina desta nota):
+         a cortina revela a faixa de [data-card] em p≈0.19 (ela desce a
+         partir da borda de baixo da tela, e os cards ficam entre screen-y
+         408 e 848 — a borda cruza 848 bem antes de p=0.46), mas o gatilho
+         só disparava em p≈0.46. Entre 0.19 e 0.46 a cortina abria sobre
+         cards ainda em opacity:0 (o gsap.set logo abaixo) — um retângulo
+         preto por ~27% da janela de scroll, exatamente o que a Laura via.
+         O erro original comparava o gatilho com o ponto em que a cortina
+         alcança a BASE dos cards (p≈0.51 — perto de 0.46, parecia margem
+         de sobra); o que importa é o TOPO deles (p≈0.19), bem mais cedo.
+
+         FIX (dois, não um — ver justificativa abaixo do porquê os dois):
+         start passou pra "top bottom" (dispara quando o topo do
+         #features toca a base da viewport, ou seja p≈0 — o INÍCIO da
+         janela, não o meio). E o tween de [data-card] deixou de usar
+         opacity (ver o gsap.set e o tl.to logo abaixo): mesmo disparando
+         cedo, a entrada roda em TEMPO REAL (once:true + onEnter, não
+         scrubado) enquanto a cortina é dirigida por SCROLL — um usuário
+         rolando rápido pode alcançar p≈0.19 antes dos 1,48s que a
+         timeline leva pra terminar o último card do stagger. Só mover o
+         gatilho reduz o risco; tirar a opacidade FECHA ele: o card fica
+         SEMPRE pintado (só desloca em y, nunca invisível), então não hà
+         estado intermediário que a cortina possa expor como buraco —
+         é o mesmo raciocínio do Enter.js citado no brief (texto nunca
+         some por opacity:0, só translada dentro de uma máscara).
+
+         once:true + onEnter → dispara uma vez, roda como timeline comum em
+         tempo real (não scrubado pelo scroll). */
+
+      // Estado inicial dos cards/barras — aplicado já na montagem (síncrono,
+      // dentro do escopo do useGSAP, revertido pelo gsap.context no
+      // unmount), não dentro de enter(): eles precisam começar deslocados
+      // ANTES do usuário rolar até o gatilho, senão apareceriam "crus"
+      // (sem entrada) em quem já monta a página rolada. SÓ y, sem opacity
+      // (ver a CORREÇÃO 3ª rodada acima): o card fica sempre pintado, só
+      // 40px abaixo da posição final — nunca invisível, então a cortina
+      // não tem estado algum que possa revelar como buraco preto. h2/badge
+      // continuam usando opacity (herdada do CSS/split) porque não têm
+      // esse risco: são texto fatiado por char/linha dentro de máscara
+      // própria do SplitText, não um bloco grande como o card.
+      gsap.set("[data-card]", { y: 40 });
+      gsap.set("[data-bar]", { scaleX: 0, transformOrigin: "left center" });
+
+      const enter = () => {
+        const h2 = root.current?.querySelector("h2");
+        const badge = root.current?.querySelector<HTMLElement>("[data-reveal]");
+        if (!h2) return;
+
+        gsap.set(h2, { opacity: 1 });
+
+        // type:"chars" preserva o <span> itálico ("num lugar só.") — o
+        // SplitText refaz a estrutura de tags aninhadas por char, cada char
+        // que nascia dentro do span continua dentro de um clone dele.
+        //
+        // "words, chars" (não só "chars"): medido sem isso, o próprio
+        // <h2> tem `text-balance` (Tailwind text-wrap:balance) e o h2 quebra
+        // linha sozinho — com CADA letra virando um <div inline-block>
+        // independente, sem um wrapper de palavra a mais, o navegador ganha
+        // pontos de quebra DENTRO da palavra e o layout de balanço partiu
+        // "precisa" ao meio ("...consulta p" / "recisa, num..."). Com
+        // "words, chars" o SplitText cria um nível de palavra (inline-block,
+        // atômico) por cima dos chars — a quebra de linha só pode acontecer
+        // ENTRE palavras de novo, como no texto normal. `.chars` continua
+        // disponível igual (a lista de chars-folha, independente de ter
+        // nível de word no meio).
+        const headingSplit = new SplitText(h2, { type: "words, chars" });
+        // Sem aria:false (o demo usa isso no h1 e o esconde da a11y tree —
+        // NÃO copiado aqui: h2 é conteúdo real do Features). Default do
+        // SplitText 3.15 é aria:"auto" — aplica aria-label com o texto
+        // completo no elemento e aria-hidden nos chars fatiados, então
+        // leitor de tela lê a frase inteira, tela normal vê os chars animar.
+        const badgeSplit = badge ? new SplitText(badge, { type: "lines" }) : null;
+
+        splitsRef.current.push(headingSplit);
+        if (badgeSplit) splitsRef.current.push(badgeSplit);
+
+        // wrap_chars (wrap.js) — SEM wrapper extra, igual ao demo: só seta o
+        // estado inicial nos próprios nós de char que o SplitText já gera.
+        // O rotateX só fica 3D de verdade por causa do `perspective:1000px`
+        // que o JSX abaixo aplica no <h2> (mesma receita do h1 do demo,
+        // app.css: "h1 { perspective: 1000px; backface-visibility: hidden }").
+        gsap.set(headingSplit.chars, { y: "100%", rotateX: 60, force3D: true });
+
+        // wrap_lines (wrap.js) — envolve CADA linha num div overflow:hidden
+        // próprio: o y:100% inicial só fica invisível por causa desse
+        // overflow (sem ele a linha vazaria pra fora, deslocada mas visível).
+        const wrapLines = (split: SplitText) => {
+          split.lines.forEach((line) => {
+            const wrapper = document.createElement("div");
+            wrapper.style.overflow = "hidden";
+            wrapper.style.lineHeight = "100%";
+            line.parentNode?.insertBefore(wrapper, line);
+            wrapper.appendChild(line);
+          });
+          gsap.set(split.lines, { y: "100%", force3D: true });
+        };
+        if (badgeSplit) wrapLines(badgeSplit);
+
+        const tl = gsap.timeline({ defaults: { force3D: true } });
+
+        // h1 do demo → h2 aqui: rotateX 60→0 + y 100%→0, stagger 0.035,
+        // expo.out, 2.1s. Posição 0 = o instante em que o ScrollTrigger
+        // disparou (já é o "delay" — não hà transição de página pra somar).
+        tl.to(
+          headingSplit.chars,
+          { rotateX: 0, y: 0, duration: 2.1, stagger: 0.035, ease: "expo.out" },
+          0,
+        );
+
+        // Badge "Recursos" faz o papel do .anim_p (única linha de texto do
+        // header, fora do h2) — decisão: não deixei um fade genérico porque
+        // ia destoar do resto (que agora entra por linha/char); e não
+        // inventei split por chars nele porque .anim_p no demo É split por
+        // linhas, não por chars — o badge tem uma linha só, então o efeito
+        // aqui é visualmente equivalente a uma linha de parágrafo assentando.
+        // Offset delay+0.2 do demo (aqui só +0.2, sem delay de página) —
+        // preservei o branch innerWidth<900 do demo (mobile entra junto do
+        // h2, sem o atraso extra).
+        if (badgeSplit) {
+          tl.to(
+            badgeSplit.lines,
+            {
+              y: 0,
+              duration: 1.65,
+              stagger: { amount: 0.08, from: "end" },
+              ease: "power3.out",
+            },
+            window.innerWidth < 900 ? 0 : 0.2,
+          );
+        }
+
+        // [data-card] — dobrado pra dentro da timeline do ENTER (ver bloco
+        // de correção acima). Duration/ease preservados do tween antigo
+        // (duration:1, power3.out) — quem tunou esses números já sabia o
+        // que fazia pra 6 cards num bento 2 colunas. `stagger:{amount,
+        // from:"start"}` é matematicamente o mesmo resultado do stagger:0.08
+        // antigo pros 6 cards (6×0.08=0.48) — troquei só a SINTAXE pra
+        // seguir a lógica do demo (`amount`/`from` em vez de um número
+        // solto), que é como o Enter.js escalona tudo.
+        //
+        // Posição 0 (não 0.4): testei 0.4 primeiro e um risco real apareceu
+        // na medição — a cortina revela a faixa dos cards em p≈0.51, só
+        // ~5% de scroll (≈45px) depois do gatilho em p≈0.46; num scroll
+        // rápido esses 45px passam em bem menos de 400ms, e o card ainda
+        // nem teria começado (offset 0.4s não decorrido) — reproduzindo o
+        // MESMO retângulo preto que essa correção existe pra resolver, só
+        // que mais curto. Cards entram em paralelo com o h2 (posição 0):
+        // não hà problema em sobrepor — o próprio Enter.js faz isso
+        // (linesRight/linesLeft também começam em 0, junto do h1) —, e
+        // assim o primeiro card já está em pleno power3.out bem antes de
+        // qualquer scroll razoável alcançar p≈0.51.
+        tl.to(
+          "[data-card]",
+          { y: 0, duration: 1, ease: "power3.out", stagger: { amount: 0.48, from: "start" } },
+          0,
+        );
+
+        // [data-bar] — offset 0.3 (depois dos cards já terem arrancado —
+        // as barras vivem DENTRO dos cards, crescer antes do card aparecer
+        // não faz sentido visual). Sem o mesmo risco de "retângulo preto"
+        // dos cards: uma barra em scaleX:0 dentro de um card já visível é,
+        // no pior caso, uma linha ainda não crescida — não um bloco
+        // inteiro faltando —, então não precisou do mesmo offset 0.
+        // Duration/ease preservados do tween antigo (1.1s, power3.out);
+        // stagger 0.05 solto porque são só medidores decorativos dentro de
+        // cards que já entraram — não precisam do mesmo peso coreográfico
+        // dos cards.
+        tl.to(
+          "[data-bar]",
+          { scaleX: 1, duration: 1.1, ease: "power3.out", stagger: 0.05 },
+          0.3,
+        );
+
+        // OMITIDO, de propósito: .inner_linesright / .inner_linesleft do
+        // demo (linhas decorativas verticais que abrem em x, sem
+        // equivalente no Features) e o split por linhas dos parágrafos de
+        // CARD (.anim_p2 no demo) — os cards agora entram como bloco (fade
+        // + slide, igual ao tween original), não por linha de texto; dar
+        // split por linha em CADA parágrafo de CADA um dos 6 cards é escopo
+        // novo (mais DOM manipulado, mais SplitText pra reverter) que não
+        // foi pedido — o pedido foi resolver o timing de [data-card]/
+        // [data-bar], não enriquecer a entrada deles com split de texto.
+      };
+
+      ScrollTrigger.create({
+        trigger: root.current,
+        start: "top bottom",
+        once: true,
+        onEnter: enter,
       });
     },
     { scope: root },
   );
+
+  // Cleanup do ENTER: gsap.context (dentro de useGSAP) só rastreia tweens e
+  // ScrollTriggers criados na execução SÍNCRONA do callback acima — o
+  // ScrollTrigger.create em si é revertido no unmount por causa disso, mas
+  // as instâncias de SplitText só existem depois que `enter()` roda
+  // (assíncrono, dentro de onEnter, ao usuário rolar até o gatilho), então
+  // o context nunca fica sabendo delas. Sem reverter aqui, um remount do
+  // Fast Refresh depois do disparo deixaria os wrappers de linha/char do
+  // split anterior presos no DOM, duplicando-os quando o próximo mount
+  // fizesse um novo split por cima.
+  useEffect(() => {
+    return () => {
+      splitsRef.current.forEach((split) => split.revert());
+      splitsRef.current = [];
+    };
+  }, []);
 
   // Montagem escalonada das camadas quando o card entra (fade + assentar).
   // Sem cursor-follow: os cards não se mexem — só revelam uma vez.
@@ -1481,7 +1721,10 @@ export default function Features() {
             <span className="h-1.5 w-1.5 rounded-full bg-brand" />
             Recursos
           </span>
-          <h2 data-reveal className="text-balance font-title text-h2 font-medium text-neutro-0 md:text-h1">
+          <h2
+            className="text-balance font-title text-h2 font-medium text-neutro-0 md:text-h1"
+            style={{ perspective: "1000px", backfaceVisibility: "hidden" }}
+          >
             Tudo que a consulta precisa, <span className="italic text-white/60">num lugar só.</span>
           </h2>
         </header>
