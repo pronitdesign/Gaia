@@ -27,19 +27,78 @@ CustomEase.create(
   "M0,0 C0.38,0.05 0.48,0.58 0.65,0.82 0.82,1 1,1 1,1",
 );
 
-// Fundo da section — orquídea vinho cinematográfica sobre selva escura (foto completa,
-// não mais a chapa gradiente+multiply). Por ser foto escura, a camada de flor multiply
-// saiu: ela só fazia sentido com orquídea-sobre-branco sobre o gradiente claro.
-const BACKDROP = "/quem-construiu-bg-3.webp";
+// Fundo da section — close-up fotográfico dos olhos (node Figma 251-83), com um glow
+// magenta/violeta já queimado na própria foto, canto inferior-direito. Não é assunto
+// abstrato: é o frame de abertura que a headline ancora. A camada de flor multiply
+// segue fora — ela só fazia sentido com orquídea-sobre-branco sobre o gradiente claro.
+// No modo PINNED este frame é só a base instantânea (poster/primeiro paint, sem flash
+// branco antes do vídeo decodificar) — o vídeo scrubbado (EYE_VIDEO, ver abaixo) fica
+// por cima e assume a partir do primeiro frame, que É esta mesma foto. No modo STACKED
+// (sem vídeo, ver Armadilha 4 do brief) esta imagem é o fundo inteiro, sozinha.
+const BACKDROP = "/quem-construiu-olhos.webp";
+
+// Vídeo do match-cut olho→retrato — scrubbado pelo scroll (beat 0 do pin, ver useGSAP).
+// 1920×1072, 3.04s, 73 frames, TODOS keyframes (GOP=1): é isso que torna o seek
+// instantâneo a cada frame do scrub — um H.264 com GOP normal engasga. Poster = frame 0
+// da própria foto acima, evita flash antes do primeiro decode. SÓ existe no ramo pinned
+// do JSX — 4.85MB no fallback stacked/mobile é inaceitável (Armadilha 4).
+const EYE_VIDEO = "/quem-construiu-olho.mp4";
+const EYE_VIDEO_POSTER = "/quem-construiu-olho-poster.webp";
+const EYE_VIDEO_DURATION = 3.0417; // s — medido via ffprobe, 73 frames a ~24fps
+const EYE_VIDEO_W = 1920;
+const EYE_VIDEO_H = 1072;
+
+// Geometria do reflexo da Roberta na íris, MEDIDA no frame de origem (3852×2152) como
+// FRAÇÃO do frame do vídeo — nunca em px cravado nem em % de viewport. O vídeo é
+// object-cover full-bleed, então a íris se desloca conforme o aspect da tela; só a
+// fração sobrevive a qualquer viewport (ver computeIrisBox abaixo, mesma matemática do
+// object-cover que applyP já fazia pro card antigo).
+const IRIS_CX_FRAC = 0.5587;
+const IRIS_CY_FRAC = 0.4977;
+const IRIS_W_FRAC = 0.2191;
+const IRIS_H_FRAC = 0.3281;
+
+/** Bbox da íris (onde o reflexo da Roberta está) em px de VIEWPORT, dado o tamanho
+ *  atual da tela — replica a conta do object-cover: o vídeo (1920×1072) cobre
+ *  vw×vh, e a íris é um ponto fixo dentro dele que se desloca com o crop. Chamada a
+ *  cada frame do scrub (applyP) e no onRefresh — nunca cacheada, porque a viewport
+ *  muda (resize, rotate) e um valor velho desalinha o handoff (é o teste que mais
+ *  importa nesta cena). */
+function computeIrisBox(vw: number, vh: number) {
+  const videoAspect = EYE_VIDEO_W / EYE_VIDEO_H;
+  const viewportAspect = vw / vh;
+  let scale: number, offsetX: number, offsetY: number;
+  if (viewportAspect > videoAspect) {
+    scale = vw / EYE_VIDEO_W;
+    offsetX = 0;
+    offsetY = (vh - EYE_VIDEO_H * scale) / 2;
+  } else {
+    scale = vh / EYE_VIDEO_H;
+    offsetX = (vw - EYE_VIDEO_W * scale) / 2;
+    offsetY = 0;
+  }
+  return {
+    cx: offsetX + IRIS_CX_FRAC * EYE_VIDEO_W * scale,
+    cy: offsetY + IRIS_CY_FRAC * EYE_VIDEO_H * scale,
+    w: IRIS_W_FRAC * EYE_VIDEO_W * scale,
+    h: IRIS_H_FRAC * EYE_VIDEO_H * scale,
+  };
+}
 
 // Véu de neutro-50 sobre o fundo — SÓ no modo stacked, onde o editorial pousa direto
-// no gradiente. O pixel mais escuro do gradiente é rgb(181,131,169): sobre ele, texto
-// neutro-700 só bate 4.5:1 com α ≥ 0.45. Como o object-cover reposiciona o gradiente a
-// cada viewport, o véu segura esse pior caso em toda a faixa do editorial — não dá pra
-// contar com sorte de crop. No modo pinned o editorial sobe sobre o retrato full-bleed
-// (que tem scrim próprio), então lá o véu não entra e o fundo do Figma aparece cheio.
+// no BACKDROP. RECALIBRADO (Armadilha 3 do brief do vídeo): a premissa antiga —
+// pior pixel do gradiente vinho em rgb(181,131,169), α≥0.45 bastava — morreu quando
+// BACKDROP virou a foto de olhos (bem mais escura: hospeda cabelo/pupila próximos de
+// preto). MEDIDO no render (não no arquivo-fonte — texto escondido, screenshot,
+// amostra de pixel): com a cauda antiga em α 0.58–0.62, o p5 mais escuro sob a bio
+// (texto rgb(76,79,90)) só batia 3.7:1 — abaixo do 4.5:1 AA de texto de corpo. Cauda
+// subida pra α 0.80–0.88 devolve ao menos ~5:1 no mesmo pior pixel (reverificar se o
+// BACKDROP mudar de novo). Como o object-cover reposiciona a foto a cada viewport, o
+// véu segura esse pior caso em toda a faixa do editorial — não dá pra contar com
+// sorte de crop. No modo pinned o editorial sobe sobre o retrato full-bleed (que tem
+// scrim próprio), então lá o véu não entra e o fundo do Figma aparece cheio.
 const LEGIBILITY_VEIL =
-  "linear-gradient(to bottom, rgba(250,249,245,0.04) 0%, rgba(250,249,245,0.08) 30%, rgba(250,249,245,0.18) 38%, rgba(250,249,245,0.58) 46%, rgba(250,249,245,0.62) 100%)";
+  "linear-gradient(to bottom, rgba(250,249,245,0.04) 0%, rgba(250,249,245,0.08) 30%, rgba(250,249,245,0.18) 38%, rgba(250,249,245,0.80) 46%, rgba(250,249,245,0.88) 100%)";
 
 // A orquídea é foto sobre branco puro (255,255,255) — é assim que ela vem do Figma, e
 // lá o layer está em multiply. `mix-blend-mode: multiply` reproduz isso exato: branco
@@ -529,9 +588,13 @@ export default function ARoberta() {
   const recede = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
-  const topMask = useRef<HTMLDivElement>(null);
-  const wordL = useRef<HTMLSpanElement>(null);
-  const wordR = useRef<HTMLSpanElement>(null);
+  // Vídeo do match-cut olho→retrato (ver EYE_VIDEO) — currentTime é escrito só pelo
+  // scrub (applyVideo); nunca autoplay, quem manda é o scroll (Armadilha 5).
+  const eyeVideo = useRef<HTMLVideoElement>(null);
+  // Bloco único da headline de abertura ("QUEM ESTÁ" / "POR TRÁS?"), ancorado no
+  // rodapé-direita do frame Figma — ver o JSX pinned pro porquê de um bloco só, não
+  // mais duas palavras flanqueando o centro.
+  const headline = useRef<HTMLDivElement>(null);
   const editorial = useRef<HTMLDivElement>(null);
   // Camadas novas
   const tickerWrap = useRef<HTMLDivElement>(null);
@@ -575,43 +638,154 @@ export default function ARoberta() {
         return;
       }
 
-      // O box do retrato cresce de um card-retrato (260x320, foto inteira) até
-      // ocupar a section INTEIRA (full-bleed, 100vw × 100vh). A imagem é
-      // object-cover DENTRO do box, então em p=0 vê-se a Roberta enquadrada
-      // (não um zoom), e em p=1 ela vira o fundo da section.
-      // p: 0 = card pequeno · 1 = full-bleed.
-      const WC0 = 260; // largura do card inicial
-      const HC0 = 320; // altura do card inicial
-      const state = { p: 0 };
+      // O box do retrato NASCE no bbox medido da íris (elipse, ver computeIrisBox) e
+      // cresce até ocupar a section INTEIRA (full-bleed, 100vw × 100vh) — é o match
+      // cut: o card materializa exatamente onde e do tamanho que o reflexo da Roberta
+      // estava no olho, não num card fixo arbitrário. A imagem é object-cover DENTRO
+      // do box, então em p=0 vê-se a foto enquadrada como o reflexo, e em p=1 ela vira
+      // o fundo da section.
+      // p: 0 = tamanho/posição da íris · 1 = full-bleed.
+      //
+      // O crescimento (p) só roda na METADE final do scrub (ver o `tl.to(state,
+      // {p:1}...)` mais abaixo, começando em tl-time 0.45) — a primeira metade é o
+      // vídeo scrubbando (state.video). Por isso o retrato fica com p=0 (invisível,
+      // preso ao tamanho/posição da íris) por toda a fase de vídeo: não há tween
+      // rodando, o valor simplesmente não muda até o handoff.
+      //
+      // A câmera não pode parar no handoff: o vídeo, congelado no último frame a
+      // partir daqui, CONTINUA escalando — ancorado no centro da íris e travado no
+      // MESMO rect que o card ocupa a cada instante (ver a matemática em
+      // applyVideoDolly abaixo). Três fases dentro do crescimento (p):
+      //   0 → VIDEO_ONLY_END        — só o vídeo escala; card em opacity 0.
+      //   VIDEO_ONLY_END → DISSOLVE_END — cross-dissolve: card entra por cima,
+      //                                    travado no mesmo rect do vídeo.
+      //   DISSOLVE_END → 1          — só o card, crescendo até full-bleed.
+      // Opacidade/brilho do card são função do DISSOLVE, não de `p` cru — ver
+      // `dissolveT` dentro de applyP.
+      const VIDEO_ONLY_END = 0.35;
+      const DISSOLVE_END = 0.65;
+      const state = { video: 0, p: 0 };
+
+      const applyVideo = (t: number) => {
+        const v = eyeVideo.current;
+        // readyState >= 1 = HAVE_METADATA: duration/seek já são confiáveis. Sem essa
+        // guarda, um seek antes da metadata carregar é ignorado silenciosamente pelo
+        // Safari e loga warning no Chrome — nenhum dos dois quebra, mas o guard evita
+        // trabalho inútil no primeiro frame antes do vídeo estar pronto.
+        if (!v || v.readyState < 1) return;
+        v.currentTime = Math.min(t * EYE_VIDEO_DURATION, v.duration || EYE_VIDEO_DURATION);
+      };
 
       const applyP = (p: number) => {
         const el = portrait.current;
+        const video = eyeVideo.current;
         if (!el) return;
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const iris = computeIrisBox(vw, vh);
+        const leftAt0 = iris.cx - iris.w / 2;
+        const topAt0 = iris.cy - iris.h / 2;
+        const w = iris.w + p * (vw - iris.w);
+        const h = iris.h + p * (vh - iris.h);
+        // Interpolação linear independente de left/top e de width/height: nas duas
+        // pontas bate exato (p=0 → posição/tamanho exatos da íris; p=1 → 0,0
+        // full-bleed) — o card cresce a partir do berço medido, não de um ponto
+        // arbitrário da tela como o antigo anchor de 38%.
+        const left = leftAt0 * (1 - p);
+        const top = topAt0 * (1 - p);
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
+        el.style.left = `${left}px`;
+        el.style.top = `${top}px`;
+
+        // Único dono da visibilidade do retrato (ver o comentário abaixo sobre a
+        // corrida de dois donos que já fez a orquídea sumir nesta cena) — mas agora a
+        // fonte é o DISSOLVE, não `p` cru: o card fica invisível durante toda a fase
+        // em que só o vídeo escala (VIDEO_ONLY_END), rampa 0→1 durante o cross-dissolve
+        // e fica opaco dali em diante. `p` cru fazia o card materializar cedo demais
+        // sobre um olho que ainda não tinha crescido o bastante pra esconder o corte.
+        const dissolveT = Math.min(
+          1,
+          Math.max(0, (p - VIDEO_ONLY_END) / (DISSOLVE_END - VIDEO_ONLY_END)),
+        );
+        el.style.opacity = String(dissolveT);
+
+        // Elipse (lê como o olho) enquanto o vídeo ainda está por baixo/dissolvendo →
+        // só relaxa pra retângulo DEPOIS do dissolve terminar. Presa em 50% até
+        // DISSOLVE_END: dentro do olho a forma é elipse, não um retângulo que já
+        // nasce reto no meio do crescimento.
+        const radiusT = Math.min(1, Math.max(0, (p - DISSOLVE_END) / (1 - DISSOLVE_END)));
+        el.style.borderRadius = `${(1 - radiusT) * 50}%`;
+
+        // Feather na borda — SÓ enquanto o card ainda é a elipse pequena (p <
+        // DISSOLVE_END, borderRadius EXATO 50%): a borda do reflexo real funde na
+        // íris, não é recorte duro. BUG já corrigido aqui: `closest-side` NÃO
+        // acompanha o borderRadius conforme ele relaxa — `closest-side` sempre
+        // inscreve uma elipse tocando o meio de cada lado do box, INDEPENDENTE do
+        // border-radius. Gatear em `radiusT<1` (como a primeira versão fazia) deixava
+        // a máscara viva por TODO o crescimento até p=1, então mesmo com o box já
+        // quase full-bleed e o borderRadius já quase 0% (retângulo), a máscara
+        // continuava desenhando um OVAL GIGANTE por cima — era isso que fazia o
+        // editorial "vazar pra fora da elipse": a elipse visível não era o
+        // borderRadius relaxando, era esta máscara nunca saindo do caminho. Em p =
+        // DISSOLVE_END, borderRadius:50% e a máscara `closest-side` desenham a MESMA
+        // elipse (as duas são "inscrita tocando o meio dos 4 lados") — por isso
+        // desligar a máscara exatamente aqui não dá pop, só entrega a forma pro
+        // borderRadius, que a partir daí relaxa sozinho até retângulo.
+        const maskValue =
+          p < DISSOLVE_END
+            ? "radial-gradient(closest-side, black calc(100% - 3px), transparent 100%)"
+            : "none";
+        el.style.setProperty("mask-image", maskValue);
+        el.style.setProperty("-webkit-mask-image", maskValue);
+
+        // Brilho e drop-shadow acompanham o DISSOLVE (0.55→1), não o crescimento: o
+        // card nasce já meio escurecido (como o reflexo real, curvado e mais fundo) e
+        // clareia enquanto se sobrepõe ao vídeo — depois disso é só o card, sem
+        // motivo pra continuar clareando. drop-shadow ainda usa `p` (só existe
+        // enquanto o card não é full-bleed).
+        const brightness = 0.55 + 0.45 * dissolveT;
+        const shadow =
+          p < 1 ? ` drop-shadow(0 22px 45px rgba(58,72,94,${0.18 * (1 - p)}))` : "";
+        el.style.filter = `brightness(${brightness})${shadow}`;
+
         // O scrim serve à foto, não ao fundo: só existe na medida em que ela cresce.
         // Sobe rápido (p*1.6) pra já estar firme quando o editorial começa a subir.
         if (scrim.current) scrim.current.style.opacity = String(Math.min(1, p * 1.6));
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        const w = WC0 + p * (vw - WC0);
-        const h = HC0 + p * (vh - HC0);
-        // Ancorado em 38% da largura (não no centro): a headline gigante flanqueia
-        // esse ponto, e a 50% o "CONSTRUIU?" cortava na direita. Em p=1 vira 0 (full-bleed).
-        el.style.width = `${w}px`;
-        el.style.height = `${h}px`;
-        el.style.left = `${(vw - w) * 0.38}px`;
-        el.style.top = `${(1 - p) * (vh - h) / 2}px`;
-        el.style.borderRadius = `${(1 - p) * 26}px`;
-        el.style.filter =
-          p < 1 ? `drop-shadow(0 22px 45px rgba(58,72,94,${0.18 * (1 - p)}))` : "none";
-        // Máscara clara do topo: costura com o creme de Como Começar só no início
-        // (p=0, onde o corte aparece). Conforme o retrato cresce pro full-bleed ela
-        // apaga (1→0), pra não deixar faixa clara sobre a foto cinematográfica.
-        if (topMask.current) topMask.current.style.opacity = String(1 - p);
+
+        // ── Dolly do vídeo ─────────────────────────────────────────────────────
+        // O vídeo (congelado no último frame a partir do fim do beat 0) continua
+        // escalando, ancorado no centro da íris e travado no MESMO rect que o card
+        // ocupa nesse instante — pra todo p, a região da íris coincide exatamente com
+        // o box do retrato. `transform-origin: 0 0` porque o <video> já é full-bleed
+        // em (0,0) (inset-0). `max`, não `w/iris.w`: o card muda de aspect durante o
+        // crescimento (elipse → full-bleed) e a escala do vídeo é uniforme — `max`
+        // garante que a íris sempre COBRE o card, sem borda de olho aparecendo
+        // dentro dele. Invariante conferida em p=0: w=iris.w, h=iris.h → S=1;
+        // left=leftAt0, top=topAt0 → cardCx=cardCy=iris.cx/cy → tx=ty=0. O vídeo fica
+        // exatamente onde já estava.
+        if (video) {
+          const S = Math.max(w / iris.w, h / iris.h);
+          const cardCx = left + w / 2;
+          const cardCy = top + h / 2;
+          const tx = cardCx - iris.cx * S;
+          const ty = cardCy - iris.cy * S;
+          video.style.transformOrigin = "0 0";
+          video.style.transform = `translate(${tx}px, ${ty}px) scale(${S})`;
+          // Blur rampa junto com a escala enquanto o vídeo ainda está visível sob o
+          // dissolve — mata a pixelização de ampliar várias vezes E lê como perda de
+          // foco do dolly; o dissolve pro card nítido aterrissa como rack focus.
+          // Limitação técnica virando linguagem de câmera (brief).
+          const blurT = Math.min(1, p / DISSOLVE_END);
+          video.style.filter = `blur(${blurT * 8}px)`;
+        }
       };
 
       gsap.set(editorial.current, { autoAlpha: 0, y: 44 });
-      gsap.set([wordL.current, wordR.current], { autoAlpha: 1, x: 0, yPercent: -50 });
+      gsap.set(headline.current, { autoAlpha: 1, y: 0, filter: "blur(0px)" });
       gsap.set("[data-word-inner]", { filter: "blur(0px)" });
+      applyVideo(0);
       applyP(0);
 
       // ── Camadas novas: ticker + recorte ────────────────────────────────────
@@ -633,7 +807,7 @@ export default function ARoberta() {
       gsap.set(proof.current, { autoAlpha: 0 });
       gsap.set("[data-proof]", { autoAlpha: 0, y: 28 });
 
-      // Entrada — cada palavra sobe com blur-to-sharp (stagger); o card surge junto.
+      // Entrada — cada linha da headline sobe com blur-to-sharp (stagger).
       gsap.from("[data-word-inner]", {
         yPercent: 120,
         filter: "blur(14px)",
@@ -643,16 +817,16 @@ export default function ARoberta() {
         stagger: 0.14,
         scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
       });
-      gsap.from(portrait.current, {
-        autoAlpha: 0,
-        duration: 1.2,
-        ease: "power2.out",
-        scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
-      });
-      // A entrada da flor NÃO é um tween separado de propósito: dois tweens
-      // disputando o autoAlpha dela (entrada 0→1 + scrub →0) era a corrida que a
-      // fazia sumir. Agora ela já entra visível pelo gsap.set acima e o único
-      // controle é o scrub (fromTo abaixo, com from explícito).
+      // O retrato NÃO tem tween de entrada próprio — de propósito. O frame de
+      // abertura (t=0) precisa ser SÓ o vídeo (olho + glow) + a headline (frame
+      // Figma 251-83); o card do retrato só materializa no handoff (tl-time 0.45),
+      // quando o scrub do vídeo termina. Um `gsap.from(autoAlpha)` disparado por um
+      // ScrollTrigger `once:true` separado — como havia antes — corre contra o
+      // `applyP` do scrub pelo mesmo autoAlpha: essa mesma corrida de dois donos já
+      // fez a orquídea sumir nesta cena numa rodada anterior. Dono único: `applyP`,
+      // que já escreve width/height/left/top a cada frame do crescimento, também
+      // escreve `opacity` do retrato como função de `p` — mesma fonte de verdade,
+      // sem segundo tween disputando o valor.
 
       let counted = false;
 
@@ -660,7 +834,11 @@ export default function ARoberta() {
         scrollTrigger: {
           trigger: root.current,
           start: "top top",
-          end: "+=140%",
+          // Cresceu de 140% pra 240%: o vídeo (beat 0, 45% da janela) precisa de
+          // pista de scroll própria além do que os beats de crescimento/editorial/
+          // ticker/cards já usavam — sem isso o push-in inteiro passaria em menos de
+          // meio scroll de roda de mouse.
+          end: "+=240%",
           pin: pin.current,
           pinSpacing: true,
           scrub: 0.5,
@@ -669,20 +847,55 @@ export default function ARoberta() {
           // refreshPriority reordena o refresh pela ordem do documento — ver a nota
           // em ComoComecar (2). Sem isso o Manifesto mede-se 3960px acima do real.
           refreshPriority: 1,
-          onRefresh: () => applyP(state.p),
+          // A viewport muda (resize/rotate) — computeIrisBox depende dela, então o
+          // handoff precisa ser recalculado aqui, não só aplicado com o valor velho.
+          onRefresh: () => {
+            applyVideo(state.video);
+            applyP(state.p);
+          },
         },
       });
 
-      // Beat 1 — a janela abre até o banner de 40vh e sobe pro topo; palavras somem.
+      // Beat 0 — o vídeo scrubba os 73 frames (currentTime 0→3.04s) enquanto a
+      // headline está visível e depois sai. `ease: "none"`: o scrub tem que ser
+      // 1-pra-1 com o scroll, sem suavização — é vídeo, não uma tween de propriedade
+      // CSS, e qualquer ease faria o mesmo trecho de scroll mapear pra frames
+      // diferentes dependendo da velocidade, quebrando a leitura de "puxar o filme".
       tl.to(
         state,
-        { p: 1, ease: "power2.inOut", duration: 1, onUpdate: () => applyP(state.p) },
+        { video: 1, ease: "none", duration: 0.45, onUpdate: () => applyVideo(state.video) },
         0,
       )
-        .to(wordL.current, { xPercent: -45, autoAlpha: 0, ease: "none", duration: 0.4 }, 0)
-        .to(wordR.current, { xPercent: 45, autoAlpha: 0, ease: "none", duration: 0.4 }, 0)
-        // Beat 2 — editorial sobe nos 60vh de baixo; números contam.
-        .to(editorial.current, { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.5 }, 0.62)
+        // Saída: a headline sai enquanto o push-in do vídeo já avançou — não no
+        // frame 0 (senão o vídeo nunca é lido "puro", sem texto por cima) e não perto
+        // do handoff (senão compete com o nascimento do card). Início 0.25, fim 0.40:
+        // a janela pedida no brief.
+        .to(
+          headline.current,
+          { yPercent: -22, autoAlpha: 0, filter: "blur(10px)", ease: "power2.in", duration: 0.15 },
+          0.25,
+        )
+        // Beat 1 — handoff: o card nasce no bbox da íris (elipse) e cresce até
+        // full-bleed. Começa exatamente onde o vídeo termina (0.45) — sem gap nem
+        // overlap entre as duas fases, senão ou sobra um instante sem imagem nenhuma
+        // mudando, ou o card nasce por cima de um frame de vídeo que ainda está se
+        // movendo.
+        .to(
+          state,
+          { p: 1, ease: "power2.inOut", duration: 0.55, onUpdate: () => applyP(state.p) },
+          0.45,
+        )
+        // Beat 2 — editorial sobe nos 60vh de baixo; números contam. 0.945, não 0.75
+        // (REVISADO — a Laura reprovou o texto vazando pra fora da elipse). 0.75
+        // preservava o TIMING RELATIVO de quando o card era um retângulo fixo de
+        // 260×320: a 62% do crescimento ele já cobria a tela toda. Agora o card nasce
+        // do bbox da íris — a 62% ainda é uma elipse pequena no meio do olho, e o
+        // editorial materializava por cima dela, meio dentro meio fora. Geometria de
+        // origem mudou, timing relativo não podia ser copiado. 0.945 = tl no ponto em
+        // que `p` (crescimento) já passou de 0.9 — o card já é essencialmente
+        // full-bleed (radiusT alto, cantos quase retos) antes do editorial começar a
+        // aparecer.
+        .to(editorial.current, { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.5 }, 0.945)
         // Beat 3 — a máscara terminou de abrir (p=1 em t=1.0): AGORA o ticker e o
         // recorte da Roberta materializam sobre a foto full-bleed. Não antes.
         .to(
@@ -705,7 +918,9 @@ export default function ARoberta() {
             }
           },
           [],
-          0.85,
+          // 0.90 (não mais 0.85): escalado junto com o editorial (ver beat 2) pra
+          // continuar disparando depois que os números já estão visíveis na tela.
+          0.9,
         );
 
       // ── Transição pra Features (scroll-scrub do defaultTransition do
@@ -1114,6 +1329,26 @@ export default function ARoberta() {
         <div ref={recede} className="relative h-full w-full will-change-transform">
           <Afluente veil={false} />
 
+          {/* Vídeo do match cut — beat 0 do scrub (ver applyVideo no useGSAP). Fica
+              ACIMA do BACKDROP estático (z-[1] > z-0 do Afluente): os dois têm o
+              MESMO frame 0 (poster = a própria foto que o Afluente usa), então até o
+              vídeo terminar de decodificar não há salto visível, só uma troca de
+              camada idêntica pixel a pixel. `muted` + `playsInline` + `preload="auto"`
+              e SEM `autoplay`: quem escreve currentTime é só o scroll — nunca toca
+              sozinho (Armadilha 5 do brief). Existe só no ramo pinned deste JSX; o
+              fallback stacked/mobile nunca monta este elemento (Armadilha 4). */}
+          <video
+            ref={eyeVideo}
+            aria-hidden
+            muted
+            playsInline
+            preload="auto"
+            poster={EYE_VIDEO_POSTER}
+            className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-cover"
+          >
+            <source src={EYE_VIDEO} type="video/mp4" />
+          </video>
+
           {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo
               do ticker/recorte/editorial): vinheta funda nas bordas + grão de filme. */}
           <div
@@ -1128,21 +1363,6 @@ export default function ARoberta() {
             aria-hidden
             className="pointer-events-none absolute inset-0 z-[21] opacity-[0.055] mix-blend-overlay"
             style={{ backgroundImage: NOISE_BG, backgroundSize: "180px 180px" }}
-          />
-
-          {/* Costura com a section CLARA de cima (Como Começar agora fecha em creme):
-              começa no MESMO creme (neutro-50 = #FAF9F5) no topo e desmaia no rosa da
-              orquídea — os dois lados encontram-se no creme, então não há corte. A
-              máscara é clara só no início (p=0); conforme o retrato vira full-bleed ela
-              apaga (opacity 1→0 em applyP) pra não deixar faixa clara sobre a foto. */}
-          <div
-            ref={topMask}
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 z-[22] h-56"
-            style={{
-              background:
-                "linear-gradient(to bottom, #FAF9F5 0%, rgba(250,249,245,0.82) 32%, rgba(250,249,245,0.4) 60%, transparent 100%)",
-            }}
           />
 
           {/* TICKER — nome gigante correndo SOBRE a imagem de fundo, atrás da cabeça
@@ -1172,31 +1392,42 @@ export default function ARoberta() {
             />
           </div>
 
-          {/* palavras da headline gigante, flanqueando o centro (inner = mask reveal) */}
-          <span
-            ref={wordL}
-            className="absolute top-1/2 z-30 whitespace-nowrap"
-            style={{ right: "calc(62% + 155px)" }}
+          {/* Headline de abertura — frame Figma 251-83 (694×387): bloco ancorado em
+              left 38.9% / bottom 8.6% (270/694, (254+99.8)/387), duas linhas
+              explícitas (não wrap por largura — as métricas do Sentient não são as
+              do Poppins do canvas do Figma, wrap por `width` quebraria errado).
+              bottom-anchored, não top: mais robusto pra uma headline que mora no
+              rodapé do frame, imune a diferença de line-height entre fontes.
+
+              text-shadow RECALIBRADO contra o glow magenta real (medido no render,
+              texto escondido, p95 do fundo sob a caixa da headline no frame 0): a
+              sombra difusa antiga (24px/50%) sozinha dava só 2.91:1 (branco sobre o
+              p95 do glow) — abaixo do 3:1 AA de texto grande, e caía pra ~2:1 no pixel
+              mais claro do hotspot. O glow NÃO sustenta o branco sozinho. Trocado por
+              um halo escuro apertado (0/1px/4px a 0.85–0.9 de opacidade — funciona como
+              contorno, não como sombra) + o glow difuso original por baixo pra
+              profundidade. WCAG não modela text-shadow, então o número de 2.91:1 não
+              muda com esse halo — o que muda é a leitura real: o halo cria uma borda
+              quase sólida em volta do glifo, que é o que de fato resolve legibilidade
+              sobre fundo fotográfico imprevisível (mesma técnica de label de mapa). */}
+          <div
+            ref={headline}
+            className="absolute z-30 whitespace-nowrap text-left"
+            style={{ left: "38.9%", bottom: "8.6%" }}
           >
             <span
               data-word-inner
-              className="inline-block font-title text-[clamp(3.25rem,8vw,8rem)] font-medium leading-none text-neutro-800 [text-shadow:0_2px_28px_rgba(255,255,255,0.9),0_1px_4px_rgba(255,255,255,0.75)]"
+              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0 [text-shadow:0_0_1px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.85),0_0_14px_rgba(0,0,0,0.7),0_2px_24px_rgba(20,4,30,0.5)]"
             >
-              QUEM
+              QUEM ESTÁ
             </span>
-          </span>
-          <span
-            ref={wordR}
-            className="absolute top-1/2 z-30 whitespace-nowrap"
-            style={{ left: "calc(38% + 155px)" }}
-          >
             <span
               data-word-inner
-              className="inline-block font-title text-[clamp(3.25rem,8vw,8rem)] font-medium leading-none text-neutro-800 [text-shadow:0_2px_28px_rgba(255,255,255,0.9),0_1px_4px_rgba(255,255,255,0.75)]"
+              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0 [text-shadow:0_0_1px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.85),0_0_14px_rgba(0,0,0,0.7),0_2px_24px_rgba(20,4,30,0.5)]"
             >
-              CONSTRUIU?
+              POR TRÁS?
             </span>
-          </span>
+          </div>
 
           {/* retrato — card-retrato que cresce até ocupar a section inteira */}
           <div
