@@ -418,13 +418,25 @@ function Swap({ k, children, className = "" }: { k: string | number; children: R
   );
 }
 
-/* O tom "hero" (white/70) saiu: existia só pros cards com FOTO escura por baixo,
-   onde white/55 não segurava contraste. Não sobrou nenhum — os três cards com
-   textura agora são claros (tone="light") e os três sem textura usam o padrão
-   sobre o gradiente do CARD. */
-function CardBody({ tone = "dark", children }: { tone?: "dark" | "light"; children: ReactNode }) {
+/* O tom "hero" (white/70) existe pros cards com FOTO escura por baixo, onde
+   white/55 não segura contraste: medido com o corpo real (não branco puro),
+   os três cards de textura reprovam AA em white/55 (2,87 / 2,90 / 3,64) — e o
+   Questionários reprova até em branco puro no pior caso local (3,34:1), porque
+   a faixa clara da imagem cai bem na zona do texto. `hero` (white/70) é o piso
+   que os três exigem.
+
+   Ter foto embaixo NÃO implica `hero` — o gatilho é o contraste medido, não a
+   presença da textura: se um card com foto desse contraste de sobra em
+   white/55, ficaria em `dark` como qualquer outro. Antropometria, Exames e
+   Agenda continuam em `dark` porque não têm foto — ficam sobre o gradiente
+   chapado do CARD, onde white/70 destoaria dos vizinhos. Antes de mudar o tom
+   de qualquer card, meça: os números calculados a partir do crop erraram feio
+   contra o render. */
+function CardBody({ tone = "dark", children }: { tone?: "dark" | "light" | "hero"; children: ReactNode }) {
+  const cls =
+    tone === "light" ? "text-ink" : tone === "hero" ? "text-white/70" : "text-white/55";
   return (
-    <p className={"mt-3 max-w-md font-body text-body " + (tone === "light" ? "text-ink" : "text-white/55")}>
+    <p className={"mt-3 max-w-md font-body text-body " + cls}>
       {children}
     </p>
   );
@@ -2453,33 +2465,36 @@ export default function Features() {
           {/* B — Questionários (hero verde) */}
           <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/questionarios-sage.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            {/* Véu LEVE e chapado (0,27), não gradiente — este card é o mais claro
-                dos três (203 de luminância crua) e era o que ofuscava. Em 0,27 ele
-                pousa em ~151: a gradiente segue 73% presente e para de gritar.
+            <img src="/textures/questionarios-esmeralda.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-top" />
+            {/* object-top não é só enquadramento — é a metade da conta de
+                contraste que o véu sozinho não fecha. Medido no render (corpo
+                real hero white/70, p95 = pior ponto local, não a média):
+                object-top dá 6,28:1. O topo escuro da imagem sobe pra trás do
+                texto e a faixa clara desce pro rodapé, atrás do mock — o card
+                ganha contraste E mantém a parte bonita visível, só que mais
+                embaixo. Confirmado no screenshot renderizado, não só calculado.
+                Véu LEVE e chapado (0,27), não gradiente — mesmo alpha de antes,
+                razão diferente agora que o fundo é a esmeralda escura: existe
+                pra assentar a gradiente, não pra domar foto clara que ofusca.
                 Chapado de propósito: gradiente de véu existia pra domar foto, que
                 tem assunto e regiões. Uma gradiente já É uniforme — véu com stops
                 em cima só brigaria com o desenho dela.
-                O caminho até este número: 0,73/0,58/0,8 (tingimento) apagava a
-                imagem — a sage saía com 8,4% de saturação, MENOS colorida que um
-                card sem imagem nenhuma. Zero véu devolvia a cor (23,7%) mas
-                ofuscava. 0,27 é o meio, e não é livre: acima de ~0,45 o card cai
-                na zona morta 85–122, onde nem texto branco nem escuro funciona.
-                O Hotspot saiu e não volta: era branco em mix-blend-plus-lighter,
-                e plus-lighter SOMA — sobre pastel não acende, estoura pra branco. */}
+                O Hotspot que saiu era branco em mix-blend-plus-lighter — a razão
+                de ter saído (plus-lighter estoura sobre pastel) caducou com a
+                troca pra fundo escuro. A volta dele não foi avaliada. */}
             <div className="absolute inset-0 bg-[rgba(10,14,10,0.27)]" />
             {/* O Glow FICA, e agora rende mais que antes: ele não é tinta, é
                 backdrop-filter saturate(1.55) — amplifica o que está atrás. Atrás
-                dele há gradiente sage de verdade, então ele adensa o verde na
+                dele há gradiente esmeralda de verdade, então ele adensa o verde na
                 quina em vez de lavar. É a única camada de luz que sobrevive à
                 inversão, porque é a única que trabalha COM o fundo. */}
             <Glow className="bottom-[-4%] left-[-10%] h-80 w-80" />
             <Grain at="18% 100%" />
-            <EdgeLight at="18% 100%" tone="light" />
+            <EdgeLight at="18% 100%" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
-                <CardTitle tone="light">Questionários</CardTitle>
-                <CardBody tone="light">Sete instrumentos validados (EAT-26, QFA, PSQI e outros), com pontuação automática.</CardBody>
+                <CardTitle>Questionários</CardTitle>
+                <CardBody tone="hero">Sete instrumentos validados (EAT-26, QFA, PSQI e outros), com pontuação automática.</CardBody>
               </div>
               <MockQuestionarios />
             </div>
@@ -2489,25 +2504,34 @@ export default function Features() {
           {/* azul-cinza da gradiente */}
           <article data-card className={CARD_HERO + " lg:col-start-1 lg:row-start-2"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/plano-azul.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-center" />
-            {/* Véu leve chapado (0,27), mesmo alpha dos outros dois — ver a nota
+            <img src="/textures/plano-cobalto.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-top" />
+            {/* object-top e não object-center: mesma lógica do Prontuário
+                (gradiente borrada não tem lado certo, então mover o enquadramento
+                não custa nada e paga contraste) aplicada via object-position em
+                vez de virar o arquivo. Números daqui em diante são medidos no
+                render, não calculados a partir do crop — o cálculo tinha errado
+                o aspect ratio e mandava pro lugar errado (ver Prontuário).
+                A varredura em Y mede: 0%=5,32 / 5%=5,16 / 10%=4,97 / 15%=4,78 /
+                20%=4,61 — reprova de 25% pra cima, porque a cobalto clareia sob
+                o texto conforme desce. object-top (Y=0%) é a maior margem das
+                que passam: 5,32:1 (p95, corpo hero white/70).
+                Véu leve chapado (0,27), mesmo alpha dos outros dois — ver a nota
                 longa no Questionários pra por que 0,27 e não outro número.
-                Mesmo alpha, resultado mais escuro: este card pousa em ~122 contra
-                ~151 do Questionários, porque a azul já era a menos luminosa das
-                três na região que o object-cover mostra. O alpha é igual de
-                propósito — igualar a CHEGADA exigiria alpha diferente por card, e
-                aí o véu viraria correção de exposição em vez de tratamento.
-                O Hotspot saiu com o fundo claro. A quina esquerda continua sendo
-                de onde a pilha de cartas se abre, mas quem marcava esse canto era
-                um radial branco em plus-lighter — que sobre fundo claro vira
-                mancha chapada, não luz. O EdgeLight escuro já dá a aresta. */}
+                A cobalto é a mais escura e mais saturada das três texturas, mas
+                a margem que sobra é no ENQUADRAMENTO certo, não em qualquer um:
+                alpha igual entre os três continua sendo tratamento, não correção
+                de exposição — quem faz o ajuste fino aqui é o object-position.
+                O Hotspot que marcava a quina esquerda saiu porque era radial
+                branco em plus-lighter e o fundo claro de antes o estourava — essa
+                razão caducou com a volta do fundo escuro, e a volta dele não foi
+                avaliada. O EdgeLight já dá a aresta. */}
             <div className="absolute inset-0 bg-[rgba(6,9,12,0.27)]" />
             <Grain at="12% 100%" />
-            <EdgeLight at="12% 100%" tone="light" />
+            <EdgeLight at="12% 100%" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-9 md:pt-9">
-                <CardTitle tone="light">Plano alimentar</CardTitle>
-                <CardBody tone="light">Monte sem sair do prontuário. Tabela TACO embutida, macros somados, importação por PDF.</CardBody>
+                <CardTitle>Plano alimentar</CardTitle>
+                <CardBody tone="hero">Monte sem sair do prontuário. Tabela TACO embutida, macros somados, importação por PDF.</CardBody>
               </div>
               <MockPlano />
             </div>
@@ -2550,8 +2574,9 @@ export default function Features() {
                   <CardTitle>Exames de sangue</CardTitle>
                   {/* tone volta pro padrão "dark" (white/55): "hero" é white/70,
                       calibrado pra segurar contraste contra foto. Sobre o
-                      gradiente chapado do CARD, white/70 destoa dos vizinhos sem
-                      textura — Antropometria e Agenda usam o padrão. */}
+                      gradiente chapado do CARD, white/70 destoaria — este card,
+                      a Antropometria e a Agenda são os três que ficam sem
+                      textura, e os três usam o padrão. */}
                   <CardBody>Suba o PDF do laboratório. A Gaia extrai os valores e marca o que está fora da faixa.</CardBody>
                 </div>
                 <MockExames />
@@ -2560,6 +2585,41 @@ export default function Features() {
 
             {/* roxo = teleconsulta, a cor que a espinha das linhas usa */}
             <article data-card className={CARD + " min-h-[360px] flex-1"}>
+              {/* Camada de gradiente própria, por cima do CARD — não sobrescreve
+                  `bg-gradient-to-b from-[#1B2130] to-[#13171F]` no className:
+                  from-/to- do CARD e um from-/to- daqui gerariam a mesma custom
+                  property (--tw-gradient-from), com a mesma especificidade —
+                  quem vence é a ordem no CSS gerado, não a ordem na string. Uma
+                  `<div>` própria, como as texturas fazem, resolve sem essa
+                  fragilidade.
+                  O alvo é o dos VIZINHOS, não o das três texturas. A Agenda
+                  divide a coluna com o Exames e fica ao lado da Antropometria —
+                  esses dois estão em croma OKLCH 0,0245–0,0264, e é esse o grupo
+                  que ela precisa acompanhar, não o das texturas (0,067). A
+                  primeira versão casou com as texturas e foi testada no render —
+                  reprovada no olho, forte demais: um card de textura entre dois
+                  cards discretos grita. É a confusão que "mesma saturação dos
+                  demais bgs" convida a fazer — parece apontar pras texturas e
+                  não aponta. A Agenda é irmã do Exames e da Antropometria, não
+                  das texturas.
+                  "Saturação" aqui é croma OKLCH, não S de HSL: em HSL os bgs do
+                  bento marcam 22/75/31% e não formam grupo nenhum — é ruído. O
+                  croma é que revela quem é coerente com quem. Quem for
+                  reajustar isto tem que medir na mesma régua, ou vai perseguir o
+                  número errado.
+                  Entrada #231E2E→#18151E (matiz 304°): os dois `Glow` deste card
+                  são `backdrop-filter: saturate(1.55)` e amplificam por cima, TAL
+                  QUAL antes — o número que importa é o do render, não o do
+                  código: 0,0284, dentro da faixa dos vizinhos (0,0245–0,0264).
+                  O L do par é 24,9→20,4 — é o MESMO L do CARD original
+                  (#1B2130→#13171F). O card não ficou mais claro nem mais
+                  escuro; só ganhou matiz e um tico de croma. Era isso que
+                  "sutil" pedia.
+                  Contraste final: 5,81:1 (p95, pior caso local, corpo real
+                  white/55, medido no render) — folga maior que a versão
+                  anterior, porque o croma mais baixo mexe menos na luminância
+                  crua que o texto vê. */}
+              <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-[#231E2E] to-[#18151E]" />
               {/* Roxo e sage porque são as duas cores que a própria agenda usa
                   na espinha das linhas (roxo = tele, sage = presencial): a luz
                   do card é a legenda dele, desfocada. */}
@@ -2581,45 +2641,76 @@ export default function Features() {
 
         {/* Prontuário — hero teal, largura total, phone 3D centralizado */}
         <div className="mt-4 grid grid-cols-1 gap-4 md:mt-5 md:gap-5 lg:grid-cols-6">
-          {/* lilás da gradiente — herda o malva que a pétala trazia.
-              Havia aqui uma nota sobre o alpha do véu ser mais baixo (0,38) que
-              o dos vizinhos, porque com 1024px de largura contra ~500 o mesmo
-              alpha renderia o dobro de franja e o Prontuário viraria o ponto
-              mais aceso do bento, quando ele é o fecho. Não há mais véu, mas a
-              largura continua sendo o dobro — e agora o card é CLARO e ocupa a
-              faixa inteira. Ele é, por construção, a peça mais luminosa do
-              bento. Se o fecho voltar a roubar a manchete, é aqui. */}
+          {/* petala escura, mesmo véu 0,27 dos outros dois — ver a nota do
+              Questionários pra por que esse alpha e não outro.
+              A largura aqui é o dobro da dos vizinhos (1024px contra ~500), e
+              isso já foi razão pra baixar o alpha do véu deste card sozinho:
+              mesma franja proporcional renderia o dobro em área absoluta. Não
+              foi preciso agora porque o fundo é escuro como os outros dois —
+              a preocupação era com um card CLARO de largura dupla virando o
+              ponto mais aceso do bento, e essa preocupação não se aplica a um
+              fundo escuro. Se o fecho puxar atenção demais, é aqui que se olha
+              primeiro. */}
           <article data-card className={CARD_HERO + " lg:col-span-6"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/prontuario-lilas.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-            {/* Véu leve chapado (0,27), igual aos outros dois — pousa em ~127.
-                A imagem no disco está VIRADA na vertical, e isso é legibilidade,
-                não capricho: de pé, a faixa roxa escura da gradiente caía
-                exatamente na quina superior esquerda, que é onde o título e o
-                corpo moram (o texto vive numa coluna de 248px à esquerda do
-                phone). Medido ali, o corpo em neutro-800 dava 3,6:1 — reprova.
-                Virada, a parte clara sobe pro texto e a faixa escura desce pro
-                rodapé: 6,6:1. Gradiente borrada não tem lado certo, então virar
-                não custa nada e paga o contraste. Com o véu de 0,27 por cima a
-                margem encolhe mas continua de pé — é a razão de o corpo ser `ink`
-                e não `neutro-800`. */}
+            <img src="/textures/prontuario-petala.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-[50%_40%]" />
+            {/* object-[50%_40%]: enquadramento, não solução de contraste — a
+                pétala não tem Y nem espelho (X, Y, XY) que resolva sozinho (ver
+                o scrim logo abaixo). 40% foi onde o crop ficou melhor visualmente
+                depois que o scrim assumiu o trabalho de contraste.
+                Véu leve chapado (0,27), igual aos outros dois — o alpha uniforme
+                sobrevive. Mas aqui ele NÃO fecha a conta sozinho: medido no
+                render, a pétala com véu 0,27 reprova nas DUAS polaridades. Texto
+                branco: nenhum Y na varredura 0%→100%, nem espelho-X, nem
+                espelho-Y, nem espelho-XY, passa. Texto `ink`: melhor caso é
+                3,73:1 em Y=0%, também reprova. Ela é escura demais pra `ink` e
+                clara demais pra branco — meio-tom puro, a ZONA MORTA que o
+                comentário do Questionários já nomeia. Não é imagem ruim, é
+                imagem que não hospeda texto sozinha. */}
             <div className="absolute inset-0 bg-[rgba(12,8,12,0.27)]" />
-            {/* Assento atrás do phone — MUITO mais leve (0,66/0,32 → 0,2/0,1) e
-                agora com outra função. Sobre card escuro ele era escurecimento:
-                cavava um poço pro aparelho escuro se destacar de um fundo já
-                escuro. Sobre a lilás clara isso se inverte sozinho — o phone é
-                escuro e o fundo é claro, então o contraste já existe de graça e
-                a mancha antiga só sujaria a gradiente com um borrão cinza no
-                meio do card. No alpha baixo ela deixa de ser poço e vira o que
-                um objeto pousado numa superfície clara projeta: sombra. */}
+            {/* Scrim localizado — a peça que fecha a conta que o véu chapado
+                não fechou. Véu chapado em 0,45 PASSA (4,84:1) e foi REJEITADO:
+                nesse alpha a pétala inteira vira um vinho escuro, o rosa e o
+                clarão somem — resolve contraste matando a imagem que a Laura
+                trocou pra ter ali.
+                O scrim compra o mesmo contraste gastando só a coluna do texto:
+                o Prontuário tem 1024px de largura, o texto mora nos primeiros
+                ~248px à esquerda e o phone ocupa o centro (x 596–844) — sobra
+                card inteiro pra pétala aparecer sem escurecimento extra. A
+                gradiente linear em 100deg escurece forte de 0% a 26% (onde o
+                texto está) e desaparece a partir de 48%, bem antes do phone.
+                Medido no render: 6,02:1 (p95, corpo hero white/70).
+                Por que isto não é o mesmo "véu-gradiente com stops" que o
+                comentário do Questionários rejeita ("uma gradiente já É
+                uniforme — véu com stops só brigaria com o desenho dela"): aquele
+                argumento vale pros cards de ~500px, onde o texto atravessa o
+                card inteiro e qualquer gradiente de véu compete com a gradiente
+                da própria textura em toda a largura. Aqui o card tem 1024px e o
+                texto ocupa só o primeiro quarto — o scrim morre antes do phone
+                e não toca os 3/4 do card onde a pétala precisa respirar. A
+                exceção é de GEOMETRIA (card duas vezes mais largo, texto
+                confinado numa coluna), não de gosto — se algum dia isto virar
+                precedente pra por scrim nos outros dois, a premissa é falsa: lá
+                o texto ocupa a largura toda e o argumento do Questionários
+                continua de pé. */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,rgba(12,8,12,0.65)_0%,rgba(12,8,12,0.49)_26%,transparent_48%)]" />
+            {/* Assento atrás do phone — 0,2/0,1, sem mexer no alpha. A premissa
+                que justificava esse número era fundo CLARO: o phone escuro já
+                se separava por silhueta e a mancha só precisava ser sombra
+                projetada, não poço. Com a pétala escura de volta essa premissa
+                caiu — phone escuro sobre fundo agora também escuro tem bem menos
+                contraste de graça, e no alpha baixo essa mancha tende a virar
+                borrão em vez de sombra. Não subi o alpha porque isso não foi
+                medido; o assento precisa de olho no render antes de mexer. */}
             <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 hidden h-[620px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(4,8,10,0.2)_0%,rgba(4,8,10,0.1)_52%,transparent_74%)] lg:block" />
-            {/* O Hotspot da contraluz SAIU. Ele era radial branco em
-                mix-blend-plus-lighter, e plus-lighter só sabe SOMAR: sobre a
-                pétala escura ele escapava por baixo do phone e lia como lâmpada;
-                sobre a lilás crua (~200) somar branco não acende — satura pra
-                branco chapado e come a gradiente justamente no centro do card.
-                Contraluz é um efeito que precisa de escuro atrás. Aqui o fundo
-                virou claro, e o aparelho escuro já se resolve por silhueta.
+            {/* O Hotspot da contraluz continua fora, mas a razão de ele ter saído
+                caducou. Ele era radial branco em mix-blend-plus-lighter: sobre a
+                pétala escura ele soma luz de verdade e escapa por baixo do phone
+                lendo como lâmpada — é exatamente o efeito que contraluz busca, e
+                o fundo escuro voltou a ser o que esse efeito pede. A razão que
+                tirou ele antes (fundo claro, plus-lighter saturando pra branco
+                chapado) não vale mais. A volta dele não foi avaliada aqui — é
+                decisão visual pendente, não desta troca.
 
                 A geometria fica registrada porque custou régua no DOM e vale se
                 alguém tentar reacender isto: o phone ocupa x 596–844 e desce até
@@ -2631,7 +2722,7 @@ export default function Features() {
                 livre em toda a largura fora do phone — por isso a elipse era
                 rasa e deitada (900×260). */}
             <Grain at="50% 100%" />
-            <EdgeLight at="50% 100%" tone="light" />
+            <EdgeLight at="50% 100%" />
 
             {/* min-h preserva a altura visual do palco agora que a Marina vive na
                 tela do iPhone (ver PhoneScreen) que a ScrollPhone sobrepõe aqui. */}
@@ -2640,8 +2731,8 @@ export default function Features() {
                   centralizado e nunca corre por baixo do aparelho (glass começa
                   ~270px dentro do card). Solto no mobile, onde não há phone. */}
               <div className="max-w-md lg:max-w-[248px]">
-                <CardTitle tone="light">Prontuário</CardTitle>
-                <CardBody tone="light">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
+                <CardTitle>Prontuário</CardTitle>
+                <CardBody tone="hero">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
               </div>
 
               {/* mobile/tablet — sem phone 3D: satélites empilhados */}
