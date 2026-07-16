@@ -435,12 +435,13 @@ const WET_DEPTH = 0.45;
    um flash. É o menor tempo que ainda lê como "ele encostou".
 
    HOLD_RISE — hold sobe em rampa em vez de ser cravado em 1. O gatilho
-   (TOUCH_FRAC) dispara ANTES do pico do dive, então `hold.current = 1` no ato
-   arrancaria o dive num frame — e dive governa o roll e o DIVE_SHRINK do phone,
-   que pipocariam junto. A rampa não aparece em quadro porque d = max(bump, hold)
-   e o bump está subindo junto: até o fim da rampa o hold lidera o bump por
-   pouco. Ele só passa a mandar de verdade depois de wp, que é onde o bump cai e
-   alguém precisa segurar o pico. */
+   dispara no pico do dive ou antes dele (aresta ou p >= wp, ver o gatilho em
+   place()), então `hold.current = 1` no ato arrancaria o dive num frame — e
+   dive governa o roll e o DIVE_SHRINK do phone, que pipocariam junto. A rampa
+   não aparece em quadro porque d = max(bump, hold) e o bump está subindo junto
+   (no disparo por wp o bump JÁ é 1 e a rampa é no-op): até o fim da rampa o
+   hold lidera o bump por pouco. Ele só passa a mandar de verdade depois de wp,
+   que é onde o bump cai e alguém precisa segurar o pico. */
 const DELIVER_SCROLL = 0.7;
 const HOLD_BEAT = 0.12;
 const HOLD_RISE = 0.22;
@@ -482,7 +483,16 @@ const TOUCH_FRAC = 0.55;
    De 0.40 a 0.64 o piso prende o phone na superfície (ver floorGrip): 765px de
    scroll em que a posição vertical dele NÃO MUDA. Ele já tinha pousado; a
    máquina é que ficou esperando um número que o olho não tem como acompanhar.
-   Era essa a enrolação — não a duração da entrega, a espera ANTES dela. */
+   Era essa a enrolação — não a duração da entrega, a espera ANTES dela.
+
+   (2026-07: wp VOLTOU ao gatilho — como SEGUNDO disparo, não como espera. O
+   layout andou de novo e inverteu o erro deste bloco: wp caiu pra p 0.594 ↔
+   frac 0.75, ANTES de a aresta chegar em 0.55. Esperar só a aresta abria um
+   vão de ~180px em que o piso soltava e a câmera afundava sem entrega — o
+   afogado, de volta, na mão do usuário. Agora vale o PRIMEIRO dos dois: a
+   aresta continua sendo o evento visível e wp é o freio geométrico que impede
+   o mergulho de começar sem dono. Os dois mundos ficam cobertos — wp tarde,
+   a aresta dispara; wp cedo, wp dispara. Ver o bloco do gatilho em place().) */
 
 /** Em que faixa de p a tinta entrega o dentro-d'água pro submerso do Pricing.
  *  Tem que FECHAR antes do pouso: o canvas é z-[60] e uma tinta viva em p=1
@@ -1091,25 +1101,40 @@ export default function ScrollPhone() {
 
         /* O GATILHO. Fora do reduced-motion (ver item e): quando o phone chega
            na água descendo, a cena assume — o usuário parou de dirigir, a
-           entrega dirige. A histerese (rearma só abaixo de touchP − 0.02, não
-           logo que p < touchP) existe pra quem oscila bem em cima da linha não
-           reativar o gatilho a cada frame tremido.
+           entrega dirige.
 
-           A ARESTA, não wp: o phone chega na água quando o HORIZONTE cruza o
-           meio da tela — ver TOUCH_FRAC. wp continua mandando em tudo o mais (o
-           pico do dive, a quebra do cy, o piso); só o gatilho deixou de esperar
-           por ele.
+           DOIS disparos, vale o PRIMEIRO — a aresta OU wp.
 
-           A histerese vive no espaço da ARESTA agora (px de tela, via frac), não
-           no de p: são a mesma coisa a menos de escala, e frac é o que o gatilho
-           de fato lê. +0.03 de frac ≈ 24px @787 — folga pra tremor de scroll sem
-           chegar perto de rearmar sozinho. */
+           A ARESTA (sf <= TOUCH_FRAC) é o evento visível: o horizonte cruza
+           pouco abaixo do meio da tela. Era o gatilho ÚNICO, e sozinho ele
+           devolveu o afogado que este arquivo já matou duas vezes. Medido
+           @1440×900 no layout de hoje: wp cai em p 0.594 ↔ frac 0.75, e a
+           aresta só chega em 0.55 ↔ p 0.65. No vão (frac 0.75→0.55, ~180px
+           de scroll NA MÃO do usuário) o mergulho já tinha começado sem
+           entrega: o piso soltando (p > wp), camAmt subindo 0.56→0.88, a
+           câmera afundando −0.54→−0.80 e as cristas comendo o corpo do
+           aparelho — o print da Laura: frase ainda em quadro e o phone
+           enterrado até as lentes, a água "aparecendo antes" do mergulho.
+           Pior: o bump já CAÍA (0.996→0.914) quando a entrega enfim
+           disparava — o gatilho assinava depois do quadro.
+
+           p >= wp é exatamente onde o piso começa a soltar (FLOOR_RELEASE):
+           disparar ali é a cena assumir no primeiro frame em que algo muda —
+           não sobra frame de afundamento sem dono. A lição do gatilho ("ler
+           a MESMA grandeza que pinta o quadro") segue honrada: quem pinta o
+           afundamento é o piso, e o piso lê p contra wp. A aresta fica de
+           piso de segurança pro layout em que wp volte a cair TARDE (o mundo
+           registrado em TOUCH_FRAC) — lá ela dispara primeiro e nada regride.
+
+           A histerese rearma só com os DOIS desarmados, cada um com sua folga
+           (+0.03 de frac ≈ 24px @787; −0.02 de p): quem oscila em cima de
+           qualquer uma das linhas não reativa o gatilho a cada frame tremido. */
         const seamEl = document.querySelector<HTMLElement>("[data-water-start]");
         if (!reduce && seamEl) {
           const sf = seamEl.getBoundingClientRect().top / window.innerHeight;
-          if (sf <= TOUCH_FRAC && armed.current && !delivering.current) {
+          if ((sf <= TOUCH_FRAC || p >= wp) && armed.current && !delivering.current) {
             deliver();
-          } else if (sf > TOUCH_FRAC + 0.03) {
+          } else if (sf > TOUCH_FRAC + 0.03 && p < wp - 0.02) {
             armed.current = true;
           }
         }

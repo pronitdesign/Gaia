@@ -31,23 +31,27 @@ CustomEase.create(
 // magenta/violeta já queimado na própria foto, canto inferior-direito. Não é assunto
 // abstrato: é o frame de abertura que a headline ancora. A camada de flor multiply
 // segue fora — ela só fazia sentido com orquídea-sobre-branco sobre o gradiente claro.
-// No modo PINNED este frame é só a base instantânea (poster/primeiro paint, sem flash
-// branco antes do vídeo decodificar) — o vídeo scrubbado (EYE_VIDEO, ver abaixo) fica
-// por cima e assume a partir do primeiro frame, que É esta mesma foto. No modo STACKED
-// (sem vídeo, ver Armadilha 4 do brief) esta imagem é o fundo inteiro, sozinha.
+// No modo PINNED este frame é só a base instantânea (primeiro paint, sem flash branco
+// antes do primeiro bitmap decodificar) — o canvas da sequência (SEQ_FRAMES, ver
+// abaixo) fica por cima e assume a partir do primeiro frame, que É esta mesma foto.
+// No modo STACKED (sem sequência, Armadilha 4 do brief) esta imagem é o fundo inteiro.
 const BACKDROP = "/quem-construiu-olhos.webp";
 
-// Vídeo do push-in no olho — scrubbado pelo scroll (beat 0 do pin, ver useGSAP);
-// depois do último frame, o mergulho na pupila continua o movimento (beat 1).
-// 1920×1072, 3.04s, 73 frames, TODOS keyframes (GOP=1): é isso que torna o seek
-// instantâneo a cada frame do scrub — um H.264 com GOP normal engasga. Poster = frame 0
-// da própria foto acima, evita flash antes do primeiro decode. SÓ existe no ramo pinned
-// do JSX — 4.85MB no fallback stacked/mobile é inaceitável (Armadilha 4).
-const EYE_VIDEO = "/quem-construiu-olho.mp4";
-const EYE_VIDEO_POSTER = "/quem-construiu-olho-poster.webp";
-const EYE_VIDEO_DURATION = 3.0417; // s — medido via ffprobe, 73 frames a ~24fps
-const EYE_VIDEO_W = 1920;
-const EYE_VIDEO_H = 1072;
+// Sequência de frames do push-in no olho — scrubbada pelo scroll (beat 0 do pin, ver
+// useGSAP); depois do último frame, o mergulho na pupila continua o movimento (beat 1).
+// ERA um <video> H.264 GOP=1 com currentTime escrito pelo scroll — e era isso que
+// travava: seek de vídeo é ASSÍNCRONO (o frame pinta 1–3 ticks depois do scroll, o
+// browser decide quando) e QUANTIZADO (só existem os 73 degraus, nada entre eles).
+// Nenhum ease conserta latência de decode. A forma awwwards (Apple AirPods et al.) é
+// pré-decodificar os frames em ImageBitmap e desenhar num <canvas> — seek síncrono,
+// custo de um drawImage — com crossfade sub-frame entre vizinhos (o degrau vira motion
+// blur) e scrub amortecido (ver o damp no useGSAP). 73 webp q68 = 5.0MB, o mesmo
+// payload do mp4 que substituem. SÓ carrega no modo pinned (Armadilha 4) — o fallback
+// stacked/mobile nunca busca um frame.
+const SEQ_FRAMES = 73;
+const SEQ_W = 1920;
+const SEQ_H = 1072;
+const seqSrc = (i: number) => `/olho-seq/olho-${String(i + 1).padStart(3, "0")}.webp`;
 
 // Geometria da íris (centro = pupila), MEDIDA no frame de origem (3852×2152) como
 // FRAÇÃO do frame do vídeo — nunca em px cravado nem em % de viewport. O vídeo é
@@ -59,29 +63,47 @@ const IRIS_CY_FRAC = 0.4977;
 const IRIS_W_FRAC = 0.2191;
 const IRIS_H_FRAC = 0.3281;
 
+// ── Disco pupila+íris no frame FINAL (73) — a anatomia que o portal imita ──────
+// MEDIDO no frame com grade de 95px (px do frame 1920×1072, não fração): centro
+// (1103, 539) e raios 235×190. É uma ELIPSE (aspect 0.81) — o olho está em leve
+// 3/4, a pupila nunca foi um círculo perfeito na tela. Duas coisas nascem daqui:
+// a MÁSCARA do portal (que abre nesta elipse, não num círculo genérico — círculo
+// era o que fazia a transição ler como wipe de slideshow, não como pupila) e o
+// ANEL DE ÍRIS (sprite recortado em runtime do próprio frame 73, ver
+// buildIrisSprite no useGSAP: limbus escuro + textura + veias da esclera, com
+// alpha radial elíptico) que cavalga a borda do portal enquanto ele dilata.
+const DISC_CX_SRC = 1103;
+const DISC_CY_SRC = 539;
+const DISC_RX_SRC = 235;
+const DISC_ASPECT = 190 / 235; // ry/rx ≈ 0.81
+// Fim do fade EXTERNO do sprite, em múltiplos de rx — até onde entra esclera/veias.
+const DISC_SPRITE_OUT = 1.35;
+
 /** Bbox da íris (centro = pupila) em px de VIEWPORT, dado o tamanho atual da tela —
- *  replica a conta do object-cover: o vídeo (1920×1072) cobre vw×vh, e a íris é um
- *  ponto fixo dentro dele que se desloca com o crop. Chamada a cada frame do mergulho
+ *  replica a conta do cover: o frame (1920×1072) cobre vw×vh, e a íris é um ponto
+ *  fixo dentro dele que se desloca com o crop. Chamada a cada frame do mergulho
  *  (applyDive) e no onRefresh — nunca cacheada, porque a viewport muda (resize,
- *  rotate) e um valor velho desloca o ponto de fuga pra fora da pupila. */
+ *  rotate) e um valor velho desloca o ponto de fuga pra fora da pupila. O drawSeq
+ *  (canvas) usa EXATAMENTE esta mesma conta de cover — se uma mudar, a outra tem
+ *  que mudar junto, senão a pupila desenhada e o ponto de fuga divergem. */
 function computeIrisBox(vw: number, vh: number) {
-  const videoAspect = EYE_VIDEO_W / EYE_VIDEO_H;
+  const frameAspect = SEQ_W / SEQ_H;
   const viewportAspect = vw / vh;
   let scale: number, offsetX: number, offsetY: number;
-  if (viewportAspect > videoAspect) {
-    scale = vw / EYE_VIDEO_W;
+  if (viewportAspect > frameAspect) {
+    scale = vw / SEQ_W;
     offsetX = 0;
-    offsetY = (vh - EYE_VIDEO_H * scale) / 2;
+    offsetY = (vh - SEQ_H * scale) / 2;
   } else {
-    scale = vh / EYE_VIDEO_H;
-    offsetX = (vw - EYE_VIDEO_W * scale) / 2;
+    scale = vh / SEQ_H;
+    offsetX = (vw - SEQ_W * scale) / 2;
     offsetY = 0;
   }
   return {
-    cx: offsetX + IRIS_CX_FRAC * EYE_VIDEO_W * scale,
-    cy: offsetY + IRIS_CY_FRAC * EYE_VIDEO_H * scale,
-    w: IRIS_W_FRAC * EYE_VIDEO_W * scale,
-    h: IRIS_H_FRAC * EYE_VIDEO_H * scale,
+    cx: offsetX + IRIS_CX_FRAC * SEQ_W * scale,
+    cy: offsetY + IRIS_CY_FRAC * SEQ_H * scale,
+    w: IRIS_W_FRAC * SEQ_W * scale,
+    h: IRIS_H_FRAC * SEQ_H * scale,
   };
 }
 
@@ -591,11 +613,12 @@ export default function ARoberta() {
   const recede = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
-  // Vídeo do push-in no olho (ver EYE_VIDEO) — currentTime é escrito só pelo
-  // scrub (applyVideo); nunca autoplay, quem manda é o scroll (Armadilha 5).
-  const eyeVideo = useRef<HTMLVideoElement>(null);
-  // Aro da pupila — anel escuro fino que cavalga a borda do portal (ver applyDive).
-  const blackout = useRef<HTMLDivElement>(null);
+  // Canvas do push-in no olho (ver SEQ_FRAMES) — quem desenha é drawSeq, dirigido
+  // pelo scrub amortecido; nunca um clock próprio, quem manda é o scroll (Armadilha 5).
+  const seqCanvas = useRef<HTMLCanvasElement>(null);
+  // Anel de íris — canvas com o recorte REAL do limbus do frame 73 (ver
+  // buildIrisSprite), que cavalga a borda do portal enquanto a pupila dilata.
+  const irisRing = useRef<HTMLCanvasElement>(null);
   // Bloco único da headline de abertura ("QUEM ESTÁ" / "POR TRÁS?"), ancorado no
   // rodapé-direita do frame Figma — ver o JSX pinned pro porquê de um bloco só, não
   // mais duas palavras flanqueando o centro.
@@ -661,28 +684,194 @@ export default function ARoberta() {
       // 0.3: o portal começa a abrir com a escala já ~2× — cedo o bastante pra que
       // entre o olho e o retrato nunca exista um quadro sem cena viva.
       const REVEAL_START = 0.3; // d em que a pupila-portal começa a abrir
-      const state = { video: 0, dive: 0 };
+      const state = { scrub: 0, dive: 0 };
 
-      const applyVideo = (t: number) => {
-        const v = eyeVideo.current;
-        // readyState >= 1 = HAVE_METADATA: duration/seek já são confiáveis. Sem essa
-        // guarda, um seek antes da metadata carregar é ignorado silenciosamente pelo
-        // Safari e loga warning no Chrome — nenhum dos dois quebra, mas o guard evita
-        // trabalho inútil no primeiro frame antes do vídeo estar pronto.
-        if (!v || v.readyState < 1) return;
-        v.currentTime = Math.min(t * EYE_VIDEO_DURATION, v.duration || EYE_VIDEO_DURATION);
+      // ── Sequência: decode, draw e scrub amortecido ───────────────────────────
+      // Três peças que substituem o <video> scrubbado (ver o bloco do SEQ_FRAMES):
+      //
+      // 1. DECODE — os 73 webp viram ImageBitmap em memória, em DUAS passadas com 4
+      //    workers: primeiro frame sim/frame não (stride 6 — em segundos o scrub
+      //    inteiro tem cobertura grossa), depois o preenchimento. Se o scroll chega
+      //    num frame ainda não decodificado, drawSeq usa o vizinho carregado mais
+      //    próximo — degrada pra um passo maior, nunca pra buraco/flash.
+      //
+      // 2. DRAW — drawSeq desenha o frame no canvas com a MESMA conta de cover do
+      //    computeIrisBox, e faz crossfade sub-frame: frame ⌊f⌋ opaco + frame ⌈f⌉
+      //    com alpha fracionário. É o que apaga o degrau dos 73 frames — entre dois
+      //    quadros o olho atravessa um blend contínuo, lido como motion blur, não
+      //    como salto. (Backing do canvas tem teto na resolução da fonte: dpr acima
+      //    de 1920/vw só queima fill-rate ampliando webp, sem ganhar nitidez.)
+      //
+      // 3. DAMP — o scroll escreve só seq.target; um ticker leva seq.current até lá
+      //    com decaimento exponencial POR deltaTime (frame-rate-independent — lerp
+      //    cru por frame derrapa em 120Hz vs 60Hz). λ=14: alcance rápido o bastante
+      //    pra nunca ler como lag, e ainda assim toda flick de roda vira uma rampa
+      //    com inércia de câmera em vez de um degrau seco. Determinístico: mesmo
+      //    scroll → mesmo caminho, ida e volta (nada de random, Armadilha do scrub
+      //    reverso). O tremor do mergulho segue senoidal por d, inalterado.
+      const bitmaps: (ImageBitmap | null)[] = new Array(SEQ_FRAMES).fill(null);
+      let seqDisposed = false;
+      let needsDraw = true;
+      const aborter = new AbortController();
+
+      // ── Anel de íris (ver o bloco do DISC_* nas constantes) ─────────────────
+      // O sprite é construído UMA vez, em runtime, do próprio frame 73 — nunca um
+      // asset separado: se o footage trocar, o anel troca junto, e a textura é por
+      // definição a do olho que está na tela. Recorte quadrado centrado no disco
+      // medido, com alpha radial ELÍPTICO (transform scale(1, aspect) antes do
+      // gradiente — canvas não tem gradiente elíptico nativo): transparente no
+      // miolo (a pupila é o portal, quem mora lá é o retrato), opaco na banda do
+      // limbus (0.80→0.95·rx), segurando até 1.12·rx e desmanchando na esclera
+      // até 1.35·rx. O resultado É o aro do olho — escuro, irregular, com veias —
+      // não um radial-gradient chapado fingindo ser aro.
+      let irisSpriteReady = false;
+      const buildIrisSprite = () => {
+        const ring = irisRing.current;
+        const bmp = bitmaps[SEQ_FRAMES - 1];
+        if (!ring || !bmp || irisSpriteReady) return;
+        const R = Math.ceil(DISC_RX_SRC * DISC_SPRITE_OUT);
+        ring.width = ring.height = 2 * R;
+        ring.style.width = ring.style.height = `${2 * R}px`;
+        const g = ring.getContext("2d");
+        if (!g) return;
+        g.drawImage(bmp, DISC_CX_SRC - R, DISC_CY_SRC - R, 2 * R, 2 * R, 0, 0, 2 * R, 2 * R);
+        g.globalCompositeOperation = "destination-in";
+        g.save();
+        g.translate(R, R);
+        g.scale(1, DISC_ASPECT);
+        const grad = g.createRadialGradient(0, 0, 0, 0, 0, R);
+        grad.addColorStop(0, "rgba(0,0,0,0)");
+        grad.addColorStop(0.8 / DISC_SPRITE_OUT, "rgba(0,0,0,0)");
+        grad.addColorStop(0.95 / DISC_SPRITE_OUT, "rgba(0,0,0,1)");
+        grad.addColorStop(1.12 / DISC_SPRITE_OUT, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        g.fillStyle = grad;
+        g.fillRect(-R, -R / DISC_ASPECT, 2 * R, (2 * R) / DISC_ASPECT);
+        g.restore();
+        irisSpriteReady = true;
+        needsDraw = true; // força um tick de redraw — applyDive reposiciona o anel
       };
 
+      const loadFrame = async (i: number) => {
+        if (bitmaps[i] || seqDisposed) return;
+        try {
+          const res = await fetch(seqSrc(i), { signal: aborter.signal });
+          const bmp = await createImageBitmap(await res.blob());
+          if (seqDisposed) {
+            bmp.close();
+            return;
+          }
+          bitmaps[i] = bmp;
+          needsDraw = true; // o ticker redesenha — pode ser exatamente o frame em vista
+          if (i === SEQ_FRAMES - 1) buildIrisSprite();
+        } catch {
+          /* abort no cleanup ou rede: o nearest-loaded do drawSeq cobre o vão */
+        }
+      };
+      const loadOrder: number[] = [];
+      for (let i = 0; i < SEQ_FRAMES; i += 6) loadOrder.push(i);
+      for (let i = 0; i < SEQ_FRAMES; i++) if (i % 6 !== 0) loadOrder.push(i);
+      if (!loadOrder.includes(SEQ_FRAMES - 1)) loadOrder.splice(1, 0, SEQ_FRAMES - 1);
+      let loadCursor = 0;
+      for (let k = 0; k < 4; k++) {
+        (async () => {
+          while (loadCursor < loadOrder.length && !seqDisposed) {
+            await loadFrame(loadOrder[loadCursor++]);
+          }
+        })();
+      }
+
+      const canvas = seqCanvas.current;
+      const cctx = canvas?.getContext("2d");
+      const resizeCanvas = () => {
+        if (!canvas) return;
+        const cw = canvas.clientWidth || window.innerWidth;
+        const ch = canvas.clientHeight || window.innerHeight;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2, SEQ_W / Math.max(1, cw));
+        canvas.width = Math.round(cw * dpr);
+        canvas.height = Math.round(ch * dpr);
+        needsDraw = true;
+      };
+      resizeCanvas();
+
+      /** Frame carregado mais próximo de `i` (busca radial) — -1 se nada decodificou
+       *  ainda; nesse caso o BACKDROP por baixo (a MESMA foto do frame 0) segura o
+       *  quadro, sem flash. */
+      const nearestLoaded = (i: number) => {
+        if (bitmaps[i]) return i;
+        for (let d = 1; d < SEQ_FRAMES; d++) {
+          if (i - d >= 0 && bitmaps[i - d]) return i - d;
+          if (i + d < SEQ_FRAMES && bitmaps[i + d]) return i + d;
+        }
+        return -1;
+      };
+
+      const drawSeq = (f: number) => {
+        if (!canvas || !cctx || !canvas.width) return;
+        const i0 = Math.floor(f);
+        const i1 = Math.min(SEQ_FRAMES - 1, i0 + 1);
+        const a = nearestLoaded(i0);
+        if (a < 0) return;
+        // Mesma conta de cover do computeIrisBox, em px de backing — os frames são
+        // opacos e cobrem o canvas inteiro, então não há clearRect a pagar.
+        const s = Math.max(canvas.width / SEQ_W, canvas.height / SEQ_H);
+        const dw = SEQ_W * s;
+        const dh = SEQ_H * s;
+        const dx = (canvas.width - dw) / 2;
+        const dy = (canvas.height - dh) / 2;
+        cctx.globalAlpha = 1;
+        cctx.drawImage(bitmaps[a]!, dx, dy, dw, dh);
+        // Crossfade sub-frame — só quando o frame base é o certo (não um vizinho
+        // de fallback) e o próximo já decodificou.
+        const mix = f - i0;
+        if (mix > 0.001 && a === i0 && bitmaps[i1]) {
+          cctx.globalAlpha = mix;
+          cctx.drawImage(bitmaps[i1]!, dx, dy, dw, dh);
+          cctx.globalAlpha = 1;
+        }
+      };
+
+      // Posição do scrub em unidade de FRAME (0..72). current=-1 = primeiro tick
+      // ainda não rodou (snap direto pro target, sem rampa de abertura).
+      const seq = { target: 0, current: -1 };
+      const applySeq = (t: number) => {
+        seq.target = t * (SEQ_FRAMES - 1);
+      };
+      const tickSeq = (_t: number, deltaTime: number) => {
+        const k = 1 - Math.exp((-14 * deltaTime) / 1000);
+        let cur =
+          seq.current < 0 ? seq.target : seq.current + (seq.target - seq.current) * k;
+        if (Math.abs(seq.target - cur) < 0.002) cur = seq.target; // pouso exato, sem cauda infinita
+        if (cur !== seq.current || needsDraw) {
+          seq.current = cur;
+          needsDraw = false;
+          drawSeq(cur);
+          // O push-in do scrub mora no transform do canvas (ver applyDive) — anda
+          // junto com o frame, senão a escala salta quando o damp ainda corre.
+          applyDive(state.dive);
+        }
+      };
+      gsap.ticker.add(tickSeq);
+
       const applyDive = (d: number) => {
-        const video = eyeVideo.current;
-        const black = blackout.current;
+        const cv = seqCanvas.current;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         // O ponto de fuga é o centro da pupila MEDIDO a cada frame (nunca cacheado —
         // resize/rotate desloca o crop do object-cover, ver computeIrisBox).
         const iris = computeIrisBox(vw, vh);
 
-        if (video) {
+        if (cv) {
+          // PUSH-IN do scrub: a câmera nunca fica parada — enquanto o olho ainda
+          // troca de frame, o quadro inteiro já avança devagar em direção à pupila
+          // (1.02 → ~1.082 ao longo do beat 0), ancorado no mesmo transform-origin
+          // do mergulho. É dolly, não decoração: sem ele, entre um frame e outro o
+          // enquadramento é estático e o scrub lê como slideshow. Lê seq.current
+          // (o valor JÁ amortecido), então a escala anda na mesma rampa do frame.
+          // O expoente do mergulho parte DESTA base — quando d arranca, pv já é 1
+          // (o dive só começa depois do scrub completo) e a emenda é sem costura.
+          const pv = Math.min(1, Math.max(0, seq.current / (SEQ_FRAMES - 1)));
+          const base = 1.02 * (1 + 0.06 * pv);
           // Escala EXPONENCIAL (9^d), não linear: aproximação real a velocidade
           // constante cresce hiperbolicamente no quadro — linear lia como zoom de
           // software, não como câmera avançando. Composta com o power2.in do tween,
@@ -694,7 +883,7 @@ export default function ARoberta() {
           // d): a torção só existe quando a escala já lê como vórtice de fibras,
           // nunca como a foto inteira girando; 22° no fim (a ref da Laura pede ~25,
           // acima disso os cílios riscam diagonal demais e denunciam o giro 2D).
-          const S = 1.02 * Math.pow(DIVE_SCALE_MAX, d);
+          const S = base * Math.pow(DIVE_SCALE_MAX, d);
           // Micro-tremor de câmera — duas senoides dessincronizadas (nunca random:
           // o scrub reverso tem que refazer o MESMO caminho), amplitude ∝ sin(π·d):
           // zero exato nas duas pontas, então nem o repouso nem o handoff pro preto
@@ -702,8 +891,8 @@ export default function ARoberta() {
           const amp = 6 * Math.sin(Math.PI * d);
           const sx = amp * (Math.sin(d * 23.7) + 0.5 * Math.sin(d * 11.3));
           const sy = amp * (Math.cos(d * 19.1) + 0.5 * Math.sin(d * 13.9));
-          video.style.transformOrigin = `${iris.cx}px ${iris.cy}px`;
-          video.style.transform = `translate(${sx}px, ${sy}px) scale(${S}) rotate(${d * d * 22}deg)`;
+          cv.style.transformOrigin = `${iris.cx}px ${iris.cy}px`;
+          cv.style.transform = `translate(${sx}px, ${sy}px) scale(${S}) rotate(${d * d * 22}deg)`;
           // Curva de EXPOSIÇÃO, não só blur: a luz sobe no meio do trajeto
           // (atravessando a córnea molhada, brightness até ~1.4 + saturate até 1.6,
           // os valores da ref) e volta a 1 no fim — o mergulho atravessa LUZ do
@@ -713,41 +902,58 @@ export default function ARoberta() {
           // riscando (blur linear lavava tudo cedo demais — medido no render); no
           // fim, 14px é motion blur E disfarce da pixelização de ampliar 9×.
           const brightness = 1 + 0.4 * Math.sin(Math.PI * d);
-          video.style.filter = `blur(${d * d * 14}px) saturate(${1 + 0.6 * d}) brightness(${brightness})`;
+          cv.style.filter = `blur(${d * d * 14}px) saturate(${1 + 0.6 * d}) brightness(${brightness})`;
         }
 
         // ── Pupila-portal ────────────────────────────────────────────────────
         // A cena seguinte abre DENTRO da pupila: máscara radial no RETRATO (que já
         // está full-bleed e opaco por baixo, ver o gsap.set no setup), crescendo do
         // ponto da pupila até cobrir o canto mais distante da viewport. Borda
-        // emplumada em 10% do raio — pupila dilatando não tem recorte duro. É a
-        // mecânica da ref original da Laura (clip-path circle), com pluma e sem
-        // nunca passar por tela preta.
+        // emplumada em 10% do raio — pupila dilatando não tem recorte duro. A
+        // abertura é a ELIPSE do disco real (DISC_ASPECT, medido no frame 73) —
+        // círculo perfeito lia como wipe genérico, não como ESTA pupila dilatando.
         const t = Math.min(1, Math.max(0, (d - REVEAL_START) / (1 - REVEAL_START)));
-        // Raio até o CANTO mais distante — é ele que decide "coberto"; qualquer
-        // raio menor deixa um triângulo de olho vivo no canto oposto à pupila.
+        // Raio até o CANTO mais distante, em MÉTRICA elíptica (dy dividido pelo
+        // aspect): é o rx que faz a elipse alcançar o canto — qualquer valor menor
+        // deixa um triângulo de olho vivo no canto oposto à pupila.
         const maxR = Math.hypot(
           Math.max(iris.cx, vw - iris.cx),
-          Math.max(iris.cy, vh - iris.cy),
+          Math.max(iris.cy, vh - iris.cy) / DISC_ASPECT,
         );
         // Núcleo sólido em 90% do raio externo → em t=1 o sólido já alcançou maxR
         // e o retrato cobre tudo sem depender da cauda da pluma.
         const Rm = (t * maxR) / 0.9;
         const pr = portrait.current;
         if (pr) {
-          const m = `radial-gradient(circle at ${iris.cx}px ${iris.cy}px, black ${0.9 * Rm}px, transparent ${Rm}px)`;
+          // rx ry explícitos (stops em % do extent da elipse) — mesma pluma de 10%.
+          const m = `radial-gradient(${Rm}px ${Rm * DISC_ASPECT}px at ${iris.cx}px ${iris.cy}px, black 90%, transparent 100%)`;
           pr.style.setProperty("mask-image", m);
           pr.style.setProperty("-webkit-mask-image", m);
         }
-        if (black) {
-          // O véu preto de antes virou só um ANEL fino cavalgando a borda do
-          // portal — o aro da pupila viajando pra fora até sair da tela, com a
-          // franja violeta de aberração por dentro. Nunca um disco: o centro é
-          // sempre a cena viva do retrato.
-          black.style.background =
-            t === 0 || t >= 1
-              ? "none"
-              : `radial-gradient(circle at ${iris.cx}px ${iris.cy}px, rgba(0,0,0,0) ${0.8 * Rm}px, rgba(34,14,58,0.4) ${0.88 * Rm}px, rgba(5,3,10,0.55) ${0.95 * Rm}px, rgba(0,0,0,0) ${1.04 * Rm}px)`;
+
+        // ── Anel de íris na borda ────────────────────────────────────────────
+        // O limbus REAL (sprite do frame 73, ver buildIrisSprite) cavalga a pluma:
+        // escala cravada em rx·k = Rm — a banda opaca do sprite (0.80→0.95·rx)
+        // cobre exatamente a zona da pluma da máscara (0.9→1.0·Rm), então a borda
+        // visível do portal nunca é o gradiente, é o aro do olho com veias e
+        // textura, dilatando pra fora da tela. Fica ABAIXO do retrato (z-10 <
+        // z-20): dentro do sólido o retrato o cobre; ele só existe na borda e
+        // fora dela, sobre o footage borrado — como um limbus de verdade. Roda
+        // com a MESMA torção do footage (d²·22°) + um fio próprio (6°·t): as
+        // fibras giram junto com o vórtice, não coladas nele. Mesma curva de
+        // exposição; blur menor (d²·6) — o aro é o plano em foco da passagem.
+        const ring = irisRing.current;
+        if (ring) {
+          if (t <= 0 || t >= 1 || !irisSpriteReady) {
+            ring.style.opacity = "0";
+          } else {
+            const k = Rm / DISC_RX_SRC;
+            ring.style.opacity = String(Math.min(1, t / 0.08));
+            ring.style.left = `${iris.cx}px`;
+            ring.style.top = `${iris.cy}px`;
+            ring.style.transform = `translate(-50%,-50%) scale(${k}) rotate(${d * d * 22 + 6 * t}deg)`;
+            ring.style.filter = `blur(${d * d * 6}px) saturate(${1 + 0.6 * d}) brightness(${1 + 0.4 * Math.sin(Math.PI * d)})`;
+          }
         }
       };
 
@@ -765,7 +971,7 @@ export default function ARoberta() {
         autoAlpha: 1,
       });
       gsap.set(scrim.current, { autoAlpha: 0 });
-      applyVideo(0);
+      applySeq(0);
       applyDive(0);
 
       // ── Camadas novas: ticker + recorte ────────────────────────────────────
@@ -823,23 +1029,29 @@ export default function ARoberta() {
           // refreshPriority reordena o refresh pela ordem do documento — ver a nota
           // em ComoComecar (2). Sem isso o Manifesto mede-se 3960px acima do real.
           refreshPriority: 1,
-          // A viewport muda (resize/rotate) — computeIrisBox depende dela, então o
-          // handoff precisa ser recalculado aqui, não só aplicado com o valor velho.
+          // A viewport muda (resize/rotate) — computeIrisBox E o backing do canvas
+          // dependem dela, então o handoff precisa ser recalculado aqui, não só
+          // aplicado com o valor velho. O snap (current = target) evita o damp
+          // correr uma rampa visível depois de um jump de refresh.
           onRefresh: () => {
-            applyVideo(state.video);
+            resizeCanvas();
+            applySeq(state.scrub);
+            seq.current = seq.target;
+            needsDraw = true;
             applyDive(state.dive);
           },
         },
       });
 
-      // Beat 0 — o vídeo scrubba os 73 frames (currentTime 0→3.04s) enquanto a
-      // headline está visível e depois sai. `ease: "none"`: o scrub tem que ser
-      // 1-pra-1 com o scroll, sem suavização — é vídeo, não uma tween de propriedade
-      // CSS, e qualquer ease faria o mesmo trecho de scroll mapear pra frames
-      // diferentes dependendo da velocidade, quebrando a leitura de "puxar o filme".
+      // Beat 0 — a sequência scrubba os 73 frames enquanto a headline está visível
+      // e depois sai. `ease: "none"`: o MAPEAMENTO scroll→frame tem que ser 1-pra-1,
+      // sem suavização — qualquer ease faria o mesmo trecho de scroll mapear pra
+      // frames diferentes dependendo da velocidade, quebrando a leitura de "puxar o
+      // filme". A suavização que existe é POSTERIOR ao mapeamento e determinística:
+      // o damp do tickSeq persegue este target — inércia, não remapeamento.
       tl.to(
         state,
-        { video: 1, ease: "none", duration: 0.45, onUpdate: () => applyVideo(state.video) },
+        { scrub: 1, ease: "none", duration: 0.45, onUpdate: () => applySeq(state.scrub) },
         0,
       )
         // Saída: a headline sai enquanto o push-in do vídeo já avançou — não no
@@ -875,10 +1087,10 @@ export default function ARoberta() {
           { scale: 1, filter: "blur(0px) brightness(1)", ease: "power3.out", duration: 0.44 },
           0.66,
         )
-        // O vídeo (já 100% coberto pelo retrato mascarado a partir de d=1, tl 0.80)
-        // apaga num .set reversível — nada de compositar um vídeo 9× com blur de
+        // O canvas (já 100% coberto pelo retrato mascarado a partir de d=1, tl 0.80)
+        // apaga num .set reversível — nada de compositar um canvas 9× com blur de
         // 14px atrás de camada opaca pelo resto do pin.
-        .set(eyeVideo.current, { autoAlpha: 0 }, 0.84)
+        .set(seqCanvas.current, { autoAlpha: 0 }, 0.84)
         .to(scrim.current, { autoAlpha: 1, ease: "none", duration: 0.16 }, 0.9)
         // Beat 3 — editorial sobe nos 60vh de baixo; números contam. 1.16: depois do
         // pouso do retrato (0.66+0.44) — o texto entra sobre foto estável e nítida,
@@ -1257,6 +1469,13 @@ export default function ARoberta() {
       return () => {
         marquee.kill();
         gsap.ticker.remove(applyTransition);
+        // Sequência: para os workers (o abort mata os fetch em voo), tira o ticker
+        // e devolve a memória dos bitmaps — 73 frames 1920px decodificados são
+        // ~150MB de raster que o GC não recolhe sozinho enquanto o array viver.
+        seqDisposed = true;
+        aborter.abort();
+        gsap.ticker.remove(tickSeq);
+        bitmaps.forEach((b) => b?.close());
         // A cortina deixou de existir — o Features precisa saber, senão fica
         // preso lendo o último progresso publicado (um valor que ninguém mais
         // atualiza) e nunca cai no fallback. Mesma razão do clearProps abaixo:
@@ -1316,34 +1535,31 @@ export default function ARoberta() {
         <div ref={recede} className="relative h-full w-full will-change-transform">
           <Afluente veil={false} />
 
-          {/* Vídeo do match cut — beat 0 do scrub (ver applyVideo no useGSAP). Fica
-              ACIMA do BACKDROP estático (z-[1] > z-0 do Afluente): os dois têm o
-              MESMO frame 0 (poster = a própria foto que o Afluente usa), então até o
-              vídeo terminar de decodificar não há salto visível, só uma troca de
-              camada idêntica pixel a pixel. `muted` + `playsInline` + `preload="auto"`
-              e SEM `autoplay`: quem escreve currentTime é só o scroll — nunca toca
-              sozinho (Armadilha 5 do brief). Existe só no ramo pinned deste JSX; o
-              fallback stacked/mobile nunca monta este elemento (Armadilha 4). */}
-          <video
-            ref={eyeVideo}
+          {/* Canvas da sequência — beat 0 do scrub (ver drawSeq/tickSeq no useGSAP).
+              Fica ACIMA do BACKDROP estático (z-[1] > z-0 do Afluente): os dois têm
+              o MESMO frame 0 (o BACKDROP É a foto do frame de abertura), então até o
+              primeiro bitmap decodificar o canvas fica transparente e não há salto
+              visível — só uma troca de camada idêntica pixel a pixel. O backing
+              (width/height) é escrito por resizeCanvas; o CSS só estica. Quem
+              desenha é só o scroll via damp — nunca um clock próprio (Armadilha 5).
+              Existe só no ramo pinned deste JSX; o fallback stacked/mobile nunca
+              monta o elemento nem baixa um frame (Armadilha 4). */}
+          <canvas
+            ref={seqCanvas}
             aria-hidden
-            muted
-            playsInline
-            preload="auto"
-            poster={EYE_VIDEO_POSTER}
-            className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-cover"
-          >
-            <source src={EYE_VIDEO} type="video/mp4" />
-          </video>
+            className="pointer-events-none absolute inset-0 z-[1] h-full w-full"
+          />
 
-          {/* Aro da pupila — z-[10]: acima do vídeo (z-[1]), abaixo do retrato (z-20).
-              O background (anel radial ancorado na pupila) é escrito por applyDive a
-              cada frame; aqui é só a casca. A parte interna do anel fica coberta pelo
-              retrato mascarado — só a borda externa aparece, cavalgando o portal. */}
-          <div
-            ref={blackout}
+          {/* Anel de íris — z-[10]: acima do canvas da sequência (z-[1]), abaixo do
+              retrato (z-20). O backing é pintado UMA vez por buildIrisSprite (o
+              limbus real do frame 73, alpha elíptico); posição/escala/rotação são
+              escritas por applyDive a cada frame. A parte interna fica coberta pelo
+              retrato mascarado — só a banda do aro aparece, cavalgando o portal. */}
+          <canvas
+            ref={irisRing}
             aria-hidden
-            className="pointer-events-none absolute inset-0 z-[10]"
+            className="pointer-events-none absolute z-[10] opacity-0"
+            style={{ left: 0, top: 0 }}
           />
 
           {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo

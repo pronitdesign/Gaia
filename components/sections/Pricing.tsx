@@ -93,6 +93,38 @@ const PRICING_SKY = pricingGradientCss();
    silêncio: a máscara não reclama, ela só fica feia. */
 const REEF_MASK = "linear-gradient(to bottom, transparent 0%, #000 18%)";
 
+/* PARALLAX DE CURSOR — duas camadas em taxas diferentes (setup em useGSAP,
+   abaixo). Recife LONGE anda pouco, luz de superfície PERTO anda mais — é a
+   TAXA DIFERENCIAL entre as duas que lê como profundidade; movê-las iguais
+   leria como foto escorregando, não como paralaxe.
+
+   Y do recife é ±4 e não mais por motivo medido, não por gosto: o comentário
+   do bloco AMBIENTE registra que a 1920 o monograma "A" já corta 1,1% da
+   base, e o REEF_PARALLAX_SCALE abaixo encolhe a janela visível do cover —
+   agrava esse corte. Y maior empurraria o corte pra dentro do visível. Não
+   suba este número sem remedir aquele bloco. */
+const REEF_PARALLAX_X = 10;
+const REEF_PARALLAX_Y = 4;
+/* scale fixo (não animado) só pra dar folga ao translate: sem ele, ±10px de
+   X expõe a borda do cover no <Image>. 1.03 é o mínimo que cobre ±10/±4 sem
+   ampliar mais que o necessário — mais scale = janela visível menor = mais
+   perto do corte do "A" acima. */
+const REEF_PARALLAX_SCALE = 1.03;
+/* luz de superfície: ~5x a amplitude do recife em X. É essa razão — não o
+   valor isolado — que faz a camada ler como "mais perto". */
+const LIGHT_PARALLAX_X = 48;
+const LIGHT_PARALLAX_Y = 28;
+
+/* halo radial da luz de superfície — mesmo idioma do NOISE/REEF_MASK: string
+   de módulo porque o gradiente é fixo. "screen" (não normal/soft-light) no
+   className do overlay porque só clareia: sobre o teal da água acende sem
+   derrubar contraste do texto, que mede contra o vidro do card, não contra
+   este fundo. Tamanho (não o box do div, que cobre a section inteira) é
+   quem desenha a "caixa larga" — 60vw², centrado via background-position. */
+const SURFACE_LIGHT_GRADIENT =
+  "radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 60%)";
+const SURFACE_LIGHT_SIZE = "60vw 60vw";
+
 /* vidro fumê — versão MOBILE: card alto e estreito, single column. Um
    gradiente diagonal correria quase na vertical nessa proporção e a região
    mais rala cairia embaixo do checklist/CTA, matando o contraste do texto
@@ -102,6 +134,12 @@ const GLASS_MOBILE =
 
 export default function Pricing() {
   const root = useRef<HTMLElement>(null);
+  /* alvos do parallax de cursor — ver bloco PARALLAX DE CURSOR acima e o
+     setup no useGSAP logo abaixo. reefImgRef aponta pro <Image> INTERNO ao
+     div mascarado, nunca pro div: é o filho que anda, o pai fica parado
+     (ver comentário longo do bloco AMBIENTE sobre a REEF_MASK). */
+  const reefImgRef = useRef<HTMLImageElement>(null);
+  const surfaceLightRef = useRef<HTMLDivElement>(null);
 
   useGSAP(
     () => {
@@ -158,6 +196,51 @@ export default function Pricing() {
         stagger: 0.08,
         scrollTrigger: trigger,
       });
+
+      /* (pointer: fine) — sem parallax em touch: não tem cursor pra ler,
+         e o listener em todo o window custaria caro sem produzir nada. */
+      const pointerFine = window.matchMedia("(pointer: fine)").matches;
+      if (!pointerFine || !reefImgRef.current || !surfaceLightRef.current) return;
+
+      gsap.set(reefImgRef.current, { scale: REEF_PARALLAX_SCALE });
+
+      /* um quickTo por eixo, por camada — é a inércia do power3.out que vende
+         profundidade; follow instantâneo lê barato (foto colada no cursor,
+         não recife respondendo com peso próprio). */
+      const reefX = gsap.quickTo(reefImgRef.current, "x", { duration: 0.9, ease: "power3.out" });
+      const reefY = gsap.quickTo(reefImgRef.current, "y", { duration: 0.9, ease: "power3.out" });
+      const lightX = gsap.quickTo(surfaceLightRef.current, "x", { duration: 0.9, ease: "power3.out" });
+      const lightY = gsap.quickTo(surfaceLightRef.current, "y", { duration: 0.9, ease: "power3.out" });
+
+      /* normalizado contra a VIEWPORT, não contra a section: a section mede
+         1826px a 1440 (ver nota da REEF_MASK) — normalizar contra ela faria
+         o mesmo gesto de mouse produzir deslocamentos diferentes conforme o
+         cursor estivesse no topo ou no fim da faixa. */
+      const onPointerMove = (e: PointerEvent) => {
+        const nx = (e.clientX / window.innerWidth) * 2 - 1;
+        const ny = (e.clientY / window.innerHeight) * 2 - 1;
+        reefX(nx * REEF_PARALLAX_X);
+        reefY(ny * REEF_PARALLAX_Y);
+        lightX(nx * LIGHT_PARALLAX_X);
+        lightY(ny * LIGHT_PARALLAX_Y);
+      };
+
+      /* listener só existe enquanto a section está no viewport — do
+         contrário ele fica ouvindo pointermove na página inteira pelo
+         resto do scroll, sem nunca produzir efeito visível. */
+      ScrollTrigger.create({
+        trigger: root.current,
+        start: "top bottom",
+        end: "bottom top",
+        onToggle: (self) => {
+          if (self.isActive) window.addEventListener("pointermove", onPointerMove);
+          else window.removeEventListener("pointermove", onPointerMove);
+        },
+      });
+
+      /* ctx.revert() (useGSAP acima) mata tweens e ScrollTriggers sozinho,
+         mas este listener não nasceu de uma chamada gsap — cleanup próprio. */
+      return () => window.removeEventListener("pointermove", onPointerMove);
     },
     { scope: root },
   );
@@ -339,6 +422,7 @@ export default function Pricing() {
         }}
       >
         <Image
+          ref={reefImgRef}
           src="/pricing-reef-bg.webp"
           alt=""
           fill
@@ -347,6 +431,24 @@ export default function Pricing() {
           className="object-cover"
         />
       </div>
+      {/* luz de superfície — segunda camada do parallax de cursor, PERTO
+          (anda ±48/±28 contra os ±10/±4 do recife, ver constantes
+          LIGHT_PARALLAX e REEF_PARALLAX acima). z-0, mesma faixa do
+          recife, e DEPOIS dele no DOM/ANTES do Underwater — fica atrás do
+          conteúdo e atrás das cáusticas. O translate anda o div inteiro
+          (inset-0, cobrindo a section); o gradiente fica centrado nele via
+          background-position, então mover o div move o halo. */}
+      <div
+        ref={surfaceLightRef}
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 mix-blend-screen"
+        style={{
+          backgroundImage: SURFACE_LIGHT_GRADIENT,
+          backgroundSize: SURFACE_LIGHT_SIZE,
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
       <Underwater />
       {/* film grain — overlay estático, mistura suave */}
       <div
