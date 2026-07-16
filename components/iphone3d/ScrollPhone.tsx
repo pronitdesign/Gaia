@@ -176,7 +176,12 @@ const CAM_FOV = 50; // default do drei <PerspectiveCamera>
    é pequeno e o pitch já é absurdo: o produto dos dois ainda mexe a câmera. O
    clamp corta isso na raiz. 40° é folgado: a regra só precisa de +21°→−25° (em
    −25°, com fov 50, o horizonte encosta no topo e some — daí pra frente não há
-   linha pra colar e o valor é livre). */
+   linha pra colar e o valor é livre).
+
+   O LADO POSITIVO MORREU DEPOIS: a leitura da aresta ganhou teto em ZERO (ver
+   o bloco do seamPitch em setDive) — a câmera nunca mais olha pra cima, então
+   só o clamp negativo segue em serviço. A constante fica: é ela que segura a
+   fórmula quando a aresta já saiu por cima e frac vai a −∞. */
 const PITCH_CLAMP = (40 * Math.PI) / 180;
 const DIVE_DROP = 0.9;
 /* Quanto o pico da CÂMERA vem depois do pico da água, em p.
@@ -500,11 +505,17 @@ const TINT_OUT: [number, number] = [0.86, 0.96];
    degrau seco de (181,165,207) pra (151,123,187) na linha do horizonte. Foi por
    isso que ele sobreviveu a tantas rodadas de tuning aqui.
 
-   O que a névoa AINDA faz, e bem: fechar (near→0, far→HAZE_FAR) nas pontas da
+   O que a névoa AINDA faz, e bem: fechar (near→0, far→HAZE_FAR) na SAÍDA da
    janela e engolir a cena até o quadro virar uma cor só. É nesse quadro que a
-   água desmonta sem ninguém ver, e é o oposto na entrada — ela nasce de dentro da
-   névoa. Isso é distância CURTA (HAZE_FAR=3, menor que CAM_Z), e distância curta
-   a geometria acima não estraga. É como a peachweb entrega a seção dela.
+   água desmonta sem ninguém ver. Isso é distância CURTA (HAZE_FAR=3, menor que
+   CAM_Z), e distância curta a geometria acima não estraga. É como a peachweb
+   entrega a seção dela.
+   (Já fechou nas DUAS pontas. Na entrada era bug em quadro: no frame em que
+   waterOn liga o phone está NA FRENTE do usuário, e nascia como silhueta
+   chapada da cor do céu — ver hazeExit. A entrada brumosa que este bloco
+   promete continua existindo, mas quem a entrega é a banda do fog ABERTO no
+   rasante, que já dobra de tamanho sozinha na entrada — ver FOG_NEAR/FOG_FAR
+   abaixo.)
 
    A cor da névoa não pode ser fixa: tem que ser a cor do céu na altura do
    horizonte, e essa altura muda por frame (a câmera inclina, a seção rola). Um
@@ -530,8 +541,8 @@ const TINT_OUT: [number, number] = [0.86, 0.96];
    entrada mais brumosa, pico mais resolvido, de graça, da mesma conta.
 
    near=4.5 > CAM_Z=4 de propósito: o phone (r=4) fica FORA da névoa aberta —
-   0% de leite no aparelho. Só o fechamento das pontas (HAZE_FAR=3 < CAM_Z) o
-   engole, como sempre fez.
+   0% de leite no aparelho. Só o fechamento da SAÍDA (HAZE_FAR=3 < CAM_Z) o
+   engole, junto com a cena inteira.
 
    É como a peachweb resolve, e é o oposto do que eu vinha tentando. Eu passei
    rodadas caçando a linha do horizonte pra escondê-la. Eles não escondem: no fim
@@ -539,16 +550,17 @@ const TINT_OUT: [number, number] = [0.86, 0.96];
    num leite uniforme, e o conteúdo emerge de dentro dele. Não há linha porque não
    há contraste; tudo virou um valor só.
 
-   Então a névoa fecha (near→0, far→HAZE_FAR) conforme dive cai. No limite o
-   quadro inteiro é uma cor chapada — a cor do céu ali — e é NESSE quadro que a
-   água desmonta. Desmontar sem contraste é invisível: acabou o corte, acabou o
-   pop, acabou o véu translúcido. E na entrada é o mesmo de trás pra frente: a
-   água NASCE de dentro da névoa em vez de aparecer. */
+   Então a névoa fecha (near→0, far→HAZE_FAR) conforme a SAÍDA se aproxima
+   (hazeExit). No limite o quadro inteiro é uma cor chapada — a cor do céu ali
+   — e é NESSE quadro que a água desmonta. Desmontar sem contraste é
+   invisível: acabou o corte, acabou o pop, acabou o véu translúcido. Na
+   entrada ela NÃO fecha mais (ver hazeExit): a água nasce da bruma do
+   horizonte, que o fog aberto já entrega, e o phone nasce inteiro. */
 const FOG_NEAR = 4.5;
 const FOG_FAR = 16;
 /** Névoa fechada: menor que CAM_Z (4), então engole até o phone. */
 const HAZE_FAR = 3;
-/** Acima deste dive a névoa já abriu por completo. Abaixo, ela vai fechando. */
+/** Acima deste hazeExit a névoa já abriu por completo. Abaixo, ela fecha. */
 const HAZE_UNTIL = 0.42;
 
 /* Onde o horizonte cai, em fração da tela, dada a inclinação da câmera.
@@ -783,9 +795,23 @@ export default function ScrollPhone() {
   /** Quanto do dentro-d'água pintar. Curva própria, não o bump — ver TINT. */
   const tint = useRef(0);
   /** Quanta ÁGUA há em quadro — o gate da aresta, não o bump do phone. Ver
-   *  setDive. A névoa lê isto (e não mais o dive) pelo mesmo motivo: ela fecha
-   *  quando a água vai embora, e quem decide isso é a superfície. */
+   *  setDive. */
   const waterAmt = useRef(0);
+  /** SÓ a rampa de SAÍDA do gate da água (frac −0.05→−0.3). É o que a névoa
+   *  lê agora — não o waterAmt inteiro. O waterAmt carrega também a rampa de
+   *  ENTRADA, e a névoa seguindo ela era um bug em quadro: no frame em que
+   *  waterOn liga (a boca da rampa de entrada do waterGate) a cena nasce com a névoa FECHADA (far=3 <
+   *  CAM_Z=4) e o phone — que está EM QUADRO, na frente da frase — vira uma
+   *  silhueta chapada da cor do céu por ~50px de scroll, do nada, até a rampa
+   *  abrir. Print da Laura, 2026-07-16. "Nascer de dentro da névoa" é destino
+   *  da ÁGUA (e a bruma do horizonte, que é geometria do fog aberto, segue
+   *  entregando isso); o phone não pode nascer engolido. Na SAÍDA nada muda:
+   *  ali waterAmt == esta rampa por construção (a de entrada já saturou em 1),
+   *  então o fechamento que engole a cena continua bit a bit o mesmo.
+   *  Nasce em 1 (aberta): FogSync roda no loop do R3F e setDive no ticker do
+   *  gsap — no primeiro frame do waterOn a leitura pode vir antes da escrita,
+   *  e um descanso em 0 seria 1 frame de leite: o pop de volta. */
+  const hazeExit = useRef(1);
   /* Meia altura do CORPO do phone, em unidades LOCAIS do group (antes da escala).
      Existe pro clamp poder mirar o MEIO VISUAL na linha d'água em vez da origem
      do glb — ver placeWorld. Medida uma vez, quando a malha aparece, e não por
@@ -912,9 +938,10 @@ export default function ScrollPhone() {
       // ComoComeçar e o ARoberta inteiros. "Abaixo da dobra" não é "afundado";
       // o clamp não sabia a diferença porque não perguntava se havia água ali.
       //
-      // Agora pergunta. O gate segue dive — a MESMA grandeza que monta a água e
-      // dita a opacidade dela (water.amount = dive, ver setDive). Onde não há
-      // água não há piso, e fora do mergulho gate=0 faz disto um no-op exato.
+      // Agora pergunta. O gate segue a EXISTÊNCIA da água — max(d, waterAmt),
+      // ver floorGrip em place(): o bump do phone OU a água em quadro, o que
+      // houver. Onde não há água não há piso, e fora do mergulho gate=0 faz
+      // disto um no-op exato.
       //
       // FLOOR_FADE é menor que o dive de qualquer frame visível do mergulho,
       // então no miolo gate=1 e o clamp é bit a bit o de antes: o phone segue de
@@ -947,9 +974,40 @@ export default function ScrollPhone() {
       // LOCAL não roda, não muda nunca, e escalar é uma multiplicação.
       const gate = floorGrip.current;
       const halfDrop = bodyHalf.current * el.scale.y;
-      const surface = WATER_Y - halfDrop; // origem AQUI ⇒ meio visual NA linha
+      /* O QUANTO DENTRO segue o mergulho — settle: 0 = em pé NA linha (fundo
+         na superfície), 1 = metade dentro (meio visual na linha).
+
+         A meia-imersão era fixa, e com a água antecipada (o piso agora engata
+         pela EXISTÊNCIA dela, waterAmt) isso punha o phone fundo desde o
+         primeiro frame de mar — pior: rodado (mid-spin) e grande, o halfDrop
+         do bbox reto mente pra mais, e o "metade dentro" renderizava quase
+         inteiro submerso. Medido @1440×900, frac 1.12: só o aro de cima fora
+         d'água, um fantasma atravessando a frase — o oposto da imersão
+         pedida ("a água aparece ANTES do phone entrar").
+
+         Com settle, a entrada é o phone POUSADO na água que já existia —
+         fundo na linha, corpo inteiro fora, a composição do print de
+         referência da Laura — e ele vai AFUNDANDO até a meia-imersão
+         conforme o bump do mergulho sobe. 0.72→0.95 NÃO é chute: é a tabela
+         medida de d por posição da aresta (@1440×900, __gaiaDbg):
+
+           frac 1.30  d 0.45   mar se formando — em pé, fundo na linha
+           frac 1.12  d 0.72   mar cheio       — AINDA em pé (era o fantasma)
+           frac 1.02  d 0.85   assentando, meio caminho
+           frac 0.90  d 0.95   meia-imersão — daqui em diante é o trecho
+                               que a Laura aprovou em render, bit a bit
+           toque/hold d 1.00   meia-imersão travada
+
+         Primeira rodada usou 0.2→0.75 estimando d por álgebra — d real já
+         era 0.72 em frac 1.12 e o settle saturava com o phone ainda grande e
+         rodado, reencenando o afogado. Bônus da rampa tardia: settle pequeno
+         encolhe junto o erro do halfDrop rodado, que é maior exatamente no
+         começo (bbox reto de corpo em mid-spin mente pra mais). */
+      const settle = smoothstep(0.72, 0.95, dive.current);
+      const surface = WATER_Y - halfDrop * settle;
       onScreen.y = lerp(onScreen.y, Math.max(onScreen.y, surface), gate);
       el.position.copy(onScreen);
+
 
       /* Na superfície o phone fica mais perto da câmera (ela desceu até quase
          rasar a água), e perspectiva o infla até encher o quadro. DIVE_SHRINK
@@ -1147,21 +1205,38 @@ export default function ScrollPhone() {
            Pricing é lido em coordenadas de tela e o phone pousa por unproject,
            mas a POSE dele é relativa à câmera — chegar torto ao slot é o bug
            que PHONE_PIVOT_BIAS e END_TILT existem pra evitar. */
-        /* O PISO SOLTA DEPOIS DE wp — ver floorGrip.
+        /* O PISO TEM A AUTORIDADE DA ÁGUA — max(d, waterAmt) — E SOLTA DEPOIS
+           DE wp.
 
-           smoothstep, não degrau: o alvo do DOM está ~1.9 abaixo de WATER_Y no
-           trecho (medido), então largar de uma vez derruba o aparelho 150px em
-           quadro. Soltando ao longo de FLOOR_RELEASE ele DESCE — que é o que se
-           quer ver: o phone afundando enquanto a superfície sobe.
+           O gate era só o bump do phone (d), e enquanto a água nascia junto
+           dele isso passava despercebido: quando havia mar, d já tinha
+           saturado o smoothstep (conferido A/B em render — max() era no-op na
+           rampa antiga). Quando a água foi ANTECIPADA (rampa 1.35→1.15, o
+           pedido da imersão), o buraco apareceu em quadro: mar cheio com d
+           ainda pequeno ⇒ grip parcial ⇒ o cy do DOM (colado na âncora,
+           funda) puxava o aparelho pra baixo da superfície — medido @1440×900,
+           frac 1.16: phone AFOGADO, um fantasma aquoso atravessando a frase
+           inteira, que depois tinha que SUBIR pra boiar. É a cavalgada que
+           este arquivo já matou, na outra ponta.
 
-           Multiplica o gate antigo em vez de substituí-lo: FLOOR_FADE continua
-           respondendo "existe água aqui?" (fora do mergulho dive=0 e o piso não
-           tem autoridade nenhuma — ver o comentário em placeWorld), e este
-           termo responde "ainda é hora de boiar?". As duas perguntas são
-           diferentes e as duas precisam ser feitas. */
-        floorGrip.current =
-          smoothstep(0, FLOOR_FADE, d) * (1 - smoothstep(wp, wp + FLOOR_RELEASE, p));
+           waterAmt entra CRU no max, não dentro do smoothstep de FLOOR_FADE:
+           a rampa dele É a materialização do mar (180px de scroll), então o
+           phone é recolhido à superfície no mesmo compasso em que a água
+           aparece — pousado nela quando ela fica cheia. Espremido no
+           smoothstep de 0.15, o grip saturaria nos primeiros ~25px da rampa:
+           um pulo. Lido DEPOIS do setDive acima de propósito — é ele quem
+           escreve waterAmt neste frame; placeWorld (o único leitor do grip)
+           roda depois de tudo.
 
+           Fora do mergulho nada muda: waterAmt=0 e isto é bit a bit o gate
+           antigo — o leak do phone acima da dobra (ver placeWorld) continua
+           barrado, porque sem água não há piso.
+
+           O solta continua o mesmo: depois de wp o release derruba o grip ao
+           longo de FLOOR_RELEASE e o phone AFUNDA — a imersão é o ponto.
+           smoothstep, não degrau: o alvo do DOM está ~1.9 abaixo de WATER_Y
+           no trecho (medido), largar de uma vez derruba o aparelho 150px em
+           quadro. */
         /* TINT — quanto do "dentro d'água" pintar abaixo do risco.
 
            NÃO é o bump do dive, e essa foi a lição cara: a tinta sobe até o
@@ -1185,6 +1260,9 @@ export default function ScrollPhone() {
             ? d
             : Math.max(bump((p - camCenter + camSpan) / (2 * camSpan)), hold.current);
         setDive(d, camAmt);
+        floorGrip.current =
+          Math.max(smoothstep(0, FLOOR_FADE, d), waterAmt.current) *
+          (1 - smoothstep(wp, wp + FLOOR_RELEASE, p));
       } else {
         cy = lerp(aC, bC, eP);
         setDive(0, 0);
@@ -1408,7 +1486,23 @@ export default function ScrollPhone() {
           seamPitch = Math.atan(
             Math.tan((CAM_FOV * Math.PI) / 180 / 2) * (2 * frac - 1),
           );
-          seamPitch = Math.min(PITCH_CLAMP, Math.max(-PITCH_CLAMP, seamPitch));
+          /* TETO EM ZERO — A CÂMERA NUNCA OLHA PRA CIMA.
+
+             Com a aresta abaixo do meio da tela a fórmula pede pitch POSITIVO
+             (horizonte colado lá embaixo), e a entrada da água era isto em
+             quadro: o olhar subia pro skydome — um paredão roxo dos stops
+             altos do gradiente, que não é o céu que o DOM mostra nesse scroll
+             — e o mar nascia como um fiapo no pé da tela, que só virava mar
+             de verdade meio viewport depois. Pedido da Laura, com print de
+             referência: "assim que acabar a frase já tenha essa visão mais
+             reta do mar". Então a entrada É a visão nivelada: pitch 0,
+             horizonte em 50%, água na metade de baixo, desde o primeiro
+             frame em que ela existe. A regra da aresta segue intacta na
+             metade em que ela é a regra: assim que a emenda cruza o meio,
+             o pitch negativo cola o horizonte nela como antes, sem degrau
+             (min(0, x) é contínuo). O clamp NEGATIVO continua o de sempre —
+             a fórmula ainda explode com a aresta longe, ver PITCH_CLAMP. */
+          seamPitch = Math.min(0, Math.max(-PITCH_CLAMP, seamPitch));
           pitchGate = smoothstep(1.15, 0.95, frac) * smoothstep(-0.55, -0.15, frac);
           /* A ÁGUA MORRE ANTES DO PITCH RELAXAR, E ESSA DEFASAGEM É O CONSERTO.
 
@@ -1432,13 +1526,64 @@ export default function ScrollPhone() {
              cheia, o pitch em ~−26° e o Fresnel escancarado. Ela dissolve DEPOIS
              disso, num quadro que já é água de borda a borda — sem contraste,
              sem borda, invisível. É o princípio da NÉVOA, aplicado de novo. */
-          waterGate = smoothstep(1.15, 0.95, frac) * smoothstep(-0.3, -0.05, frac);
+          /* A ENTRADA ABRE EM 1.35→1.15 — A ÁGUA CHEGA ANTES DO PHONE ENTRAR.
+
+             Era 1.15→0.95, e nesse compasso o mar se materializava JUNTO com
+             o phone chegando nele: em frac 1.12 ele já estava de corpo na
+             água que ainda era 2% opaca, e o mergulho lia como "a água
+             apareceu em volta dele". Pedido da Laura: "a água deve aparecer
+             ANTES do phone entrar, justamente para ocorrer a imersão de
+             entrada" — imersão é entrar em algo que JÁ EXISTE.
+
+             O teto do adiantamento é o GRADIENTE, e foi medido: com a rampa
+             em 1.45→1.25 o mar cheio caía contra a metade ainda ESCURA do
+             Manifesto — mar pálido sob céu roxo profundo, linha dura no meio
+             da tela, dois mundos emendados. 1.15 é onde o fundo na altura do
+             horizonte já clareou o bastante pra emenda derreter na bruma.
+
+             Cheio em 1.15, o oceano ainda se completa meio viewport antes do
+             gatilho do toque (TOUCH_FRAC 0.55): a frase sobe já com chão de
+             mar, o phone BOIA nele (o piso agora tem a autoridade da água —
+             ver floorGrip em place()) e só ENTRA depois de wp, quando o piso
+             solta. A câmera desce no mesmo gate (ver ALTURA abaixo), então o
+             espelho rasante também já está pronto quando ele chega. */
+          const exitGate = smoothstep(-0.3, -0.05, frac);
+          waterGate = smoothstep(1.35, 1.15, frac) * exitGate;
+          // a névoa segue SÓ a saída — ver hazeExit na declaração do ref.
+          hazeExit.current = exitGate;
         }
         camera.rotation.x = seamPitch * pitchGate;
-        // A ALTURA segue o camAmt: ela não tem alvo no DOM (nada manda a câmera
-        // estar a 0.3 da água), é enquadramento puro, e a curva atrasada dele
-        // continua sendo a certa — ver CAM_LAG.
-        camera.position.y = -DIVE_DROP * camAmt;
+        /* A ALTURA segue max(camAmt, waterGate) — a água manda na ENTRADA, o
+           camAmt na SAÍDA, e as duas metades têm donos diferentes de direito.
+
+           Era só camAmt, e a entrada denunciava: camAmt é centrado em
+           wp+CAM_LAG (a passagem do PHONE), então nos primeiros ~2 viewports
+           de mar a câmera ainda estava ALTA — e de cima o Fresnel abre a água
+           (theta grande ⇒ transparência). Medido em quadro @1440×900, frac
+           0.95: a metade submersa do phone aparecia inteira ATRAVÉS da
+           superfície, um vulto escuro sujando a frase — enquanto o print de
+           referência da Laura é espelho pálido, que só existe no RASANTE.
+           Baixar a câmera é o que fecha o Fresnel e faz a água nascer espelho.
+
+           waterGate, não uma rampa nova: a descida acontece no mesmo compasso
+           em que a água se materializa (frac 1.45→1.25) — quando há mar
+           cheio, a câmera já está rasante; não existe frame de mar visto de
+           cima. E a SAÍDA fica bit a bit a de antes por construção: waterGate
+           fecha (frac −0.05→−0.3) enquanto camAmt ainda segura ~1 — o max é
+           camAmt em toda a cauda, então o fade da água continua acontecendo
+           com a câmera no fundo, que é o serviço do CAM_LAG.
+
+           0.6, NÃO 1: a entrada desce até ~0.66 acima da água — a altura que
+           a rampa da névoa foi calibrada esperando ("durante a entrada a
+           câmera está mais alta", ver NÉVOA) — e o resto da descida continua
+           sendo do camAmt, rumo ao pico. Descer TUDO na entrada foi testado e
+           o rasante come o phone: a 0.3 da água, com o aparelho ainda grande
+           e de meio corpo dentro (o piso mira o meio na linha), as CRISTAS da
+           onda ocluem quase o corpo todo — medido em quadro @1440×900, frac
+           0.95: sobrava um fiapo escuro no horizonte e um vulto aquoso, pior
+           que o vulto que a descida veio consertar. 0.6 é o rasante que fecha
+           o Fresnel (espelho no lugar do através) sem afogar o aparelho. */
+        camera.position.y = -DIVE_DROP * Math.max(camAmt, 0.6 * waterGate);
 
         /* A linha da LENTE é a MESMA linha da GEOMETRIA, por construção.
            horizonFrac() é a fórmula que já diz onde o plano cruza a tela; um
@@ -1782,12 +1927,13 @@ export default function ScrollPhone() {
                 usa fog e fica intacto, que é o certo: o céu é o destino da
                 névoa, não vítima dela. */}
             <fog attach="fog" args={["#EFEAF4", FOG_NEAR, FOG_FAR]} />
-            {/* waterAmt, não dive: a névoa fecha pra engolir a água quando ela
-                desmonta, então ela tem que seguir a MESMA curva da água. Com o
-                bump do phone, medido, ela fechava no clímax (dive já em 41%
-                enquanto o gate ainda era 1) e chapava justamente o frame em que
-                se deve ver o Pricing através da superfície. Ver setDive. */}
-            <FogSync diveRef={waterAmt} />
+            {/* hazeExit, não waterAmt nem dive: a névoa fecha pra engolir a
+                água quando ela desmonta — a SAÍDA. Já leu o bump do phone
+                (fechava no clímax, medido) e o waterAmt inteiro (fechava na
+                ENTRADA e chapava o phone em quadro no frame em que waterOn
+                liga — print da Laura). As duas erravam pelo mesmo motivo:
+                carregavam curvas que não são a do desmonte. Ver hazeExit. */}
+            <FogSync diveRef={hazeExit} />
             <Sky3D />
             <WaterScene stateRef={water} />
           </Suspense>
