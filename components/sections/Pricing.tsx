@@ -76,15 +76,22 @@ const NOISE =
 const PRICING_SKY = pricingGradientCss();
 
 /* a dissolução do recife na água — ver o comentário longo na cena, lá embaixo,
-   pro porquê de existir. Aqui só o número: 9% é a travessia, e ela é ASSIMÉTRICA
+   pro porquê de existir. Aqui só o número: 30% é a travessia, e ela é ASSIMÉTRICA
    de propósito (nada em baixo/nas laterais) porque só a borda de cima do asset
    encosta no gradiente; as outras três morrem fora da tela.
 
-   9%, e não os 22% de antes, porque a cena deixou de ser faixa de rodapé e virou
-   inset-0: a mesma porcentagem que valia ~100px sobre 40% da section pagaria
-   ~250px sobre 100% dela — um terço do recife lavado no gradiente. A travessia
-   em px é que é a decisão (~100px a 1440); o % é só como ela se escreve. */
-const REEF_MASK = "linear-gradient(to bottom, transparent 0%, #000 9%)";
+   O % É MEDIDO CONTRA A ALTURA DO ELEMENTO MASCARADO, não contra a section — e a
+   cena é uma faixa de h-[30%]. A travessia em px é que é a decisão (~100px a
+   1440); o % é só como ela se escreve, e por isso ele muda toda vez que a caixa
+   muda de tamanho. A section mede 1826px a 1440 (MEDIDA no render, não estimada
+   — ela é o dobro do que aparenta, e chutar isso já custou um número errado
+   aqui), então a faixa dá 548px:
+     faixa de 30% (548px a 1440) → 18% ≈  99px  ← hoje
+     inset-0      (1826px)       →  5,5% ≈ 100px
+   Manter os 9% que valiam pro inset-0 antigo daria ~49px — degrau visível.
+   Trocar a altura da caixa sem retocar este número quebra a emenda, e quebra em
+   silêncio: a máscara não reclama, ela só fica feia. */
+const REEF_MASK = "linear-gradient(to bottom, transparent 0%, #000 18%)";
 
 /* vidro fumê — versão MOBILE: card alto e estreito, single column. Um
    gradiente diagonal correria quase na vertical nessa proporção e a região
@@ -248,27 +255,62 @@ export default function Pricing() {
          livre pra cena de fundo sangrar pra cima e fundir com o fim branco
          do Manifesto sem cortar numa linha reta na borda — era o "corte"
          visível entre as seções que o -hidden causava. */
-      className="relative overflow-x-clip py-28 md:py-36"
+      /* lg:pt-[70vh] — A DESCIDA SUBMERSA. Não é respiro, é SCROLL, e sem ele o
+         mergulho não fecha.
+         O topo desta seção é a linha d'água (ver Mergulho.tsx). Do outro lado
+         dela o leitor está dentro d'água, e a câmera do ScrollPhone vira pra
+         baixo acompanhando esta aresta — é o que abre o Fresnel e faz o recife
+         aparecer através da superfície. Só que a virada precisa TERMINAR e a
+         água precisa dissolver antes de o phone pousar no slot, senão ele pousa
+         visto por uma câmera torta.
+         Medido @1440×787 com pt-36: da linha até o centro do slot havia 624px, e
+         a virada consumia todos. Sobravam 0.03 de p — 80px de scroll — pra
+         desvirar a câmera e matar a água. O erro do horizonte contra a emenda ia
+         a 534px e o recife aparecia cru numa faixa ciano acima da linha d'água.
+         Não era tuning: era falta de espaço. Faltavam ~415px, meio viewport.
+         Em vh e não px porque a dívida é de VIEWPORT: quem paga a conta é a
+         emenda subir a tela inteira, e isso escala com a altura da janela.
+         E o que se ganha não é um vazio: é o único trecho em que se está DENTRO
+         d'água sem nada disputando o quadro — recife, god rays, o phone
+         afundando — antes de o preço chegar. É a seção virar submersa em vez de
+         ser um card sobre um fundo azul. */
+      className="relative overflow-x-clip py-28 md:py-36 lg:pt-[70vh]"
       style={{ background: PRICING_SKY }}
     >
-      {/* AMBIENTE — a cena é o fundo INTEIRO da seção: inset-0, não mais uma
-          faixa de rodapé de h-[40%]. O recife é um asset composto (arco ao
-          fundo, monograma "A" luminoso ao centro sobre os corais, areia e
-          seixos na frente) e a composição é vertical: recortá-lo numa faixa
-          jogava fora o arco e os seixos e ainda cortava o "A" na altura em que
-          o card e o phone cruzam o centro — o monograma saía pela metade, que
-          lê como acidente, não como enquadramento. Em inset-0 ele aparece
+      {/* AMBIENTE — a cena é uma FAIXA DE RODAPÉ de h-[30%], não o fundo inteiro
+          da seção. O recife é um asset composto (recife distante dissolvido na
+          névoa azul ao fundo, uma água-viva à deriva, o monograma "A" luminoso
+          pousado num afloramento de coral à direita do centro, corais e areia
+          ondulada na frente). Acima da faixa quem aparece é o PRICING_SKY puro,
+          e é sobre ele que o h2 é lido.
+
+          O ENQUADRAMENTO É QUEM SALVA O MONOGRAMA, e ele é o object-center
+          PADRÃO — o que parece "não ter decisão" aqui é a decisão. A faixa só
+          mostra uma janela do asset (no cover a largura manda), e o "A" mora
+          entre 32,9% e 70,2% da altura dele. Medido nos três cortes: object-top
+          decepa a base, object-bottom deixa só o pé, e só o centrado o mostra
           inteiro.
 
-          O ENQUADRAMENTO É PELA ALTURA, e isso é o contrário do que era. A 1440
-          a section dá 1.27 de proporção contra 1.49 do asset: no object-cover
-          quem estoura é a LARGURA (~120px por lado), e o eixo vertical entra
-          todo. Por isso o "A" pousa onde foi composto pra pousar, e não onde um
-          corte centrado o deixasse cair.
+          TUDO AQUI EM FRAÇÃO DA ALTURA, de propósito: o Next/Image serve o asset
+          REESCALADO (a 1440 chega 1440×1075, não os 1920×1434 do arquivo), então
+          conta em px do arquivo-fonte mente. Já mentiu: comparar bbox do original
+          contra janela do servido deu "monograma cortado" numa tela onde ele está
+          inteiro.
+
+          A JANELA VISÍVEL = altura_da_faixa / (largura_da_viewport / 1,339), em
+          fração — e ela ENCOLHE conforme a viewport ALARGA, que é o contra-senso
+          do cover aqui. O "A" precisa de ≥40,4% da altura pra entrar inteiro:
+            1440 → 51,0% visível (janela 24,5–75,5%) → inteiro, folga 8,4/5,3
+            1920 → 38,2% visível (janela 30,9–69,1%) → base cortada em 1,1%
+          O corte a 1920 fica CONFERIDO como aceitável: 1,1% cai na linha em que
+          o "A" já entra no coral, então some no desenho em vez de ler como
+          decepado. Se um dia incomodar, o caminho não é o object-position (já é o
+          centro, que é o melhor corte): é subir a faixa pra ~32% ou recortar o
+          asset pra perto da proporção da faixa, pra o cover parar de ampliar.
 
           O céu próprio da section (PRICING_STOPS em lib/sky) não morre com a
-          mudança: ele segue sendo o que aparece nos ~100px de cima, por baixo
-          do fade da REEF_MASK — é ele que emenda o creme do Mergulho no teal
+          mudança: ele segue sendo o que aparece acima da faixa e nos ~100px de
+          fade da REEF_MASK — é ele que emenda o creme do Mergulho no teal
           deste asset. z-0 pra ficar atrás de tudo; por cima da cena seguem as
           cáusticas do Underwater e o film grain, na mesma ordem de antes — o
           Underwater é `multiply`, então tinge o recife sem lavar. Ver o
@@ -280,18 +322,17 @@ export default function Pricing() {
           O asset antigo era céu liso: uma cor só na borda do corte, então
           bastava o gradiente terminar naquela cor exata e a emenda sumia sem
           máscara nenhuma. Este não é. A borda de cima do recife varia no
-          horizontal — os cantos morrem em ~#02243C e os god rays do meio
-          batem ~#86BFCD. Contra isso NENHUMA cor única de gradiente fecha a
-          conta: medido sem máscara, a emenda dava um degrau de ~180/255 num
-          único pixel de altura, nos dois cantos. Uma cor não resolve variação;
+          horizontal — os cantos batem ~#5BC2DD/#68C5DE e o meio clareia pra
+          ~#A8E3F3, 86/255 de amplitude só no vermelho. Contra isso NENHUMA cor
+          única de gradiente fecha a conta. Uma cor não resolve variação;
           só a dissolução resolve. Daí o mesmo recurso da DIVE_MASK do
           Underwater (transparent → black nos primeiros %): o recife entra por
-          fade em cima e a linha reta não tem onde aparecer. 9% de 100% da
-          section ≈ 100px de travessia a 1440 — o bastante pra sumir, pouco o
-          bastante pra não lavar o coral. */}
+          fade em cima e a linha reta não tem onde aparecer. ~100px de travessia
+          a 1440 — o bastante pra sumir, pouco o bastante pra não lavar o
+          coral. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-0"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[30%]"
         style={{
           maskImage: REEF_MASK,
           WebkitMaskImage: REEF_MASK,

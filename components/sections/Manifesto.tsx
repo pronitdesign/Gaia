@@ -125,7 +125,23 @@ export default function Manifesto() {
          seção. Ver NÉVOA em ScrollPhone. */
       data-sky-manifesto
       aria-label="Você cuida da pessoa. A Gaia cuida do resto."
-      className="relative flex min-h-[130vh] flex-col justify-between overflow-hidden py-[32vh] md:min-h-[160vh] md:py-[42vh]"
+      /* O RODAPÉ CEDE (pb 42vh → 16vh → 8vh; a segunda descida foi a Laura pedindo a água mais pra cima — o vão total texto→superfície é calibrado a olho, ver Mergulho.tsx), E SÓ NO MD+ — o pt fica intacto.
+         `justify-between` joga as duas frases nas pontas da caixa de conteúdo,
+         então o pb é literalmente a distância de "A Gaia cuida do resto." até o
+         fim da seção — e, desde que a linha d'água virou a base do Mergulho
+         (ver lá), até a ÁGUA. Medido: a frase estava a 882px da superfície, 1.12
+         viewports, e com ela em quadro não havia mar nenhum. 410px daquilo eram
+         este padding.
+         Não é o Manifesto perdendo respiro pro mergulho: é a frase passando a
+         ter um chão. "A Gaia cuida do resto." dita sobre o mar, quase encostando
+         nele, é a leitura — e a régua é a referência da Laura, onde a frase e a
+         linha dividem o quadro. Com 42vh ela terminava no vácuo e a água chegava
+         um viewport depois, quando ela já tinha ido embora.
+         O pt segue 42vh: "Você cuida da pessoa." nasce do escuro do Features e
+         essa entrada não mudou. A caixa deixou de ser simétrica porque as duas
+         pontas deixaram de fazer a mesma coisa — a de cima abre um capítulo, a
+         de baixo agora encosta noutro. */
+      className="relative flex min-h-[130vh] flex-col justify-between overflow-hidden py-[32vh] md:min-h-[160vh] md:pb-[8vh] md:pt-[42vh]"
       style={{ background: SKY }}
     >
       {/* halo de aurora no crossover — mesma família do Pricing, costura a luz */}

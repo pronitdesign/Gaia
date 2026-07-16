@@ -35,7 +35,7 @@ planar só reflete objetos da MESMA cena 3D — e o phone tem que aparecer no
 reflexo. Esta seção só oferece o fundo e as âncoras que o ScrollPhone lê vivas.
 */
 
-import { diveGradientCss, WATER_LINE } from "@/lib/sky";
+import { diveGradientCss } from "@/lib/sky";
 
 /* Os stops moram em lib/sky.ts porque o skydome do ScrollPhone (que existe só
    pra água ter o que refletir) precisa dos MESMOS valores — se as duas listas
@@ -54,13 +54,43 @@ export default function Mergulho() {
       /* data-sky-dive: par do data-sky-manifesto. A névoa amostra o gradiente da
          seção que estiver na altura do horizonte — ver NÉVOA em ScrollPhone. */
       data-sky-dive
-      /* 120vh: um viewport pro mergulho respirar mais o que sobra pro phone
-         chegar e sair sem a água ainda em cena. Menos que isso e voltamos a
-         espremer os três atos. Desktop-only por dentro (o ScrollPhone é lg:),
-         mas a seção existe no mobile como respiro claro entre Manifesto e
-         Pricing — sem ela, lá, o creme do fim do Manifesto encostaria direto no
-         creme do Pricing e a emenda ficaria longa demais sem nada acontecendo. */
-      className="relative min-h-[70vh] overflow-hidden lg:min-h-[120vh]"
+      /* ESTA SEÇÃO É O AR. Ela ACABA na superfície — e é isso, hoje, que ela é.
+         Antes eram 120vh com a linha d'água no meio (WATER_LINE 0.5), e a
+         consequência era um desencontro medido de 472px: o horizonte de WebGL
+         caía em 50% da TELA (geometria de câmera nivelada) e a emenda com o
+         Pricing ficava meio viewport ABAIXO dele. Duas linhas em quadro, e
+         nenhuma era a outra. A de baixo era a de verdade e ninguém a usava.
+         A regra agora é uma só: a linha da superfície É o topo do Pricing. Logo
+         o Mergulho é só o ar acima dela, e o que estiver abaixo é o Pricing,
+         submerso, visto ATRAVÉS da água (ver a derivação do pitch em
+         ScrollPhone). O scroll do mergulho não precisa mais morar aqui: ele vem
+         de graça do Pricing subindo, que é um viewport inteiro.
+         6vh, E ELA NÃO É MAIS UMA ESCOLHA — É UM RESTO.
+         (Foi 15vh por uma rodada; a Laura olhou e pediu a água MAIS PRA CIMA.
+         O vão texto→superfície estava em 310px — 66 do line-box do texto, 126
+         do pb do Manifesto, 118 daqui. Cortou-se dos dois lados: 6vh aqui e
+         pb 8vh lá, vão final ~176px. Se um dia subir de novo, é ESTE número
+         que a Laura calibra a olho — os dois paddings são só onde ele mora.)
+         Foram 120vh (a água morava aqui e precisava de scroll próprio), depois
+         60vh. Os dois números morreram pelo mesmo motivo: a partir do momento em
+         que a linha É a base desta seção, a altura daqui deixou de ser "quanto
+         respiro o mergulho quer" e virou "a que DISTÂNCIA a última frase do
+         Manifesto fica da água" — porque é exatamente isso que ela mede.
+         E a resposta é: perto. Medido, com 60vh, a base de "A Gaia cuida do
+         resto." ficava a 882px da linha — 1.12 VIEWPORTS. Com o texto em quadro
+         a água estava um viewport abaixo da dobra, ou seja: não existia mar
+         nenhum na frase. Era o oposto do pedido ("assim que sair esse texto já
+         deve aparecer o mar; o texto deve estar bem próximo à superfície") e uma
+         regressão que a própria regra causou — antes o mar aparecia ali porque a
+         linha era um artefato de TELA (pitch 0 ⇒ 50% da janela, solto do
+         layout). Amarrada ao DOM, ela passou a obedecer o DOM, e o DOM tinha
+         quase um viewport de ar sobrando.
+         O scroll do mergulho não mora mais aqui: ele vem dos 70vh do topo do
+         Pricing (ver lá). É por isso que esta seção pode encolher sem espremer
+         nada — ela não carrega mais tempo, só distância.
+         Mobile segue 70vh e sem água nenhuma (o ScrollPhone é lg:): lá isto é só
+         respiro claro entre o Manifesto e o Pricing. */
+      className="relative min-h-[70vh] overflow-hidden lg:min-h-[6vh]"
       style={{ background: DIVE_SKY }}
     >
       <div
@@ -69,25 +99,27 @@ export default function Mergulho() {
         style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
       />
 
-      {/* Âncora da linha d'água. O ScrollPhone lê o rect vivo dela por frame
-          (mesmo padrão de [data-phone-start]/[data-phone-end]) pra saber onde a
-          superfície mora. Não pinta nada. */}
+      {/* A LINHA. É a borda de baixo da seção — ou seja, o topo do Pricing.
+          Não é mais uma fração daqui: `WATER_LINE` morreu porque a resposta
+          deixou de ser um número e virou uma ARESTA.
+          Quem lê: o ScrollPhone, por frame, pra derivar o pitch da câmera que
+          põe o horizonte exatamente aqui (é a regra da seção); e o Sky3D, pelo
+          parentElement, pra mapear este gradiente no skydome que a água
+          reflete. Não pinta nada. */}
       <div
         aria-hidden
         data-water-start
-        className="pointer-events-none absolute left-0 h-0 w-full"
-        style={{ top: `${WATER_LINE * 100}%` }}
+        className="pointer-events-none absolute bottom-0 left-0 h-0 w-full"
       />
 
-      {/* Ponto de passagem do phone: é AQUI que ele cruza a superfície, deitado.
-          Sem esta âncora ele lerparia direto do card do Features pro slot do
-          Pricing e afundaria abaixo da dobra no meio — que é exatamente o bug
-          que esta seção existe pra consertar. Centralizado na linha d'água. */}
+      {/* Ponto de passagem do phone: é AQUI que ele cruza a superfície. Sem esta
+          âncora ele lerparia direto do card do Features pro slot do Pricing e
+          afundaria abaixo da dobra no meio. Centralizado na linha — que agora é
+          a emenda, então translate-y-1/2 o põe metade no ar, metade na água. */}
       <div
         aria-hidden
         data-phone-water
-        className="pointer-events-none absolute left-1/2 h-[560px] w-[300px] -translate-x-1/2 -translate-y-1/2"
-        style={{ top: `${WATER_LINE * 100}%` }}
+        className="pointer-events-none absolute bottom-0 left-1/2 h-[560px] w-[300px] -translate-x-1/2 translate-y-1/2"
       />
     </section>
   );

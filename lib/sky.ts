@@ -59,31 +59,36 @@ export const SKY_STOPS: SkyStop[] = [
   { color: "#C0B0D7", pos: 1.0 },
 ];
 
-/* O céu do MERGULHO — a seção onde a água de fato vive, e o céu que ela reflete.
+/* O céu do MERGULHO — e agora ele é SÓ CÉU, do topo à base.
 
-   Nasce no #C0B0D7 exato em que o Manifesto morre e resolve no #FAF9F5 do
-   Pricing. Ele carrega sozinho a travessia lavanda→creme que antes era a cauda
-   do Manifesto.
+   Nasce no #C0B0D7 exato em que o Manifesto morre e morre NO HORIZONTE — porque
+   a base desta seção É o horizonte (ver Mergulho.tsx: a seção acabou virando o
+   ar, e a aresta de baixo dela é a linha d'água).
+
+   ELE RESOLVIA PRO CREME (#FAF9F5) E NÃO RESOLVE MAIS. Aquilo existia porque o
+   Mergulho emendava direto no creme do topo do Pricing, e a cauda creme morava
+   na metade de baixo, "abaixo da linha d'água, fora do que o horizonte
+   amostra". Essa metade não existe mais: a seção acaba NA linha. Uma cauda
+   creme aqui seria céu creme bem na altura em que a água o reflete — e céu
+   creme é o bug já registrado duas vezes aqui (água lavada, sem cor nenhuma).
 
    O TOPO É LAVANDA DE VERDADE, e isso É A COR DA ÁGUA — não decoração de fundo.
    No ângulo rasante o Fresnel faz o reflexo mandar sobre a cor própria da água,
-   então quem pinta a água é este gradiente. Céu creme aqui = água lavada.
+   então quem pinta a água é este gradiente. Isso vale MAIS agora, não menos: o
+   horizonte não passeia mais pela seção, ele mora fixo na base — então é a cauda
+   DAQUI que a água reflete o tempo todo.
 
-   Já erramos isto duas vezes, por motivos opostos: com a água no Manifesto ela
-   refletia o #0A0C11 do topo daquele gradiente e lia como piche; depois, com
-   este céu em creme, ela perdeu a cor inteira. O céu é o botão de cor da água —
-   mexer aqui é mexer nela.
+   A cauda clareia pra #DED7E8 e para. Não é creme: é o embranquecimento que todo
+   céu tem na altura do horizonte (a atmosfera espalha e desatura quanto mais
+   rasante o olhar). Dá a distância sem entregar a cor.
 
-   A resolução pro creme mora na METADE DE BAIXO (>0.5), abaixo da linha d'água,
-   fora do que o horizonte amostra. Assim o Pricing recebe a costura pronta sem
-   custar a cor do reflexo. */
+   Os valores até 0.46 são os mesmos de quando esta lista ia até o creme —
+   intactos de propósito, porque a metade de cima nunca foi o problema. */
 export const DIVE_STOPS: SkyStop[] = [
   { color: "#C0B0D7", pos: 0.0 },
-  { color: "#C8B9DD", pos: 0.22 },
-  { color: "#D5CCE0", pos: 0.46 },
-  { color: "#E4DEEE", pos: 0.68 },
-  { color: "#EFEBEC", pos: 0.86 },
-  { color: "#FAF9F5", pos: 1.0 },
+  { color: "#C8B9DD", pos: 0.44 },
+  { color: "#D5CCE0", pos: 0.78 },
+  { color: "#DED7E8", pos: 1.0 },
 ];
 
 /* A ÁGUA DO PRICING — o terceiro da cadeia, e o primeiro que não é céu.
@@ -115,9 +120,25 @@ export const DIVE_STOPS: SkyStop[] = [
    de ser inversão e virou literal — água clara na superfície escurecendo pro
    fundo é o que água faz. O gradiente virou o que a seção sempre fingiu ser.
 
-   A travessia creme→água mora nos primeiros 10%, espelhando a DIVE_MASK do
-   Underwater (transparent 0% → black 10%): o leitor sai do creme do Mergulho e
-   entra na água sem que apareça um corte reto entre as seções.
+   O TOPO NÃO É MAIS CREME, E ISSO NÃO É AJUSTE DE GOSTO — É A REGRA NOVA.
+
+   #FAF9F5 estava aqui porque o Mergulho MORRIA em creme e isto emendava com ele:
+   ar encostando em ar, e o truque era as duas pontas terem o mesmo hex. Essa
+   emenda não existe mais. O topo desta seção agora É A LINHA D'ÁGUA (ver
+   Mergulho.tsx: a seção de cima acaba na superfície), então o que encosta aqui é
+   AR EM ÁGUA. Manter o creme deixou de ser costura e virou artefato: renderizado,
+   ele aparece como uma barra branca de ~10px atravessando a tela exatamente na
+   linha — o Mergulho chega em lavanda (#DED7E8, o céu no horizonte) e isto
+   respondia com quase-branco.
+
+   Então o primeiro stop é o LAVANDA do horizonte, não o creme: é a mesma cor com
+   que o Mergulho morre, porque é o mesmo pixel. A regra de sempre — as duas
+   listas se encostam no mesmo hex —, só que agora a ponta de cima mudou de cor.
+
+   E fisicamente é o que a água rasa faz: logo abaixo da superfície ela devolve o
+   céu quase inteiro (é por isso que a espuma e o raso são da cor do dia), e só
+   ganha corpo com a profundidade. Clara em cima escurecendo pro fundo continua
+   sendo a régua da seção — ela só passou a começar no lugar certo.
 
    OS VALORES SÃO PRÉ-MULTIPLY, e é por isso que parecem claros demais pro que se
    vê na tela. As cáusticas do Underwater passam por cima em multiply (uDeep), e
@@ -125,8 +146,9 @@ export const DIVE_STOPS: SkyStop[] = [
    nos cantos. Quem calibrar estes stops contra screenshot sem descontar isso vai
    clareá-los pra "corrigir" e estourar a água. */
 export const PRICING_STOPS: SkyStop[] = [
-  { color: "#FAF9F5", pos: 0.0 },
-  { color: "#E7F0F3", pos: 0.1 },
+  /* o MESMO hex em que DIVE_STOPS morre — é o pixel da linha d'água */
+  { color: "#DED7E8", pos: 0.0 },
+  { color: "#D2DCE8", pos: 0.06 },
   { color: "#BCD8E1", pos: 0.26 },
   { color: "#8CBDCD", pos: 0.43 },
   { color: "#69B0C0", pos: 0.6 },
@@ -189,10 +211,17 @@ export const diveGradientCss = (angle = "180deg") => gradientCss(DIVE_STOPS, ang
 export const pricingGradientCss = (angle = "180deg") =>
   gradientCss(PRICING_STOPS, angle);
 
-/**
- * Onde a superfície mora, em fração da seção do Mergulho.
- *
- * 0.5 põe a linha d'água no meio do capítulo: metade pra chegar, metade pra
- * atravessar e sair. O phone cruza aqui — ver [data-phone-water] em Mergulho.tsx.
- */
-export const WATER_LINE = 0.5;
+/* WATER_LINE (era 0.5 — "onde a superfície mora, em fração da seção do
+   Mergulho") MORREU, e vale registrar por quê, pra ninguém trazer de volta.
+
+   Ela dizia que a superfície morava no MEIO do Mergulho. Mas a superfície não
+   obedece a CSS: o horizonte de um plano horizontal cai na altura do olho, e com
+   a câmera nivelada isso é 50% da TELA — não 50% da seção. Os dois só coincidem
+   por acidente de scroll, e medido eles estavam a 472px um do outro: um
+   horizonte de WebGL no meio da tela e uma emenda de seção meio viewport abaixo.
+
+   A resposta deixou de ser uma fração e virou uma ARESTA: a linha é a base do
+   Mergulho, que é o topo do Pricing. Quem obedece a quem também inverteu — não
+   se escolhe mais onde a linha cai e se torce pra câmera concordar; lê-se onde a
+   aresta está e DERIVA-SE o pitch que põe o horizonte nela (ver ScrollPhone).
+   Por isso não sobra número nenhum pra exportar daqui. */

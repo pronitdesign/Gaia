@@ -131,22 +131,47 @@ const WATER_FADE: [number, number] = [90, 400];
 /* A LENTE — [θ espelho, θ lente, quanto abre]. Ver u_lens em WaterComplex pra
    geometria e pra por que é ângulo e não distância.
 
-   Os dois primeiros números são sin(ângulo de depressão), que num plano
-   horizontal com pitch 0 é função SÓ da linha da tela. Medido @1440×900
-   (horizonte em y=450): θ=0.02 → y≈469 · θ=0.10 → y≈543.
+   ERA [0.02, 0.1, 0.92] E ISSO NÃO ERA UMA ÁGUA COM DEFEITO — ERA UMA ÁGUA
+   PROIBIDA DE EXISTIR.
 
-   Então a faixa 450–470 é ESPELHO: é ela a linha d'água, e é nela que mora o
-   reflexo do phone. De 470 a 545 a água abre, e de 545 pra baixo é lente. O
-   topo do Pricing cai em y=505 no frame que esta seção existe pra entregar —
-   bem no meio da rampa, que é onde ele tem que estar: aparecendo, ofuscado, não
-   nítido nem tapado.
+   θ = dot(toEye, normal): 0 no rasante, 1 a pino. A rampa antiga abria entre
+   θ=0.02 e θ=0.10, ou seja entre 1.1° e 5.7° de depressão. O próprio comentário
+   que estava aqui media a consequência @1440×900 e não a nomeava: "a faixa
+   450–470 é ESPELHO". Vinte pixels. Num viewport de 900. De y=545 pra baixo —
+   quase metade do quadro — a água era 92% transparente. Não havia mar: havia um
+   risco no horizonte e uma parede de blur embaixo dele. Era esse o "está
+   horrível".
 
-   z=0.92, não 1: a água nunca some de vez. O resto de alpha é o que segura a
+   POR QUE ALGUÉM ESCREVERIA ISSO, que é o que interessa pra não repetir: a
+   rampa não estava descrevendo água, estava CONSERTANDO UM DESENCONTRO. O
+   comentário antigo entrega o motivo — "o topo do Pricing cai em y=505 [...]
+   bem no meio da rampa, que é onde ele tem que estar". O topo do Pricing e o
+   horizonte eram DUAS LINHAS, medidas a 472px uma da outra, e a lente foi
+   esmagada até o Pricing calhar de aparecer dentro dela. Um dial pagando a
+   conta de um erro de layout.
+
+   Agora a linha É o topo do Pricing (ver Mergulho.tsx e a derivação do pitch em
+   ScrollPhone), então não há o que compensar e a rampa volta a ser o que a
+   física diz. Com a câmera a 0.3 acima da superfície:
+
+     pitch  0° (o horizonte no meio)  θ em quadro vai de 0 a 0.42
+                                      → smoothstep(0.22,0.7,0.42)=0.24: ~79%
+                                        opaca no pé da tela. É MAR.
+     pitch −25° (o horizonte no topo) θ no pé do quadro chega a 0.64
+                                      → ~82% aberta: é JANELA, e o Pricing está
+                                        lá embaixo, submerso.
+
+   Quem varre o θ é o SCROLL virando a câmera, não este dial. É esse o mecanismo
+   inteiro: rasante espelha, a pino atravessa. Espremer a rampa pra forçar o
+   efeito com câmera parada é o que se estava fazendo — e é o que não se faz
+   mais.
+
+   z=0.88, não 1: a água nunca some de vez. O resto de alpha é o que segura a
    ondulação e o tingimento no pé da tela — sem ele, os últimos ~300px do quadro
    perdem a água inteira e viram o Pricing borrado e mais nada.
 
    Constante de MÓDULO — mesma razão do WATER_FADE. */
-const WATER_LENS: [number, number, number] = [0.02, 0.1, 0.92];
+const WATER_LENS: [number, number, number] = [0.22, 0.7, 0.88];
 
 /* Escreve u_amount na material da água. Precisa ser FILHO do
    WaterSurfaceComplex, porque é ele quem provê o WaterContext com o ref da
