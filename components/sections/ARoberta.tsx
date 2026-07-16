@@ -37,7 +37,8 @@ CustomEase.create(
 // (sem vídeo, ver Armadilha 4 do brief) esta imagem é o fundo inteiro, sozinha.
 const BACKDROP = "/quem-construiu-olhos.webp";
 
-// Vídeo do match-cut olho→retrato — scrubbado pelo scroll (beat 0 do pin, ver useGSAP).
+// Vídeo do push-in no olho — scrubbado pelo scroll (beat 0 do pin, ver useGSAP);
+// depois do último frame, o mergulho na pupila continua o movimento (beat 1).
 // 1920×1072, 3.04s, 73 frames, TODOS keyframes (GOP=1): é isso que torna o seek
 // instantâneo a cada frame do scrub — um H.264 com GOP normal engasga. Poster = frame 0
 // da própria foto acima, evita flash antes do primeiro decode. SÓ existe no ramo pinned
@@ -48,22 +49,21 @@ const EYE_VIDEO_DURATION = 3.0417; // s — medido via ffprobe, 73 frames a ~24f
 const EYE_VIDEO_W = 1920;
 const EYE_VIDEO_H = 1072;
 
-// Geometria do reflexo da Roberta na íris, MEDIDA no frame de origem (3852×2152) como
+// Geometria da íris (centro = pupila), MEDIDA no frame de origem (3852×2152) como
 // FRAÇÃO do frame do vídeo — nunca em px cravado nem em % de viewport. O vídeo é
 // object-cover full-bleed, então a íris se desloca conforme o aspect da tela; só a
-// fração sobrevive a qualquer viewport (ver computeIrisBox abaixo, mesma matemática do
-// object-cover que applyP já fazia pro card antigo).
+// fração sobrevive a qualquer viewport (ver computeIrisBox abaixo). Hoje o consumidor
+// é o mergulho (applyDive): cx/cy é o ponto de fuga do dolly e o centro do portal.
 const IRIS_CX_FRAC = 0.5587;
 const IRIS_CY_FRAC = 0.4977;
 const IRIS_W_FRAC = 0.2191;
 const IRIS_H_FRAC = 0.3281;
 
-/** Bbox da íris (onde o reflexo da Roberta está) em px de VIEWPORT, dado o tamanho
- *  atual da tela — replica a conta do object-cover: o vídeo (1920×1072) cobre
- *  vw×vh, e a íris é um ponto fixo dentro dele que se desloca com o crop. Chamada a
- *  cada frame do scrub (applyP) e no onRefresh — nunca cacheada, porque a viewport
- *  muda (resize, rotate) e um valor velho desalinha o handoff (é o teste que mais
- *  importa nesta cena). */
+/** Bbox da íris (centro = pupila) em px de VIEWPORT, dado o tamanho atual da tela —
+ *  replica a conta do object-cover: o vídeo (1920×1072) cobre vw×vh, e a íris é um
+ *  ponto fixo dentro dele que se desloca com o crop. Chamada a cada frame do mergulho
+ *  (applyDive) e no onRefresh — nunca cacheada, porque a viewport muda (resize,
+ *  rotate) e um valor velho desloca o ponto de fuga pra fora da pupila. */
 function computeIrisBox(vw: number, vh: number) {
   const videoAspect = EYE_VIDEO_W / EYE_VIDEO_H;
   const viewportAspect = vw / vh;
@@ -189,7 +189,7 @@ const NOISE_BG =
 /** Retrato: placeholder (gradiente Bruma + monograma) com a foto real por cima quando existir. */
 function Portrait() {
   return (
-    <div className="relative h-full w-full overflow-hidden bg-bruma">
+    <div data-portrait-inner className="relative h-full w-full overflow-hidden bg-bruma">
       <div className="absolute inset-0 grid place-items-center">
         <span className="font-title text-[clamp(2.5rem,7vw,5rem)] font-medium text-azul-800/60">
           RC
@@ -453,22 +453,25 @@ const IMPACT_ACCENTS: Record<number, string> = {
   15: "rgba(138,105,216,0.95)",
 };
 
-/** CARD 2 — Alcance. Identidade: métrica viva. Header com selo "crescendo", número
- *  grande, mini bar-chart de crescimento e rodapé com métricas de apoio. Glow azul. */
+/** CARD 2 — Alcance. Identidade: métrica viva. Formato paisagem: coluna esquerda com
+ *  credencial + número, coluna direita com selo "crescendo", mini bar-chart e métricas
+ *  de apoio. Glow azul.
+ *  Sem `relative` na casca: o posicionamento vem do className, e na cascata do Tailwind
+ *  `relative` venceria `absolute` independente da ordem das classes. */
 function ImpactCard({ className = "" }: { className?: string }) {
   return (
     <div
       data-proof
-      className={`${PROOF_CARD} relative flex flex-col justify-between overflow-hidden px-7 py-6 md:px-8 md:py-7 ${className}`}
+      className={`${PROOF_CARD} flex items-stretch gap-6 overflow-hidden px-6 py-5 ${className}`}
     >
       {/* assinatura de cor — luz azul difusa no canto superior-esquerdo */}
       <div
         aria-hidden
         className="pointer-events-none absolute -left-12 -top-12 h-36 w-36 rounded-full bg-azul-400/20 blur-3xl"
       />
-      {/* header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      {/* coluna esquerda — credencial + número */}
+      <div className="flex min-w-0 flex-col justify-between">
+        <div className="flex items-center gap-2.5">
           <IconOrb tint="text-azul-200">
             <IconUserPlus className="h-5 w-5" />
           </IconOrb>
@@ -479,40 +482,40 @@ function ImpactCard({ className = "" }: { className?: string }) {
             <div className="font-body text-[13px] text-azul-200">formação contínua</div>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-sage-400/20 px-2.5 py-1 font-body text-[10.5px] font-medium text-sage-300">
+        <div className="flex items-end gap-2.5">
+          <span className="font-title text-[clamp(2.1rem,2.6vw,2.8rem)] font-medium leading-none tracking-[-0.02em] text-neutro-0">
+            +20
+          </span>
+          <span className="whitespace-nowrap pb-0.5 font-body text-[12.5px] leading-tight text-white/60">
+            profissionais
+            <br />
+            formados
+          </span>
+        </div>
+      </div>
+      {/* coluna direita — selo, gráfico e métricas de apoio */}
+      <div className="flex min-w-0 flex-1 flex-col justify-between">
+        <span className="inline-flex w-fit items-center gap-1 self-end rounded-full bg-sage-400/20 px-2.5 py-1 font-body text-[10.5px] font-medium text-sage-300">
           <IconArrowUpRight className="h-3 w-3" />
           crescendo
         </span>
-      </div>
-      {/* número + label */}
-      <div className="flex items-end gap-2.5">
-        <span className="font-title text-[clamp(2.6rem,3.5vw,3.5rem)] font-medium leading-none tracking-[-0.02em] text-neutro-0">
-          +20
-        </span>
-        <span className="pb-1 font-body text-[13px] leading-tight text-white/60">
-          profissionais
-          <br />
-          formados
-        </span>
-      </div>
-      {/* mini bar-chart de crescimento */}
-      <div className="flex h-11 items-end gap-[3px]">
-        {IMPACT_BARS.map((h, i) => (
-          <span
-            key={i}
-            className="flex-1 rounded-full"
-            style={{ height: `${h}%`, background: IMPACT_ACCENTS[i] ?? "rgba(255,255,255,0.26)" }}
-          />
-        ))}
-      </div>
-      {/* rodapé — métricas de apoio */}
-      <div className="flex items-center gap-5 border-t border-white/10 pt-3 font-body text-[12px] text-white/55">
-        <span>
-          <b className="font-semibold text-white/85">3</b> clínicas
-        </span>
-        <span>
-          <b className="font-semibold text-white/85">+1M</b> seguidores
-        </span>
+        <div className="flex h-8 items-end gap-[3px]">
+          {IMPACT_BARS.map((h, i) => (
+            <span
+              key={i}
+              className="flex-1 rounded-full"
+              style={{ height: `${h}%`, background: IMPACT_ACCENTS[i] ?? "rgba(255,255,255,0.26)" }}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-4 border-t border-white/10 pt-2 font-body text-[11.5px] text-white/55">
+          <span className="whitespace-nowrap">
+            <b className="font-semibold text-white/85">3</b> clínicas
+          </span>
+          <span className="whitespace-nowrap">
+            <b className="font-semibold text-white/85">+1M</b> seguidores
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -588,9 +591,11 @@ export default function ARoberta() {
   const recede = useRef<HTMLDivElement>(null);
   const portrait = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
-  // Vídeo do match-cut olho→retrato (ver EYE_VIDEO) — currentTime é escrito só pelo
+  // Vídeo do push-in no olho (ver EYE_VIDEO) — currentTime é escrito só pelo
   // scrub (applyVideo); nunca autoplay, quem manda é o scroll (Armadilha 5).
   const eyeVideo = useRef<HTMLVideoElement>(null);
+  // Aro da pupila — anel escuro fino que cavalga a borda do portal (ver applyDive).
+  const blackout = useRef<HTMLDivElement>(null);
   // Bloco único da headline de abertura ("QUEM ESTÁ" / "POR TRÁS?"), ancorado no
   // rodapé-direita do frame Figma — ver o JSX pinned pro porquê de um bloco só, não
   // mais duas palavras flanqueando o centro.
@@ -638,33 +643,25 @@ export default function ARoberta() {
         return;
       }
 
-      // O box do retrato NASCE no bbox medido da íris (elipse, ver computeIrisBox) e
-      // cresce até ocupar a section INTEIRA (full-bleed, 100vw × 100vh) — é o match
-      // cut: o card materializa exatamente onde e do tamanho que o reflexo da Roberta
-      // estava no olho, não num card fixo arbitrário. A imagem é object-cover DENTRO
-      // do box, então em p=0 vê-se a foto enquadrada como o reflexo, e em p=1 ela vira
-      // o fundo da section.
-      // p: 0 = tamanho/posição da íris · 1 = full-bleed.
-      //
-      // O crescimento (p) só roda na METADE final do scrub (ver o `tl.to(state,
-      // {p:1}...)` mais abaixo, começando em tl-time 0.45) — a primeira metade é o
-      // vídeo scrubbando (state.video). Por isso o retrato fica com p=0 (invisível,
-      // preso ao tamanho/posição da íris) por toda a fase de vídeo: não há tween
-      // rodando, o valor simplesmente não muda até o handoff.
-      //
-      // A câmera não pode parar no handoff: o vídeo, congelado no último frame a
-      // partir daqui, CONTINUA escalando — ancorado no centro da íris e travado no
-      // MESMO rect que o card ocupa a cada instante (ver a matemática em
-      // applyVideoDolly abaixo). Três fases dentro do crescimento (p):
-      //   0 → VIDEO_ONLY_END        — só o vídeo escala; card em opacity 0.
-      //   VIDEO_ONLY_END → DISSOLVE_END — cross-dissolve: card entra por cima,
-      //                                    travado no mesmo rect do vídeo.
-      //   DISSOLVE_END → 1          — só o card, crescendo até full-bleed.
-      // Opacidade/brilho do card são função do DISSOLVE, não de `p` cru — ver
-      // `dissolveT` dentro de applyP.
-      const VIDEO_ONLY_END = 0.35;
-      const DISSOLVE_END = 0.65;
-      const state = { video: 0, p: 0 };
+      // ── Mergulho na pupila (dolly-zoom contínuo) ─────────────────────────────
+      // O handoff deixou de ser o match-cut reflexo→card (a versão anterior fazia o
+      // retrato NASCER no bbox da íris e crescer até full-bleed). Agora a câmera NÃO
+      // PARA no olho: depois do scrub dos 73 frames, o último frame congelado segue
+      // escalando ancorado no centro da pupila (computeIrisBox dá o ponto), acelerando
+      // (power2.in no tween), com blur crescente — dolly perdendo foco — e uma torção
+      // sutil (rotate ∝ d²) que faz as fibras da íris riscarem em vórtice. Enquanto
+      // isso a pupila vira PORTAL: uma máscara radial de borda emplumada (mask-image,
+      // nunca clip-path — clip-path tem borda dura e pupila dilatando não tem) abre o
+      // RETRATO full-bleed de dentro do ponto da pupila até cobrir o canto mais
+      // distante da viewport — a cena seguinte nasce de dentro do olho SEM passar
+      // por tela preta. (A versão anterior fechava num breu com uma ✦; a Laura vetou
+      // os dois — nada de quadro escuro em nenhum frame do caminho.)
+      // d: 0 = frame final do vídeo em repouso · 1 = portal aberto, retrato cheio.
+      const DIVE_SCALE_MAX = 9; // escala final do frame congelado (expoente, ver applyDive)
+      // 0.3: o portal começa a abrir com a escala já ~2× — cedo o bastante pra que
+      // entre o olho e o retrato nunca exista um quadro sem cena viva.
+      const REVEAL_START = 0.3; // d em que a pupila-portal começa a abrir
+      const state = { video: 0, dive: 0 };
 
       const applyVideo = (t: number) => {
         const v = eyeVideo.current;
@@ -676,117 +673,100 @@ export default function ARoberta() {
         v.currentTime = Math.min(t * EYE_VIDEO_DURATION, v.duration || EYE_VIDEO_DURATION);
       };
 
-      const applyP = (p: number) => {
-        const el = portrait.current;
+      const applyDive = (d: number) => {
         const video = eyeVideo.current;
-        if (!el) return;
-
+        const black = blackout.current;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
+        // O ponto de fuga é o centro da pupila MEDIDO a cada frame (nunca cacheado —
+        // resize/rotate desloca o crop do object-cover, ver computeIrisBox).
         const iris = computeIrisBox(vw, vh);
-        const leftAt0 = iris.cx - iris.w / 2;
-        const topAt0 = iris.cy - iris.h / 2;
-        const w = iris.w + p * (vw - iris.w);
-        const h = iris.h + p * (vh - iris.h);
-        // Interpolação linear independente de left/top e de width/height: nas duas
-        // pontas bate exato (p=0 → posição/tamanho exatos da íris; p=1 → 0,0
-        // full-bleed) — o card cresce a partir do berço medido, não de um ponto
-        // arbitrário da tela como o antigo anchor de 38%.
-        const left = leftAt0 * (1 - p);
-        const top = topAt0 * (1 - p);
-        el.style.width = `${w}px`;
-        el.style.height = `${h}px`;
-        el.style.left = `${left}px`;
-        el.style.top = `${top}px`;
 
-        // Único dono da visibilidade do retrato (ver o comentário abaixo sobre a
-        // corrida de dois donos que já fez a orquídea sumir nesta cena) — mas agora a
-        // fonte é o DISSOLVE, não `p` cru: o card fica invisível durante toda a fase
-        // em que só o vídeo escala (VIDEO_ONLY_END), rampa 0→1 durante o cross-dissolve
-        // e fica opaco dali em diante. `p` cru fazia o card materializar cedo demais
-        // sobre um olho que ainda não tinha crescido o bastante pra esconder o corte.
-        const dissolveT = Math.min(
-          1,
-          Math.max(0, (p - VIDEO_ONLY_END) / (DISSOLVE_END - VIDEO_ONLY_END)),
-        );
-        el.style.opacity = String(dissolveT);
-
-        // Elipse (lê como o olho) enquanto o vídeo ainda está por baixo/dissolvendo →
-        // só relaxa pra retângulo DEPOIS do dissolve terminar. Presa em 50% até
-        // DISSOLVE_END: dentro do olho a forma é elipse, não um retângulo que já
-        // nasce reto no meio do crescimento.
-        const radiusT = Math.min(1, Math.max(0, (p - DISSOLVE_END) / (1 - DISSOLVE_END)));
-        el.style.borderRadius = `${(1 - radiusT) * 50}%`;
-
-        // Feather na borda — SÓ enquanto o card ainda é a elipse pequena (p <
-        // DISSOLVE_END, borderRadius EXATO 50%): a borda do reflexo real funde na
-        // íris, não é recorte duro. BUG já corrigido aqui: `closest-side` NÃO
-        // acompanha o borderRadius conforme ele relaxa — `closest-side` sempre
-        // inscreve uma elipse tocando o meio de cada lado do box, INDEPENDENTE do
-        // border-radius. Gatear em `radiusT<1` (como a primeira versão fazia) deixava
-        // a máscara viva por TODO o crescimento até p=1, então mesmo com o box já
-        // quase full-bleed e o borderRadius já quase 0% (retângulo), a máscara
-        // continuava desenhando um OVAL GIGANTE por cima — era isso que fazia o
-        // editorial "vazar pra fora da elipse": a elipse visível não era o
-        // borderRadius relaxando, era esta máscara nunca saindo do caminho. Em p =
-        // DISSOLVE_END, borderRadius:50% e a máscara `closest-side` desenham a MESMA
-        // elipse (as duas são "inscrita tocando o meio dos 4 lados") — por isso
-        // desligar a máscara exatamente aqui não dá pop, só entrega a forma pro
-        // borderRadius, que a partir daí relaxa sozinho até retângulo.
-        const maskValue =
-          p < DISSOLVE_END
-            ? "radial-gradient(closest-side, black calc(100% - 3px), transparent 100%)"
-            : "none";
-        el.style.setProperty("mask-image", maskValue);
-        el.style.setProperty("-webkit-mask-image", maskValue);
-
-        // Brilho e drop-shadow acompanham o DISSOLVE (0.55→1), não o crescimento: o
-        // card nasce já meio escurecido (como o reflexo real, curvado e mais fundo) e
-        // clareia enquanto se sobrepõe ao vídeo — depois disso é só o card, sem
-        // motivo pra continuar clareando. drop-shadow ainda usa `p` (só existe
-        // enquanto o card não é full-bleed).
-        const brightness = 0.55 + 0.45 * dissolveT;
-        const shadow =
-          p < 1 ? ` drop-shadow(0 22px 45px rgba(58,72,94,${0.18 * (1 - p)}))` : "";
-        el.style.filter = `brightness(${brightness})${shadow}`;
-
-        // O scrim serve à foto, não ao fundo: só existe na medida em que ela cresce.
-        // Sobe rápido (p*1.6) pra já estar firme quando o editorial começa a subir.
-        if (scrim.current) scrim.current.style.opacity = String(Math.min(1, p * 1.6));
-
-        // ── Dolly do vídeo ─────────────────────────────────────────────────────
-        // O vídeo (congelado no último frame a partir do fim do beat 0) continua
-        // escalando, ancorado no centro da íris e travado no MESMO rect que o card
-        // ocupa nesse instante — pra todo p, a região da íris coincide exatamente com
-        // o box do retrato. `transform-origin: 0 0` porque o <video> já é full-bleed
-        // em (0,0) (inset-0). `max`, não `w/iris.w`: o card muda de aspect durante o
-        // crescimento (elipse → full-bleed) e a escala do vídeo é uniforme — `max`
-        // garante que a íris sempre COBRE o card, sem borda de olho aparecendo
-        // dentro dele. Invariante conferida em p=0: w=iris.w, h=iris.h → S=1;
-        // left=leftAt0, top=topAt0 → cardCx=cardCy=iris.cx/cy → tx=ty=0. O vídeo fica
-        // exatamente onde já estava.
         if (video) {
-          const S = Math.max(w / iris.w, h / iris.h);
-          const cardCx = left + w / 2;
-          const cardCy = top + h / 2;
-          const tx = cardCx - iris.cx * S;
-          const ty = cardCy - iris.cy * S;
-          video.style.transformOrigin = "0 0";
-          video.style.transform = `translate(${tx}px, ${ty}px) scale(${S})`;
-          // Blur rampa junto com a escala enquanto o vídeo ainda está visível sob o
-          // dissolve — mata a pixelização de ampliar várias vezes E lê como perda de
-          // foco do dolly; o dissolve pro card nítido aterrissa como rack focus.
-          // Limitação técnica virando linguagem de câmera (brief).
-          const blurT = Math.min(1, p / DISSOLVE_END);
-          video.style.filter = `blur(${blurT * 8}px)`;
+          // Escala EXPONENCIAL (9^d), não linear: aproximação real a velocidade
+          // constante cresce hiperbolicamente no quadro — linear lia como zoom de
+          // software, não como câmera avançando. Composta com o power2.in do tween,
+          // o fim é vertiginoso, que é o ponto. Overscan de 1.02 em repouso: a
+          // torção (rotate abaixo) exporia os cantos do full-bleed nos primeiros
+          // frames — o overscan cobre isso sem ser visível. transform-origin no
+          // ponto da pupila: mantém a pupila cravada no lugar enquanto tudo escala
+          // pra FORA dela — sensação de entrar, não de aproximar. rotate ∝ d² (não
+          // d): a torção só existe quando a escala já lê como vórtice de fibras,
+          // nunca como a foto inteira girando; 22° no fim (a ref da Laura pede ~25,
+          // acima disso os cílios riscam diagonal demais e denunciam o giro 2D).
+          const S = 1.02 * Math.pow(DIVE_SCALE_MAX, d);
+          // Micro-tremor de câmera — duas senoides dessincronizadas (nunca random:
+          // o scrub reverso tem que refazer o MESMO caminho), amplitude ∝ sin(π·d):
+          // zero exato nas duas pontas, então nem o repouso nem o handoff pro preto
+          // ganham offset. ~6px no pico — handheld, não terremoto.
+          const amp = 6 * Math.sin(Math.PI * d);
+          const sx = amp * (Math.sin(d * 23.7) + 0.5 * Math.sin(d * 11.3));
+          const sy = amp * (Math.cos(d * 19.1) + 0.5 * Math.sin(d * 13.9));
+          video.style.transformOrigin = `${iris.cx}px ${iris.cy}px`;
+          video.style.transform = `translate(${sx}px, ${sy}px) scale(${S}) rotate(${d * d * 22}deg)`;
+          // Curva de EXPOSIÇÃO, não só blur: a luz sobe no meio do trajeto
+          // (atravessando a córnea molhada, brightness até ~1.4 + saturate até 1.6,
+          // os valores da ref) e volta a 1 no fim — o mergulho atravessa LUZ do
+          // começo ao fim; o crush pro escuro que existia aqui saiu junto com o
+          // breu (veto da Laura: nenhum frame escuro no caminho).
+          // Blur ∝ d²: no meio do mergulho as fibras ainda precisam ser legíveis
+          // riscando (blur linear lavava tudo cedo demais — medido no render); no
+          // fim, 14px é motion blur E disfarce da pixelização de ampliar 9×.
+          const brightness = 1 + 0.4 * Math.sin(Math.PI * d);
+          video.style.filter = `blur(${d * d * 14}px) saturate(${1 + 0.6 * d}) brightness(${brightness})`;
+        }
+
+        // ── Pupila-portal ────────────────────────────────────────────────────
+        // A cena seguinte abre DENTRO da pupila: máscara radial no RETRATO (que já
+        // está full-bleed e opaco por baixo, ver o gsap.set no setup), crescendo do
+        // ponto da pupila até cobrir o canto mais distante da viewport. Borda
+        // emplumada em 10% do raio — pupila dilatando não tem recorte duro. É a
+        // mecânica da ref original da Laura (clip-path circle), com pluma e sem
+        // nunca passar por tela preta.
+        const t = Math.min(1, Math.max(0, (d - REVEAL_START) / (1 - REVEAL_START)));
+        // Raio até o CANTO mais distante — é ele que decide "coberto"; qualquer
+        // raio menor deixa um triângulo de olho vivo no canto oposto à pupila.
+        const maxR = Math.hypot(
+          Math.max(iris.cx, vw - iris.cx),
+          Math.max(iris.cy, vh - iris.cy),
+        );
+        // Núcleo sólido em 90% do raio externo → em t=1 o sólido já alcançou maxR
+        // e o retrato cobre tudo sem depender da cauda da pluma.
+        const Rm = (t * maxR) / 0.9;
+        const pr = portrait.current;
+        if (pr) {
+          const m = `radial-gradient(circle at ${iris.cx}px ${iris.cy}px, black ${0.9 * Rm}px, transparent ${Rm}px)`;
+          pr.style.setProperty("mask-image", m);
+          pr.style.setProperty("-webkit-mask-image", m);
+        }
+        if (black) {
+          // O véu preto de antes virou só um ANEL fino cavalgando a borda do
+          // portal — o aro da pupila viajando pra fora até sair da tela, com a
+          // franja violeta de aberração por dentro. Nunca um disco: o centro é
+          // sempre a cena viva do retrato.
+          black.style.background =
+            t === 0 || t >= 1
+              ? "none"
+              : `radial-gradient(circle at ${iris.cx}px ${iris.cy}px, rgba(0,0,0,0) ${0.8 * Rm}px, rgba(34,14,58,0.4) ${0.88 * Rm}px, rgba(5,3,10,0.55) ${0.95 * Rm}px, rgba(0,0,0,0) ${1.04 * Rm}px)`;
         }
       };
 
       gsap.set(editorial.current, { autoAlpha: 0, y: 44 });
       gsap.set(headline.current, { autoAlpha: 1, y: 0, filter: "blur(0px)" });
       gsap.set("[data-word-inner]", { filter: "blur(0px)" });
+      // O retrato já nasce full-bleed E OPACO — quem o esconde é a máscara-portal
+      // (raio 0 em d=0, ver applyDive), nunca opacity: dono único da revelação é a
+      // máscara, sem segundo tween disputando (a lição da orquídea segue valendo).
+      gsap.set(portrait.current, {
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        autoAlpha: 1,
+      });
+      gsap.set(scrim.current, { autoAlpha: 0 });
       applyVideo(0);
-      applyP(0);
+      applyDive(0);
 
       // ── Camadas novas: ticker + recorte ────────────────────────────────────
       // Marquee contínuo: a trilha tem duas faixas idênticas, então -50% = uma faixa
@@ -817,16 +797,12 @@ export default function ARoberta() {
         stagger: 0.14,
         scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
       });
-      // O retrato NÃO tem tween de entrada próprio — de propósito. O frame de
-      // abertura (t=0) precisa ser SÓ o vídeo (olho + glow) + a headline (frame
-      // Figma 251-83); o card do retrato só materializa no handoff (tl-time 0.45),
-      // quando o scrub do vídeo termina. Um `gsap.from(autoAlpha)` disparado por um
-      // ScrollTrigger `once:true` separado — como havia antes — corre contra o
-      // `applyP` do scrub pelo mesmo autoAlpha: essa mesma corrida de dois donos já
-      // fez a orquídea sumir nesta cena numa rodada anterior. Dono único: `applyP`,
-      // que já escreve width/height/left/top a cada frame do crescimento, também
-      // escreve `opacity` do retrato como função de `p` — mesma fonte de verdade,
-      // sem segundo tween disputando o valor.
+      // O retrato NÃO tem tween de entrada disparado por ScrollTrigger próprio — de
+      // propósito. O frame de abertura (t=0) precisa ser SÓ o vídeo (olho + glow) +
+      // a headline, e um `gsap.from` com `once:true` separado correria contra o
+      // scrub pelo mesmo autoAlpha (a corrida de dois donos que já fez a orquídea
+      // sumir nesta cena numa rodada anterior). Dono único: a TIMELINE scrubbada —
+      // o retrato emerge do preto no beat 2, e só ela escreve o autoAlpha dele.
 
       let counted = false;
 
@@ -851,7 +827,7 @@ export default function ARoberta() {
           // handoff precisa ser recalculado aqui, não só aplicado com o valor velho.
           onRefresh: () => {
             applyVideo(state.video);
-            applyP(state.p);
+            applyDive(state.dive);
           },
         },
       });
@@ -868,47 +844,59 @@ export default function ARoberta() {
       )
         // Saída: a headline sai enquanto o push-in do vídeo já avançou — não no
         // frame 0 (senão o vídeo nunca é lido "puro", sem texto por cima) e não perto
-        // do handoff (senão compete com o nascimento do card). Início 0.25, fim 0.40:
-        // a janela pedida no brief.
+        // do handoff (senão compete com o arranque do mergulho). Início 0.25, fim
+        // 0.40: a janela pedida no brief.
         .to(
           headline.current,
           { yPercent: -22, autoAlpha: 0, filter: "blur(10px)", ease: "power2.in", duration: 0.15 },
           0.25,
         )
-        // Beat 1 — handoff: o card nasce no bbox da íris (elipse) e cresce até
-        // full-bleed. Começa exatamente onde o vídeo termina (0.45) — sem gap nem
-        // overlap entre as duas fases, senão ou sobra um instante sem imagem nenhuma
-        // mudando, ou o card nasce por cima de um frame de vídeo que ainda está se
-        // movendo.
+        // Beat 1 — MERGULHO: o dolly não para no fim do vídeo; o frame congelado
+        // segue pupila adentro (ver applyDive). Começa exatamente onde o scrub
+        // termina (0.45) — sem gap nem overlap, senão ou sobra um instante de câmera
+        // parada, ou o mergulho arranca com o vídeo ainda trocando de frame.
+        // power2.in, não inOut: aceleração contínua através do portal — a queda só
+        // desacelera no pouso do retrato (beat 2).
         .to(
           state,
-          { p: 1, ease: "power2.inOut", duration: 0.55, onUpdate: () => applyP(state.p) },
+          { dive: 1, ease: "power2.in", duration: 0.35, onUpdate: () => applyDive(state.dive) },
           0.45,
         )
-        // Beat 2 — editorial sobe nos 60vh de baixo; números contam. 0.945, não 0.75
-        // (REVISADO — a Laura reprovou o texto vazando pra fora da elipse). 0.75
-        // preservava o TIMING RELATIVO de quando o card era um retângulo fixo de
-        // 260×320: a 62% do crescimento ele já cobria a tela toda. Agora o card nasce
-        // do bbox da íris — a 62% ainda é uma elipse pequena no meio do olho, e o
-        // editorial materializava por cima dela, meio dentro meio fora. Geometria de
-        // origem mudou, timing relativo não podia ser copiado. 0.945 = tl no ponto em
-        // que `p` (crescimento) já passou de 0.9 — o card já é essencialmente
-        // full-bleed (radiusT alto, cantos quase retos) antes do editorial começar a
-        // aparecer.
-        .to(editorial.current, { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.5 }, 0.945)
-        // Beat 3 — a máscara terminou de abrir (p=1 em t=1.0): AGORA o ticker e o
-        // recorte da Roberta materializam sobre a foto full-bleed. Não antes.
+        // Beat 2 — o pouso, DENTRO do portal que ainda abre. O retrato não aparece
+        // por fade: já está opaco atrás da máscara (ver applyDive), e o que se vê
+        // dele pela pupila-portal nasce 12% maior, desfocado e um tico subexposto,
+        // POUSANDO (scale→1, rack focus blur→0, exposição recupera) enquanto o
+        // portal termina de abrir — a câmera que vinha caindo desde o olho
+        // desacelera e aterrissa do outro lado, sem nenhum frame escuro no caminho.
+        // 0.66 ≈ o portal já visível (d≈0.36); dur 0.44 → pousa em 1.10.
+        .fromTo(
+          "[data-portrait-inner]",
+          { scale: 1.12, filter: "blur(10px) brightness(0.82)" },
+          { scale: 1, filter: "blur(0px) brightness(1)", ease: "power3.out", duration: 0.44 },
+          0.66,
+        )
+        // O vídeo (já 100% coberto pelo retrato mascarado a partir de d=1, tl 0.80)
+        // apaga num .set reversível — nada de compositar um vídeo 9× com blur de
+        // 14px atrás de camada opaca pelo resto do pin.
+        .set(eyeVideo.current, { autoAlpha: 0 }, 0.84)
+        .to(scrim.current, { autoAlpha: 1, ease: "none", duration: 0.16 }, 0.9)
+        // Beat 3 — editorial sobe nos 60vh de baixo; números contam. 1.16: depois do
+        // pouso do retrato (0.66+0.44) — o texto entra sobre foto estável e nítida,
+        // nunca sobre o rack focus ainda em curso.
+        .to(editorial.current, { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.5 }, 1.16)
+        // Beat 4 — ticker e recorte da Roberta materializam sobre a foto full-bleed.
+        // Não antes: só fazem sentido sobre a cena já revelada.
         .to(
           [tickerWrap.current, cutout.current],
           { autoAlpha: 1, ease: "power2.out", duration: 0.22 },
-          1.0,
+          1.22,
         )
-        // Beat 3 (cont.) — cards de prova materializam no canto inferior-esquerdo.
-        .to(proof.current, { autoAlpha: 1, ease: "none", duration: 0.15 }, 0.98)
+        // Beat 4 (cont.) — cards de prova materializam no canto inferior-esquerdo.
+        .to(proof.current, { autoAlpha: 1, ease: "none", duration: 0.15 }, 1.2)
         .to(
           "[data-proof]",
           { autoAlpha: 1, y: 0, ease: "power3.out", duration: 0.55, stagger: 0.12 },
-          1.04,
+          1.26,
         )
         .call(
           () => {
@@ -918,9 +906,8 @@ export default function ARoberta() {
             }
           },
           [],
-          // 0.90 (não mais 0.85): escalado junto com o editorial (ver beat 2) pra
-          // continuar disparando depois que os números já estão visíveis na tela.
-          0.9,
+          // Junto com o editorial (beat 3): dispara com os números já visíveis.
+          1.16,
         );
 
       // ── Transição pra Features (scroll-scrub do defaultTransition do
@@ -1349,6 +1336,16 @@ export default function ARoberta() {
             <source src={EYE_VIDEO} type="video/mp4" />
           </video>
 
+          {/* Aro da pupila — z-[10]: acima do vídeo (z-[1]), abaixo do retrato (z-20).
+              O background (anel radial ancorado na pupila) é escrito por applyDive a
+              cada frame; aqui é só a casca. A parte interna do anel fica coberta pelo
+              retrato mascarado — só a borda externa aparece, cavalgando o portal. */}
+          <div
+            ref={blackout}
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[10]"
+          />
+
           {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo
               do ticker/recorte/editorial): vinheta funda nas bordas + grão de filme. */}
           <div
@@ -1429,11 +1426,9 @@ export default function ARoberta() {
             </span>
           </div>
 
-          {/* retrato — card-retrato que cresce até ocupar a section inteira */}
-          <div
-            ref={portrait}
-            className="absolute z-20 overflow-hidden will-change-[width,height,top,left,filter]"
-          >
+          {/* retrato — full-bleed desde o nascimento; emerge do preto no beat 2 da
+              timeline (só autoAlpha anima, a geometria é estática) */}
+          <div ref={portrait} className="absolute z-20 overflow-hidden">
             <Portrait />
           </div>
 
@@ -1456,8 +1451,9 @@ export default function ARoberta() {
                 231×188 → %. Mapeados como fração do full-bleed (100vw × 100vh). */}
             {/* card 1 — Credencial (Rectangle 1). min-h pra nunca cortar o conteúdo. */}
             <CredentialCard className="absolute left-[5%] top-[42%] z-[29] min-h-[24%] w-[21%]" />
-            {/* card 2 — Alcance (afastado do card 1, com gap entre eles) */}
-            <ImpactCard className="absolute left-[30%] top-[43%] z-[29] min-h-[31%] w-[22%]" />
+            {/* card 2 — Alcance. Paisagem, ancorado abaixo do card 1: coordenadas do
+                enquadramento marcado (13% / 72%, 30.5% × 19.5% do full-bleed). */}
+            <ImpactCard className="absolute left-[13%] top-[72%] z-[29] h-[19.5%] w-[30.5%]" />
           </div>
 
           {/* editorial — ancorado na base, sobre o scrim escuro (texto claro) */}
