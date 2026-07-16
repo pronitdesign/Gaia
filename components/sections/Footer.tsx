@@ -77,7 +77,10 @@ function FooterLink({ label, href }: Link) {
   return (
     <a
       href={href}
-      className="inline-block rounded-sm font-body text-[15px] text-white/55 transition-colors duration-150 hover:text-roxo-300 focus-visible:text-roxo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
+      /* py-1 -my-1 infla o ALVO de toque de ~20px pra ~28px (WCAG 2.5.8 pede
+         24) sem mexer um pixel no layout — o -my devolve o espaço que o py
+         toma, então o gap-3 da coluna não muda. */
+      className="inline-block rounded-sm py-1 -my-1 font-body text-[15px] text-white/55 transition-colors duration-150 hover:text-roxo-300 focus-visible:text-roxo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
     >
       {label}
     </a>

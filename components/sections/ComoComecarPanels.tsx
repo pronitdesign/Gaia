@@ -7,10 +7,11 @@ import type { ReactNode } from "react";
    Backgrounds em gradiente = área da foto/lifestyle real (a definir).
    Cards flutuantes = recorte de UI real do Gaia (a definir).
 
-   Desktop: texto centralizado à esquerda + cluster de UI denso,
-   sobreposto e com profundidade à direita.
-   Mobile: texto no topo + 1 mockup principal embaixo (secundários
-   ficam ocultos pra não poluir a tela estreita).
+   Desktop (md+): texto ancorado à esquerda + cluster de UI absoluto
+   à direita — posições calibradas, intocadas.
+   Mobile (stacked): card e texto correm em FLUXO (card no topo via
+   order-1, texto embaixo via order-2/mt-auto) — absoluto aqui já
+   causou colisão card×título quando o conteúdo passava de 78vh.
    ────────────────────────────────────────────────────────────── */
 
 type PanelProps = { active: boolean; reduced: boolean };
@@ -35,7 +36,7 @@ function Float({
   children: ReactNode;
 }) {
   return (
-    <div className={`absolute ${className}`}>
+    <div className={className}>
       <div
         style={{
           transform: `translate3d(calc(var(--px) * ${depth}px), calc(var(--py) * ${
@@ -76,7 +77,7 @@ function Overlay({
 }) {
   return (
     <div
-      className="absolute bottom-0 left-0 z-10 flex w-full flex-col px-7 pb-32 text-left transition-all duration-500 ease-gaia md:w-[58%] md:px-16 md:pb-36 lg:px-20 lg:pb-40"
+      className="relative z-10 order-2 mt-auto flex w-full flex-col px-7 pb-10 pt-10 text-left transition-all duration-500 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:mt-0 md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40"
       style={{
         opacity: active ? 1 : 0,
         transform: active ? "translateY(0)" : "translateY(16px)",
@@ -164,7 +165,7 @@ function GlassCard({
     INFERIOR-direita, na mesma linha de visão do título (cluster de HUD) —
     a foto respira na metade de cima, a informação se agrupa embaixo */
 const mainPos =
-  "top-7 left-1/2 -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[20%] md:top-auto md:translate-x-0 lg:right-[9%] lg:bottom-[22%]";
+  "relative order-1 mx-auto mt-7 md:absolute md:order-none md:mx-0 md:mt-0 md:right-[8%] md:bottom-[20%] lg:right-[9%] lg:bottom-[22%]";
 
 /** Foto lifestyle de fundo — mantida viva; scrim escuro só na base/esquerda
     (onde pousa o texto) garante legibilidade sem apagar a imagem.
@@ -212,7 +213,7 @@ const WAVE = [
 /* ── Passo 01 · Grave ────────────────────────────────────────── */
 export function Panel1({ active }: PanelProps) {
   return (
-    <div className="relative h-full w-full overflow-hidden bg-afluente">
+    <div className="relative flex h-full min-h-[78vh] w-full flex-col overflow-hidden bg-afluente">
       {/* foto lifestyle — nutricionista em consulta */}
       <PhotoBg src="/passo1-migracao.png" />
       <Glow />
@@ -283,7 +284,7 @@ const TOPICS: Array<[string, boolean]> = [
 
 export function Panel2({ active }: PanelProps) {
   return (
-    <div className="relative h-full w-full overflow-hidden bg-lavanda">
+    <div className="relative flex h-full min-h-[78vh] w-full flex-col overflow-hidden bg-lavanda">
       {/* foto lifestyle — nutricionista conduzindo a consulta */}
       <PhotoBg src="/passo2-envio.png" />
       <Glow />
@@ -368,7 +369,7 @@ export function Panel3({ active }: PanelProps) {
     ["P", "Plano", "Higiene do sono + retorno em 30 dias."],
   ];
   return (
-    <div className="relative h-full w-full overflow-hidden bg-bruma">
+    <div className="relative flex h-full min-h-[78vh] w-full flex-col overflow-hidden bg-bruma">
       {/* foto lifestyle — nutricionista revisando o resumo pronto */}
       <PhotoBg src="/passo3-pronto.png" />
       <Glow />
@@ -383,7 +384,7 @@ export function Panel3({ active }: PanelProps) {
         active={active}
         depth={16}
         delay={120}
-        className="left-1/2 top-7 w-[300px] -translate-x-1/2 md:left-auto md:right-[8%] md:bottom-[20%] md:top-auto md:w-[360px] md:translate-x-0 lg:right-[9%] lg:bottom-[22%]"
+        className="relative order-1 mx-auto mt-7 w-[300px] md:absolute md:order-none md:mx-0 md:mt-0 md:right-[8%] md:bottom-[20%] md:w-[360px] lg:right-[9%] lg:bottom-[22%]"
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />

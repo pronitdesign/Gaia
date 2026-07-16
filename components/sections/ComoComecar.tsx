@@ -267,7 +267,7 @@ export default function ComoComecar() {
         className={
           mode === "pinned"
             ? "relative h-full w-screen shrink-0 overflow-hidden bg-neutro-0"
-            : "relative h-[78vh] w-full overflow-hidden rounded-card border border-neutro-200/70 bg-neutro-0 shadow-soft-lg"
+            : "relative w-full overflow-hidden rounded-card border border-neutro-200/70 bg-neutro-0 shadow-soft-lg"
         }
       >
         <Panel active={mode === "pinned" ? isActive : true} reduced={mode === "stacked"} />

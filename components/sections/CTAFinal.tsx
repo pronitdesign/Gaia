@@ -885,11 +885,16 @@ export default function CTAFinal() {
             palco): é o registro que faz ele sumir dentro do frame final.
             `opacity-0` (e não `hidden`) desde o mount: o browser precisa
             manter o <img> renderizável pra decodificar antes do fade em 0.62.
-            Fora em reduced-motion — o still já traz a Roberta desenhada. */}
+            Fora em reduced-motion — o still já traz a Roberta desenhada.
+            FORA ABAIXO DE 4/3 (mesmo gate do bloco do CTA, mesmo motivo): sem
+            silhueta no quadro o recorte só contribui a quina do tablet — e ela
+            pintava POR CIMA do "S" de "Sua próxima consulta" em 360px. Sem o
+            recorte o texto passa NA FRENTE, que é o certo quando não há
+            ninguém pra passar por trás. */}
           {motion === true && sources ? (
             <div
               ref={clipRoberta}
-              className="pointer-events-none absolute inset-0 z-30 opacity-0"
+              className="pointer-events-none absolute inset-0 z-30 hidden opacity-0 [@media(min-aspect-ratio:4/3)]:block"
               style={{ clipPath: `url(#${ARCH_ID})` }}
             >
               <div className={SCENE_BOX}>

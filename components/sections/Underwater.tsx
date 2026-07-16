@@ -41,7 +41,7 @@ Como multiply nunca clareia, o preço e a pill escura mantêm o contraste: no pi
 caso a água tinge, jamais lava.
 */
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { ScreenQuad } from "@react-three/drei";
 import * as THREE from "three";
@@ -235,9 +235,39 @@ function Caustics({ reduce }: { reduce: boolean }) {
 const DIVE_MASK =
   "linear-gradient(to bottom, transparent 0%, black 10%, black 82%, transparent 100%)";
 
-export default function Underwater({ reduce = false }: { reduce?: boolean }) {
+export default function Underwater() {
+  const wrap = useRef<HTMLDivElement>(null);
+  // O rAF do Canvas rodava a página INTEIRA — shader iterando em cada frame
+  // com o Pricing a 10.000px de distância. frameloop="never" congela o loop
+  // fora de tela; o rootMargin dá uma folga pra ele já estar vivo quando a
+  // água assoma. (IntersectionObserver, não ScrollTrigger: isto não é
+  // coreografia de scroll, é liga/desliga de custo.)
+  const [inView, setInView] = useState(false);
+  // reduce era prop e o Pricing nunca passava — o still de reduced-motion
+  // existia no shader e não chegava nele. Lido aqui dentro, onde é usado.
+  const [reduce, setReduce] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const decide = () => setReduce(mq.matches);
+    decide();
+    mq.addEventListener("change", decide);
+
+    const io = new IntersectionObserver(
+      ([e]) => setInView(e.isIntersecting),
+      { rootMargin: "25%" },
+    );
+    if (wrap.current) io.observe(wrap.current);
+
+    return () => {
+      mq.removeEventListener("change", decide);
+      io.disconnect();
+    };
+  }, []);
+
   return (
     <div
+      ref={wrap}
       aria-hidden
       className="pointer-events-none absolute inset-0 mix-blend-multiply"
       style={{ maskImage: DIVE_MASK, WebkitMaskImage: DIVE_MASK }}
@@ -247,6 +277,10 @@ export default function Underwater({ reduce = false }: { reduce?: boolean }) {
         // dpr baixo de propósito: é luz difusa e borrada, ninguém enxerga o
         // pixel — e isto roda numa seção que já carrega o phone 3D por cima.
         dpr={[1, 1.5]}
+        // reduce cai em "demand": renderiza O frame do mount (o still
+        // congelado do shader, uTime=12) e para — cáustica parada ainda lê
+        // como água; "never" aqui deixaria o canvas em branco.
+        frameloop={!inView ? "never" : reduce ? "demand" : "always"}
         style={{ position: "absolute", inset: 0 }}
       >
         <Caustics reduce={reduce} />

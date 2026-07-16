@@ -141,7 +141,10 @@ export default function Manifesto() {
          essa entrada não mudou. A caixa deixou de ser simétrica porque as duas
          pontas deixaram de fazer a mesma coisa — a de cima abre um capítulo, a
          de baixo agora encosta noutro. */
-      className="relative flex min-h-[130vh] flex-col justify-between overflow-hidden py-[32vh] md:min-h-[160vh] md:pb-[8vh] md:pt-[42vh]"
+      /* Mobile: pb menor que o pt pelo mesmo motivo do md: — a frase de baixo
+         encosta no capítulo seguinte; 32vh de cada lado deixava "A Gaia cuida
+         do resto." a ~2 telas do mar (ver Mergulho.tsx). */
+      className="relative flex min-h-[110vh] flex-col justify-between overflow-hidden pt-[32vh] pb-[18vh] md:min-h-[160vh] md:pb-[8vh] md:pt-[42vh]"
       style={{ background: SKY }}
     >
       {/* halo de aurora no crossover — mesma família do Pricing, costura a luz */}

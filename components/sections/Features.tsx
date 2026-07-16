@@ -1114,7 +1114,11 @@ function MockAntropometria() {
   return (
     <div ref={ref} className="mt-8 flex-1 px-7 pb-7 md:px-8 md:pb-8">
       <div style={px(0.32)} className={"gaia-parallax rounded-[18px] p-4 " + GLASS}>
-        <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+        {/* Em 390px avatar+nome+abas não cabem numa linha, e como o bloco do
+            nome é flex-1 ele ENCOLHE em vez de empurrar as abas — o nome
+            quebrava em 2 linhas e o subtítulo em 3. basis-full manda as abas
+            inteiras pra linha de baixo; sm: devolve a linha única. */}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-white/10 pb-3">
           <Avatar person={MARINA} className="h-8 w-8 text-[12px]" />
           <div className="min-w-0 flex-1">
             {/* era <p>; virou <Swap> (que renderiza um <div>) porque a troca
@@ -1123,6 +1127,7 @@ function MockAntropometria() {
             <Swap k={tab} className="font-title text-[13px] font-medium text-white/85">{s.tab} · Marina</Swap>
             <p className="font-body text-[9.5px] uppercase tracking-[0.08em] text-white/40">6 consultas · mar–ago</p>
           </div>
+          <div className="order-last basis-full sm:contents">
           <div className="inline-flex shrink-0 gap-0.5 rounded-full bg-white/[0.07] p-0.5">
             {ANTHRO_SERIES.map((serie, i) => (
               <span
@@ -1135,6 +1140,7 @@ function MockAntropometria() {
                 {serie.tab}
               </span>
             ))}
+          </div>
           </div>
         </div>
 

@@ -88,9 +88,12 @@ export default function Mergulho() {
          O scroll do mergulho não mora mais aqui: ele vem dos 70vh do topo do
          Pricing (ver lá). É por isso que esta seção pode encolher sem espremer
          nada — ela não carrega mais tempo, só distância.
-         Mobile segue 70vh e sem água nenhuma (o ScrollPhone é lg:): lá isto é só
-         respiro claro entre o Manifesto e o Pricing. */
-      className="relative min-h-[70vh] overflow-hidden lg:min-h-[6vh]"
+         Mobile é 42vh e sem água nenhuma (o ScrollPhone é lg:): lá isto é só
+         respiro claro entre o Manifesto e o Pricing. Era 70vh — medido em
+         390×844, somado ao pb do Manifesto e ao pt do Pricing dava ~2 telas
+         de gradiente vazio entre "A Gaia cuida do resto." e "Sem surpresa";
+         num phone isso lê como página quebrada, não como respiro. */
+      className="relative min-h-[42vh] overflow-hidden lg:min-h-[6vh]"
       style={{ background: DIVE_SKY }}
     >
       <div
