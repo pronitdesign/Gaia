@@ -197,6 +197,43 @@ export default function Pricing() {
         scrollTrigger: trigger,
       });
 
+      /* Count-up do preço — 0→49,90 DENTRO da revelação da primeira zona
+         (delay 0.3 = o mesmo instante em que ela começa a subir): o número
+         conta enquanto materializa, um evento só, não um truque depois do
+         outro. Sob reduce nunca chega aqui (guard lá em cima) e o 49,90
+         autoral fica parado. toFixed+replace fecha exatamente em "49,90". */
+      const price = root.current?.querySelector<HTMLElement>("[data-price]");
+      if (price) {
+        const obj = { v: 0 };
+        gsap.to(obj, {
+          v: 49.9,
+          duration: 0.9,
+          delay: 0.3,
+          ease: "power2.out",
+          scrollTrigger: trigger,
+          onStart: () => {
+            price.textContent = "0,00";
+          },
+          onUpdate: () => {
+            price.textContent = obj.v.toFixed(2).replace(".", ",");
+          },
+        });
+      }
+
+      /* Cascata do checklist — as 4 linhas de "tudo incluído" pingam uma a
+         uma dentro da própria zona (que já subiu via [data-zone]); valores
+         mínimos de propósito: é cadência, não segunda entrada. */
+      gsap.set("[data-includes] li", { opacity: 0, y: 8 });
+      gsap.to("[data-includes] li", {
+        opacity: 1,
+        y: 0,
+        duration: 0.55,
+        delay: 0.5,
+        ease: "power3.out",
+        stagger: 0.06,
+        scrollTrigger: trigger,
+      });
+
       /* (pointer: fine) — sem parallax em touch: não tem cursor pra ler,
          e o listener em todo o window custaria caro sem produzir nada. */
       const pointerFine = window.matchMedia("(pointer: fine)").matches;
@@ -296,13 +333,17 @@ export default function Pricing() {
   const ctaDark = (
     <a
       href="#"
-      className={`group/cta inline-flex shrink-0 items-center gap-3 rounded-full bg-white py-2 pl-6 pr-2 transition-all duration-500 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent`}
+      /* duration-200 (era 500) e propriedades explícitas (era -all): meio
+         segundo atrás do cursor lê como lag num CTA — o botão do CTAFinal
+         (o modelo desta casa) já responde em 200; o active:scale herda a
+         mesma duração e o press volta a ser háptico de verdade. */
+      className={`group/cta inline-flex shrink-0 items-center gap-3 rounded-full bg-white py-2 pl-6 pr-2 transition-[transform,box-shadow] duration-200 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent`}
     >
       <span className="whitespace-nowrap font-body text-[15px] font-medium text-ink">
         Migrar e ganhar 2 meses
       </span>
       <span
-        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform duration-500 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform duration-200 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
       >
         <IconArrowUpRight className="h-4 w-4" />
       </span>
@@ -317,13 +358,14 @@ export default function Pricing() {
   const ctaLight = (
     <a
       href="#"
-      className={`group/cta inline-flex w-full shrink-0 items-center justify-between gap-3 rounded-full bg-ink py-3 pl-8 pr-2 transition-all duration-500 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-neutro-50`}
+      /* duration-200 + propriedades explícitas — mesma razão do ctaDark acima. */
+      className={`group/cta inline-flex w-full shrink-0 items-center justify-between gap-3 rounded-full bg-ink py-3 pl-8 pr-2 transition-[transform,box-shadow] duration-200 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-neutro-50`}
     >
       <span className="whitespace-nowrap font-body text-[15px] font-medium text-white">
         Migrar e ganhar 2 meses
       </span>
       <span
-        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-transform duration-500 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-transform duration-200 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
       >
         <IconArrowUpRight className="h-4 w-4" />
       </span>
@@ -601,7 +643,13 @@ export default function Pricing() {
                   <span className="font-title text-[1.25rem] text-azul-700 xl:text-[1.75rem]">
                     R$
                   </span>
-                  <span className="font-title text-[3.5rem] font-semibold leading-none tracking-[-0.03em] text-neutro-800 tabular-nums xl:text-[5rem]">
+                  {/* data-price: alvo do count-up (ver useGSAP) — o número
+                      sobe 0→49,90 enquanto a zona revela. tabular-nums já
+                      estava aqui, então os dígitos não dançam de largura. */}
+                  <span
+                    data-price
+                    className="font-title text-[3.5rem] font-semibold leading-none tracking-[-0.03em] text-neutro-800 tabular-nums xl:text-[5rem]"
+                  >
                     49,90
                   </span>
                   <span className="font-body text-[1rem] text-azul-700 xl:text-[1.25rem]">
@@ -645,7 +693,7 @@ export default function Pricing() {
                 <p className="font-body text-[13px] text-azul-700">
                   Tudo incluído. <span className="italic">Sem add-on.</span>
                 </p>
-                <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <ul data-includes className="grid grid-cols-2 gap-x-4 gap-y-2">
                   {INCLUDES.map((item) => (
                     <li key={item} className="flex items-center gap-2.5">
                       <IconCheck

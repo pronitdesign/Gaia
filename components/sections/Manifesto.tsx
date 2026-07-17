@@ -87,7 +87,11 @@ export default function Manifesto() {
             trigger: svg,
             start: BLUR_RANGE[n].start,
             end: BLUR_RANGE[n].end,
-            scrub: true,
+            // scrub numérico (era true): feGaussianBlur re-rasteriza o texto a
+            // cada valor novo — cru, cada delta de roda vira um recompute e o
+            // "resolve" treme. 0.5 suaviza e rate-limita; o irmão de
+            // startOffset abaixo já usava scrub numérico.
+            scrub: 0.5,
           },
         });
 
@@ -166,7 +170,10 @@ export default function Manifesto() {
         data-line="1"
         viewBox="0 0 1000 200"
         preserveAspectRatio="xMidYMid meet"
-        className="relative z-[70] block h-auto w-full font-title text-neutro-0 will-change-transform"
+        /* sem will-change-transform: nada aqui transforma — o que anima é
+           startOffset (textPath) e stdDeviation (filtro), e o hint só
+           promovia uma layer permanente de graça sem evitar a rasterização. */
+        className="relative z-[70] block h-auto w-full font-title text-neutro-0"
         aria-hidden
       >
         <defs>
@@ -192,7 +199,7 @@ export default function Manifesto() {
         data-line="2"
         viewBox="0 0 1000 200"
         preserveAspectRatio="xMidYMid meet"
-        className="relative z-[70] block h-auto w-full font-title text-ink will-change-transform"
+        className="relative z-[70] block h-auto w-full font-title text-ink"
         aria-hidden
       >
         <defs>

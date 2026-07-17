@@ -325,7 +325,7 @@ function Stats({ onDark = false }: { onDark?: boolean }) {
               {i > 0 && <div className={`mx-3 h-px bg-gradient-to-r ${rule}`} />}
               <div
                 data-reveal
-                className={`group/row flex items-baseline justify-between gap-6 rounded-2xl px-3 py-3.5 transition-colors duration-500 ${EASE} ${hover}`}
+                className={`group/row flex items-baseline justify-between gap-6 rounded-2xl px-3 py-3.5 transition-colors duration-200 ${EASE} ${hover}`}
               >
                 <span
                   className={`font-title text-[clamp(2.4rem,3.6vw,3.25rem)] font-medium leading-none tracking-[-0.02em] tabular-nums ${value}`}
@@ -653,15 +653,21 @@ export default function ARoberta() {
         // fallback em tempo real (ver lib/robertaTransition.ts).
         setTransitionProgress(null);
 
-        // Fallback: reveals + count-up por scroll normal.
-        gsap.from("[data-reveal]", {
-          y: 28,
-          opacity: 0,
-          duration: 0.9,
-          ease: "power3.out",
-          stagger: 0.08,
-          scrollTrigger: { trigger: editorial.current, start: "top 80%", once: true },
-        });
+        // Fallback: reveals + count-up por scroll normal. Sob reduce os
+        // reveals NÃO rodam (stacked é justamente o modo que o usuário de
+        // reduce recebe — ver decide() acima — e o gsap.from animava
+        // translate+opacity mesmo assim); animateCounts já trata reduce
+        // por dentro (crava o número final).
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          gsap.from("[data-reveal]", {
+            y: 28,
+            opacity: 0,
+            duration: 0.9,
+            ease: "power3.out",
+            stagger: 0.08,
+            scrollTrigger: { trigger: editorial.current, start: "top 80%", once: true },
+          });
+        }
         animateCounts(true);
         return;
       }

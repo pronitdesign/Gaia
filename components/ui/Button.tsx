@@ -7,7 +7,7 @@ import type { ButtonHTMLAttributes, AnchorHTMLAttributes, ReactNode } from "reac
 type Variant = "primary" | "secondary";
 
 const base =
-  "inline-flex h-10 items-center justify-center rounded-full px-[15px] font-body text-[14px] font-medium leading-[1.2] tracking-[-0.14px] whitespace-nowrap transition-all duration-200 ease-gaia outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutro-50 disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex h-10 items-center justify-center rounded-full px-[15px] font-body text-[14px] font-medium leading-[1.2] tracking-[-0.14px] whitespace-nowrap transition-[transform,background-color,border-color,box-shadow] duration-200 ease-gaia outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutro-50 disabled:opacity-50 disabled:pointer-events-none";
 
 const variants: Record<Variant, string> = {
   primary:

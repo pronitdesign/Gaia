@@ -134,14 +134,22 @@ export default function ComoComecar() {
 
   useGSAP(
     () => {
-      gsap.from("[data-reveal]", {
-        y: 28,
-        opacity: 0,
-        duration: 0.9,
-        ease: "power3.out",
-        stagger: 0.1,
-        scrollTrigger: { trigger: root.current, start: "top 78%", once: true },
-      });
+      /* reduce: sem reveal de entrada — o modo já cai pra stacked (ver o
+         decide() acima), mas os gsap.from daqui rodavam mesmo assim, animando
+         translate+opacity justamente pra quem pediu menos movimento. Sem os
+         tweens, tudo nasce no estado autoral (visível, parado). */
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!reduce) {
+        gsap.from("[data-reveal]", {
+          y: 28,
+          opacity: 0,
+          duration: 0.9,
+          ease: "power3.out",
+          stagger: 0.1,
+          scrollTrigger: { trigger: root.current, start: "top 78%", once: true },
+        });
+      }
 
       if (mode === "pinned") {
         layout();
@@ -182,7 +190,7 @@ export default function ComoComecar() {
           },
         });
         ScrollTrigger.refresh();
-      } else {
+      } else if (!reduce) {
         gsap.utils.toArray<HTMLElement>("[data-panel]").forEach((el) => {
           gsap.from(el, {
             y: 40,
@@ -236,14 +244,22 @@ export default function ComoComecar() {
           <button
             key={step.n}
             onClick={() => goTo(i)}
-            className="group pointer-events-auto relative pb-3 text-left outline-none"
+            /* active:scale + transition-transform: o press háptico dos CTAs,
+               aqui nos únicos controles da seção. focus-visible:ring em branco
+               (não brand): as abas vivem sobre foto escura e o roxo some nela.
+               O outline-none sozinho matava o foco de teclado sem substituto. */
+            className="group pointer-events-auto relative rounded-md pb-3 text-left outline-none transition-transform duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-white/70"
             aria-current={isActive}
           >
             <div className="flex items-baseline gap-3">
-              <span className={`font-title text-h3 font-semibold tabular-nums drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-300 ${isActive ? "text-brand" : "text-white/45"}`}>
+              {/* duration-500 ease-gaia — casada com o underline logo abaixo:
+                  cor e preenchimento são o MESMO evento (o passo ativou) e
+                  descasados em 300/500 liam como dois. group-hover no estado
+                  inativo: a aba é clicável e nada dizia isso ao cursor. */}
+              <span className={`font-title text-h3 font-semibold tabular-nums drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-500 ease-gaia ${isActive ? "text-brand" : "text-white/45 group-hover:text-white/70"}`}>
                 {step.n}
               </span>
-              <span className={`font-body text-body-l font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-300 ${isActive ? "text-white" : "text-white/55"}`}>
+              <span className={`font-body text-body-l font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-500 ease-gaia ${isActive ? "text-white" : "text-white/55 group-hover:text-white/80"}`}>
                 {step.tab}
               </span>
             </div>

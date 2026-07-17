@@ -80,7 +80,7 @@ function FooterLink({ label, href }: Link) {
       /* py-1 -my-1 infla o ALVO de toque de ~20px pra ~28px (WCAG 2.5.8 pede
          24) sem mexer um pixel no layout — o -my devolve o espaço que o py
          toma, então o gap-3 da coluna não muda. */
-      className="inline-block rounded-sm py-1 -my-1 font-body text-[15px] text-white/55 transition-colors duration-150 hover:text-roxo-300 focus-visible:text-roxo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
+      className="inline-block rounded-sm py-1 -my-1 font-body text-[15px] text-white/55 transition-colors duration-150 hover:text-roxo-300 active:text-roxo-200 focus-visible:text-roxo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
     >
       {label}
     </a>
@@ -211,7 +211,7 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
                     target="_blank"
                     rel="noreferrer"
                     aria-label={label}
-                    className="grid h-9 w-9 place-items-center rounded-full bg-white/[0.06] text-white/65 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-white/[0.12] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
+                    className="grid h-9 w-9 place-items-center rounded-full bg-white/[0.06] text-white/65 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] transition-[transform,background-color,color] duration-150 hover:-translate-y-0.5 hover:bg-white/[0.12] hover:text-white active:translate-y-0 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
                   >
                     <Icon className="h-[18px] w-[18px]" />
                   </a>

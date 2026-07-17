@@ -460,6 +460,15 @@
   .gaia-scan {
     animation: none;
   }
+  /* Utilitários animate-* do Tailwind (pontos "ao vivo" dos mockups: pulse,
+     ping, spin) — o Tailwind NÃO os guarda por reduced-motion; sem isto eles
+     seguem em loop eterno pra quem pediu menos movimento. Estático o ping
+     fica escondido atrás do dot sólido do mesmo tamanho — nada quebra. */
+  .animate-pulse,
+  .animate-ping,
+  .animate-spin {
+    animation: none;
+  }
   /* Aba "Plano": na prática nunca é vista sob reduced-motion (useAutoCycle
      congela em índice 0 = Anamnese), mas o resto do arquivo desliga toda
      animação por classe aqui como higiene — cobrimos a mesma base. */

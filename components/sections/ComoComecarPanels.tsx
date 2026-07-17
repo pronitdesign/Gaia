@@ -77,7 +77,11 @@ function Overlay({
 }) {
   return (
     <div
-      className="relative z-10 order-2 mt-auto flex w-full flex-col px-7 pb-10 pt-10 text-left transition-all duration-500 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:mt-0 md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40"
+      /* transition-[opacity,transform] (era -all): -all capturava qualquer
+         prop que mudasse, inclusive layout responsivo. duration-700 (era 500):
+         o Float dos cards entra em 700 — texto e card são o mesmo evento
+         (o passo ativou) e terminavam 200ms defasados. */
+      className="relative z-10 order-2 mt-auto flex w-full flex-col px-7 pb-10 pt-10 text-left transition-[opacity,transform] duration-700 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:mt-0 md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40"
       style={{
         opacity: active ? 1 : 0,
         transform: active ? "translateY(0)" : "translateY(16px)",

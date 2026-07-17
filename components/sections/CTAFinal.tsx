@@ -268,6 +268,24 @@ export default function CTAFinal() {
 
   useGSAP(
     () => {
+      // motion === null é o render de INDECISÃO (o matchMedia só resolve no
+      // useEffect): sem isto o ctaBlock — sempre montado, z-20 — pintava
+      // visível por um instante num load já rolado até o fim (refresh no pé
+      // da página, deep-link #comecar) e sumia quando o fromTo lá embaixo o
+      // jogava pra autoAlpha:0. useGSAP roda em layout effect, então este set
+      // acontece ANTES do paint; quando `motion` resolver, o ctx.revert()
+      // do useGSAP desfaz o set — o caminho reduced-motion volta ao estado
+      // autoral (visível, parado) sem precisar de nada aqui.
+      if (motion === null) {
+        gsap.set(ctaBlock.current, { autoAlpha: 0 });
+        // mesma exposição da pilha de cards (montada sempre que o aspect
+        // permite; os filhos só ganham o fromTo quando motion resolve)
+        if (cardStack.current) {
+          gsap.set(Array.from(cardStack.current.children), { autoAlpha: 0 });
+        }
+        return;
+      }
+
       // reduced-motion: still full-bleed com o arco em repouso, CTA e footer
       // visíveis e parados, section de altura normal. Nada a animar.
       if (!motion) return;

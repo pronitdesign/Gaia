@@ -1824,8 +1824,25 @@ export default function Features() {
       // continuam usando opacity (herdada do CSS/split) porque não têm
       // esse risco: são texto fatiado por char/linha dentro de máscara
       // própria do SplitText, não um bloco grande como o card.
+      /* prefers-reduced-motion: a seção nasce ASSENTADA — sem split, sem
+         timeline, sem fallback. O resto do arquivo já respeita reduce
+         (useAutoCycle congela, Swap troca seco, gaia-* morre no globals.css),
+         mas o fallback lá embaixo (ScrollTrigger → timeline.play()) tocaria a
+         entrada inteira — chars girando em rotateX 60 — justamente no único
+         caminho que o usuário de reduce percorre. Retornar aqui deixa cards,
+         barras e h2 no estado autoral (visíveis, parados), que é o contrato. */
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
       gsap.set("[data-card]", { y: 40 });
       gsap.set("[data-bar]", { scaleX: 0, transformOrigin: "left center" });
+      /* O h2 fica escondido do mount até o enter() (que já o reacende via
+         gsap.set(h2,{opacity:1}) DEPOIS de deslocar os chars). Sem isto, com
+         fonte não-cacheada há um flash "texto assentado → some → anima": os
+         cards são deslocados sincronamente aqui, mas os chars do h2 só dentro
+         do document.fonts.ready.then() — e nesse vão o h2 pintava inteiro.
+         `opacity` e não autoAlpha: o enter() devolve só opacity:1, e um
+         visibility:hidden órfão nunca seria desfeito. */
+      gsap.set(root.current!.querySelector("h2"), { opacity: 0 });
 
       /* ── LEAD_FRAC / DUR_MAX — os dois números que definem o encontro ─────
          A timeline inteira tem duração 1 e é dirigida por `progress = eased`
