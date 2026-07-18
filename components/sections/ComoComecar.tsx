@@ -110,6 +110,26 @@ export default function ComoComecar() {
     track.current.style.transform = `translate3d(${trackX(cont)}px,0,0)`;
   };
 
+  /** Reveal por passo: conforme o scroll traz `cont` pra dentro da zona lenta de
+      um banner (dist < FOCUS), o `--reveal` daquele painel sobe 0→1 com smoothstep.
+      É esse número que os cards de UI consomem pra montar o conteúdo em stagger
+      (waveform sobe, checklist marca, SOAP digita) — a animação ACONTECE conforme
+      o scroll, não em loop cego. Fora da zona (durante o pan) volta a 0: o conteúdo
+      se desmonta, coerente com o Overlay/Float que também somem por `active`. */
+  const applyReveal = (cont: number) => {
+    if (!track.current) return;
+    track.current
+      .querySelectorAll<HTMLElement>("[data-panel]")
+      .forEach((el, pos) => {
+        const dist = Math.abs(cont - pos);
+        // FOCUS*0.6 no denominador → chega a 1 um pouco antes do centro e faz
+        // platô na zona do passo (não pisca ao cruzar o ponto exato)
+        const p = Math.max(0, Math.min(1, (FOCUS - dist) / (FOCUS * 0.6)));
+        const r = p * p * (3 - 2 * p);
+        el.style.setProperty("--reveal", r.toFixed(3));
+      });
+  };
+
   /** Parallax de galeria: cada foto contra-desliza em proporção à posição REAL
       do seu frame na viewport — mesmo `cont` eased do pan, então o parallax é
       coerente com o movimento do banner: o drift se concentra nas transições
@@ -155,6 +175,7 @@ export default function ComoComecar() {
         layout();
         applyTranslate(0);
         applyParallax(0);
+        applyReveal(0);
 
         st.current = ScrollTrigger.create({
           // fixa quando o topo do pin (as abas) encosta no topo da viewport —
@@ -180,11 +201,13 @@ export default function ComoComecar() {
             const cont = mapScroll(self.progress).cont;
             applyTranslate(cont);
             applyParallax(cont);
+            applyReveal(cont);
           },
           onUpdate: (self) => {
             const m = mapScroll(self.progress);
             applyTranslate(m.cont);
             applyParallax(m.cont);
+            applyReveal(m.cont);
             setActive((p) => (p === m.centered ? p : m.centered));
             setHighlight((p) => (p === m.highlight ? p : m.highlight));
           },

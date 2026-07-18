@@ -35,8 +35,9 @@ import { getLenis } from "@/lib/lenis";
 import IPhoneModel from "@/components/iphone3d/IPhoneModel";
 import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen, { SCREEN_RADIUS } from "@/components/iphone3d/PhoneScreen";
-import Sky3D from "@/components/iphone3d/Sky3D";
-import WaterScene, { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
+// Sky3D + WaterScene desmontados (água removida do site 2026-07-17) — o rig
+// mantém WATER_Y/WaterState só como constantes inertes do piso já achatado.
+import { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
 import { DIVE_STOPS, SKY_STOPS, sampleStops } from "@/lib/sky";
 
 const TWO_PI = Math.PI * 2;
@@ -44,9 +45,12 @@ const TWO_PI = Math.PI * 2;
 // inclinado. O giro completo (eS·2π) some por cima, então p=0 e p=1 caem
 // nessas poses.
 const START_YAW = Math.PI; // reto de frente, dentro do Features
-const END_YAW = Math.PI - 0.34; // 3/4 mais tortinho = PHONE_POSE do Pricing
+// Pricing pousa RETO DE FRENTE (pedido da Laura: "de frente, não torto"). Igual
+// ao START: o giro completo (eS·2π) some por cima e as duas pontas caem na
+// mesma pose frontal, então o aparelho gira no miolo e assenta reto no slot.
+const END_YAW = Math.PI; // reto de frente, no Pricing
 const START_TILT: [number, number] = [0, 0]; // reto, sem inclinação
-const END_TILT: [number, number] = [0.1, -0.19]; // [x, z] = PHONE_POSE do Pricing
+const END_TILT: [number, number] = [0, 0]; // reto, sem inclinação — de frente no Pricing
 const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário
 // END_G morreu como constante — virou lerp(START_G, endG, eP) em place(), com
 // endG derivado do rect AO VIVO de [data-phone-end] a cada frame (ver
@@ -80,6 +84,27 @@ const PHONE_FILL = 0.75;
 // ABAIXO do centro geométrico — o suficiente pra o CENTRO VISUAL do phone
 // (não a origem) acabar no centro do slot.
 const PHONE_PIVOT_BIAS = 0.12; // fração de rect.height, medida no render (xl/lg)
+
+/* CLIP DA BASE DA FITA — o phone do Pricing emerge de trás da fita 286:48 e é
+   cortado na aresta de baixo dela ([data-phone-clip]). Só engata quando o
+   aparelho JÁ está pousando: durante o mergulho ele viaja pela tela e a fita
+   ainda está fora de quadro, então clip nenhum. O gate sobe com a chegada
+   (eP), e a linha de corte interpola do pé da tela até a aresta da fita — sem
+   pop quando abre. */
+const CLIP_GATE: [number, number] = [0.62, 0.95];
+
+/* PARALLAX DE SAÍDA — depois de pousar, o phone afunda DE LEVE conforme a seção
+   sobe pra fora do quadro. O phone lê o slot vivo, então some 1:1 com a página;
+   somar uma fração da SUBIDA do slot (o quanto o centro dele já passou do meio da
+   tela) faz o aparelho ficar pra trás, descendo em relação à fita — que também
+   sobe com a página. Lê como paralaxe: o phone tem "peso" e não acompanha o scroll
+   na mesma taxa.
+   rise=0 no instante do pouso (slot no meio da tela), então entra sem degrau, e o
+   MAX segura pra não virar deslize grande. "mesmo no clip": a base do phone já
+   encosta na aresta da fita, então afundar empurra ela pra baixo do clip — o phone
+   mergulha de volta pra dentro da fita ao sair. */
+const EXIT_PARALLAX_RATE = 0.2;
+const EXIT_PARALLAX_MAX = 72; // px
 
 /* CÂMERA — conhecida aqui fora porque place() roda no gsap.ticker, fora do
    React. Se mudar no <PerspectiveCamera>, mude aqui. */
@@ -183,7 +208,7 @@ const CAM_FOV = 50; // default do drei <PerspectiveCamera>
    só o clamp negativo segue em serviço. A constante fica: é ela que segura a
    fórmula quando a aresta já saiu por cima e frac vai a −∞. */
 const PITCH_CLAMP = (40 * Math.PI) / 180;
-const DIVE_DROP = 0.9;
+const DIVE_DROP = 0; // água removida — câmera fica nivelada, sem descida
 /* Quanto o pico da CÂMERA vem depois do pico da água, em p.
 
    Zero = o comportamento antigo (câmera e água no mesmo bump, a linha d'água
@@ -205,6 +230,13 @@ const CAM_LAG = 0.12;
 const DIVE_SHRINK = 0;
 /** Abaixo deste dive o piso da água larga o phone. Ver o uso em placeWorld. */
 const FLOOR_FADE = 0.15;
+/** Quanto do aparelho fica DENTRO d'água no boiar pleno (settle=0), em fração
+ *  de meia-altura — 0.45 ⇒ ~22% do corpo submerso. Zero foi renderizado e
+ *  rejeitado: com o corpo 100% fora o phone vira uma torre de ~590px que
+ *  invade a primeira frase (@1440×900, frac 1.15, v3) — e "fundo rasando a
+ *  linha" lê como estátua sobre vidro, não como coisa que boia. Um objeto
+ *  boiando assenta parte do corpo na água; é essa a leitura. */
+const FLOAT_IN = 0.45;
 /** Em quanto de p, depois de wp, o piso solta o phone pra ele afundar. Ver
  *  floorGrip: curto demais e ele cai 150px de uma vez; longo demais e ele
  *  cavalga a linha d'água subindo, que é o bug que isto conserta. */
@@ -658,9 +690,36 @@ function FogSync({ diveRef }: { diveRef: React.MutableRefObject<number> }) {
 const REF_H = 900;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/* O PHONE FICA PARADO ENQUANTO O CARD DO PRONTUÁRIO ESTÁ EM QUADRO.
+
+   p é fração de DOCUMENTO (âncora do Features → slot do Pricing, ~3025px
+   medidos @1440×900), e o card do Prontuário sai de cena bem antes do fim
+   dessa viagem: medido, quando o centro do card chega ao topo da janela p já
+   está em 0.207. Sem hold, isso significa 23° de giro e a origem já
+   escorregando pra baixo da âncora — a viagem inteira começando enquanto o
+   card ainda é o assunto. Não é o mergulho pedindo cedo; é o phone saindo
+   antes do card terminar de falar.
+
+   START_HOLD come esses 0.207 primeiros: dentro do card o phone é só o phone,
+   reto de frente no tamanho em que nasceu, e a viagem começa quando o card
+   entrega a cena. Não há solavanco na soltura — as duas curvas abaixo têm
+   derivada zero na origem, e o hold só desloca de onde elas partem.
+
+   O HOLD MORA NAS CURVAS, NÃO EM p. p continua sendo fração de documento crua
+   em todo o resto do arquivo — é isso que faz o corte da água (p < wp) e o
+   gatilho da entrega casarem por álgebra com os rects vivos (ver o comentário
+   "A divisão é em p, NÃO em eP"). Remapear p aqui em cima recolocaria o termo
+   que aquele bloco existe pra cancelar. E as duas pontas sobrevivem: held(1)
+   == 1, então easePos(1) e easeSpin(1) continuam valendo 1 — o pouso no slot
+   e o giro completo chegam inteiros. */
+const START_HOLD = 0.18;
+const held = (t: number) => Math.min(1, Math.max(0, (t - START_HOLD) / (1 - START_HOLD)));
 /* posição/escala: acelera saindo do card, desacelera pousando no preço */
-const easePos = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const easePos = (t: number) => {
+  const s = held(t);
+  return s < 0.5 ? 4 * s * s * s : 1 - Math.pow(-2 * s + 2, 3) / 2;
+};
 /* horizontal: fica travado no X do card até o Pricing entrar (p ≥ X_HOLD), só
    então desliza pro slot. O phone desce reto pelo Manifesto. */
 const X_HOLD = 0.7;
@@ -668,8 +727,21 @@ const easeX = (t: number) => {
   const s = Math.min(1, Math.max(0, (t - X_HOLD) / (1 - X_HOLD)));
   return s * s * (3 - 2 * s); // smoothstep: sai e chega sem solavanco
 };
-/* giro: smootherstep concentra a rotação no miolo (Manifesto) → de costas no centro */
-const easeSpin = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+/* giro: smootherstep concentra a rotação no miolo (Manifesto) → de costas no centro.
+   Com START_HOLD por baixo, o miolo continua sendo o miolo — só não há mais
+   giro nenhum sobrando pro card do Prontuário. */
+/* SPIN_DONE — o giro completa EXATAMENTE na chegada, não antes (pedido da Laura:
+   o phone continua a rotação de 360º até pousar no Pricing, sem parar no meio do
+   caminho e descer reto). Com 1.0 o easeSpin usa o MESMO held(t) do easePos, então
+   giro e posição terminam juntos em p=1 — chega de frente porque a curva conclui
+   ali, não porque travou cedo. smootherstep(held) tem derivada zero em t=1, então
+   a rotação desacelera no pouso sem snap. (Era 0.8, que concluía em ~eP 0.84 pra o
+   phone entrar reto no enquadramento do card — trocado a pedido.) */
+const SPIN_DONE = 1;
+const easeSpin = (t: number) => {
+  const s = Math.min(1, held(t) / SPIN_DONE);
+  return s * s * s * (s * (s * 6 - 15) + 10);
+};
 
 /* ÁGUA E MERGULHO — a janela nasce da ÂNCORA, não de constantes.
 
@@ -711,7 +783,7 @@ const DIVE_SPAN = 0.3;
 
    Continua sendo dirigido por dive, que é um bump: resolve em 0 nas duas pontas,
    senão o phone chega torto no slot do Pricing ou no card do Features. */
-const DIVE_ROLL = (20 * Math.PI) / 180;
+const DIVE_ROLL = 0; // água removida — o phone não deita mais na superfície
 
 /** bump: 0 nas pontas, 1 no meio, sem canto vivo. */
 const bump = (t: number) => {
@@ -751,6 +823,12 @@ function CameraBridge({
 export default function ScrollPhone() {
   const group = useRef<THREE.Group>(null);
   const cam = useRef<THREE.PerspectiveCamera>(null);
+  /* Wrapper fixed z-[60] do canvas — alvo do CLIP da base da fita do Pricing.
+     A água saiu (2026-07-17), então o canvas só desenha o phone: recortar o
+     wrapper na aresta de baixo da fita ([data-phone-clip]) corta só o aparelho,
+     que é o pedido — o phone emerge de trás da fita e some na base dela. Ref e
+     escrita por frame no ticker (clipPhone), como screenEl/lensEl. */
+  const overlay = useRef<HTMLDivElement>(null);
   const [enabled, setEnabled] = useState(false);
   // Qual tela mostrar: false = prontuário (Features), true = Início (Pricing).
   const [showAlt, setShowAlt] = useState(false);
@@ -936,6 +1014,17 @@ export default function ScrollPhone() {
       // Voltamos ao clamp direto na ORIGEM. É mais grosseiro (não sabe onde
       // o corpo termina), mas não mente: WATER_Y é uma constante confiável,
       // o bbox não-preciso rotacionado não é.
+      //
+      // E A ORIGEM É O CENTRO DO CORPO, NÃO O FUNDO — medido no estado vivo
+      // (2026-07-16, __gaiaDbg): bodyHalf = 1.32, e com a origem em WATER_Y o
+      // render mostra a linha d'água cortando o aparelho NA ALTURA DO LOGO.
+      // Este arquivo afirmava o contrário ("origem em WATER_Y → fundo visível
+      // em -1.17, phone inteiro acima, apoiado") e TODA a régua do settle foi
+      // construída sobre essa afirmação falsa: "origem na linha" já era meia
+      // imersão, e "origem uma meia-altura abaixo" (o antigo settle=1) era o
+      // aparelho 95% afogado, só o aro de fora — os frames quebrados da
+      // introdução que a Laura apontou. As composições que os comentários
+      // prometiam ("em pé, fundo na linha") nunca tinham renderizado.
       // O PISO SÓ TEM A AUTORIDADE QUE A ÁGUA TEM.
       //
       // Este clamp já foi incondicional, e foi assim que o phone vazou pra FORA
@@ -962,14 +1051,13 @@ export default function ScrollPhone() {
       // trecho final (ver CY PASSA PELO MERGULHO — o alvo do DOM só volta a
       // subir acima de WATER_Y em p≈0.98). Onde o gate ainda desliza, a água
       // está abaixo de 15% e ninguém vê o phone cruzá-la.
-      // METADE DENTRO, NÃO EM PÉ EM CIMA — e a diferença é o pivot do glb.
-      //
-      // O clamp mirava a ORIGEM em WATER_Y, e a origem não é o meio do aparelho:
-      // o comentário do bbox aqui embaixo mediu que, com a origem em WATER_Y
-      // (-1.2), o FUNDO visível cai em -1.17 — ou seja o phone inteiro fica ACIMA
-      // da linha, apoiado nela. Renderizado, é exatamente o que se vê: ele fica
-      // EM PÉ na água, com reflexo, sem nunca entrar. O pedido é outro — "o phone
-      // entrar pela metade".
+      // METADE DENTRO *E* EM PÉ EM CIMA — o settle entrega os dois, em tempos
+      // diferentes (pousado na entrada, meio dentro no toque). A versão
+      // anterior deste bloco afirmava que com a origem em WATER_Y "o phone
+      // inteiro fica ACIMA da linha, apoiado nela", citando um bbox que teria
+      // medido o fundo em -1.17. A afirmação era FALSA no render (ver a
+      // medição de 2026-07-16 no bloco acima: origem no CENTRO, linha d'água
+      // no logo) e foi ela que calibrou o settle meia altura fundo demais.
       //
       // halfDrop é meia altura do corpo, no espaço de MUNDO: bodyHalf é medido
       // uma vez do bbox LOCAL (ver mid/half no useEffect) e escalado pela escala
@@ -987,34 +1075,40 @@ export default function ScrollPhone() {
       /* O QUANTO DENTRO segue o mergulho — settle: 0 = em pé NA linha (fundo
          na superfície), 1 = metade dentro (meio visual na linha).
 
-         A meia-imersão era fixa, e com a água antecipada (o piso agora engata
-         pela EXISTÊNCIA dela, waterAmt) isso punha o phone fundo desde o
-         primeiro frame de mar — pior: rodado (mid-spin) e grande, o halfDrop
-         do bbox reto mente pra mais, e o "metade dentro" renderizava quase
-         inteiro submerso. Medido @1440×900, frac 1.12: só o aro de cima fora
-         d'água, um fantasma atravessando a frase — o oposto da imersão
-         pedida ("a água aparece ANTES do phone entrar").
+         AS DUAS PONTAS MIRAM A ORIGEM ONDE ELA REALMENTE FICA — NO CENTRO DO
+         CORPO (ver a medição no bloco do clamp acima). A fórmula era
+         `WATER_Y - halfDrop·settle`, escrita pra uma origem que fosse o FUNDO
+         do aparelho — e como a origem é o CENTRO, cada ponta afundava meia
+         altura a mais do que dizia: settle=0 já era meia-imersão e settle=1
+         era o afogado de 95%, só o aro e as lentes de fora, atravessando a
+         frase — os "erros de introdução" apontados pela Laura, medidos frame
+         a frame @1440×900 (v2-f115…v2-f09, 2026-07-16).
 
-         Com settle, a entrada é o phone POUSADO na água que já existia —
-         fundo na linha, corpo inteiro fora, a composição do print de
-         referência da Laura — e ele vai AFUNDANDO até a meia-imersão
-         conforme o bump do mergulho sobe. 0.72→0.95 NÃO é chute: é a tabela
-         medida de d por posição da aresta (@1440×900, __gaiaDbg):
+         Com a origem no centro, "boiando" é origem parte de meia-altura ACIMA
+         da linha, e "meio na linha" é origem NA linha:
 
-           frac 1.30  d 0.45   mar se formando — em pé, fundo na linha
-           frac 1.12  d 0.72   mar cheio       — AINDA em pé (era o fantasma)
-           frac 1.02  d 0.85   assentando, meio caminho
-           frac 0.90  d 0.95   meia-imersão — daqui em diante é o trecho
-                               que a Laura aprovou em render, bit a bit
-           toque/hold d 1.00   meia-imersão travada
+           settle 0  →  WATER_Y + halfDrop·(1−FLOAT_IN)  (boiando, ~22% dentro)
+           settle 1  →  WATER_Y                          (meia-imersão real)
 
-         Primeira rodada usou 0.2→0.75 estimando d por álgebra — d real já
-         era 0.72 em frac 1.12 e o settle saturava com o phone ainda grande e
-         rodado, reencenando o afogado. Bônus da rampa tardia: settle pequeno
-         encolhe junto o erro do halfDrop rodado, que é maior exatamente no
-         começo (bbox reto de corpo em mid-spin mente pra mais). */
+         A entrada continua a mesma por desenho: o phone POUSA na água que já
+         existia (o gate segue waterAmt — a água o recolhe à superfície no
+         compasso em que se materializa) e AFUNDA até a meia-imersão conforme
+         o bump sobe. Só que agora as composições prometidas renderizam.
+
+         Bônus que a fórmula antiga escondia: no frame do TOQUE (hold=1 ⇒
+         settle=1) a origem fica exatamente em WATER_Y, então depth=0 e a tela
+         sai seca DE GRAÇA — o contrato do WET_DEPTH, que antes só valia por
+         acidente do piso, agora vale por construção.
+
+         O ×waterAmt no float NÃO é redundante com o gate: o grip engata pelo
+         bump do phone (d > 0.15) já em frac ~1.5, MEIO VIEWPORT antes de a
+         água existir — com o float cru o aparelho subiria pra linha do olho
+         flutuando no AR. Multiplicar pela água faz o pouso nascer JUNTO com o
+         mar: sem água o alvo é o WATER_Y de sempre (fora de quadro, inócuo), e
+         conforme ela se materializa a superfície ergue o phone até boiar. */
       const settle = smoothstep(0.72, 0.95, dive.current);
-      const surface = WATER_Y - halfDrop * settle;
+      const surface =
+        WATER_Y + halfDrop * (1 - FLOAT_IN) * (1 - settle) * waterAmt.current;
       onScreen.y = lerp(onScreen.y, Math.max(onScreen.y, surface), gate);
       el.position.copy(onScreen);
 
@@ -1065,6 +1159,7 @@ export default function ScrollPhone() {
       const b = end.getBoundingClientRect();
       const eP = easePos(p);
       const eS = easeSpin(p);
+      clipPhone(eP);
       const cx = lerp(a.left + a.width / 2, b.left + b.width / 2, easeX(p));
 
       /* CY PASSA PELO MERGULHO.
@@ -1275,8 +1370,7 @@ export default function ScrollPhone() {
            papel. Duas camadas pintando o mesmo dentro-d'água somariam e o
            quadro fecharia. Por isso o cross-fade termina antes do pouso — e é
            por isso que a cor daqui tem que continuar sendo a cor de lá. */
-        tint.current =
-          smoothstep(wp - DIVE_SPAN, wp, p) * (1 - smoothstep(TINT_OUT[0], TINT_OUT[1], p));
+        tint.current = 0; // água removida — sem véu azul na tela do phone
 
         const camCenter = wp + CAM_LAG;
         const camSpan = Math.min(camCenter - (wp - DIVE_SPAN), 1 - camCenter);
@@ -1285,9 +1379,7 @@ export default function ScrollPhone() {
             ? d
             : Math.max(bump((p - camCenter + camSpan) / (2 * camSpan)), hold.current);
         setDive(d, camAmt);
-        floorGrip.current =
-          Math.max(smoothstep(0, FLOOR_FADE, d), waterAmt.current) *
-          (1 - smoothstep(wp, wp + FLOOR_RELEASE, p));
+        floorGrip.current = 0; // água removida — sem piso pra prender o phone na superfície
       } else {
         cy = lerp(aC, bC, eP);
         setDive(0, 0);
@@ -1299,6 +1391,13 @@ export default function ScrollPhone() {
       // window.innerHeight) devolve a mesma fração que 820/900 já entregava.
       // /PHONE_FILL é o que faz a altura RENDERIZADA igualar a altura do
       // slot em vez de só 75% dela — ver comentário da constante.
+      /* PARALLAX DE SAÍDA — ver EXIT_PARALLAX_*. Somado CRU (sem gate por p): fora
+         do pouso o slot está abaixo do meio da tela e slotRise=0, então isto é
+         no-op na viagem inteira; só quando a seção sobe pra sair de quadro é que a
+         base é empurrada pra baixo, afundando o phone de volta na fita. */
+      const slotRise = Math.max(0, window.innerHeight / 2 - (b.top + b.height / 2));
+      cy += Math.min(EXIT_PARALLAX_MAX, slotRise * EXIT_PARALLAX_RATE);
+
       const endG = b.height / PHONE_FILL / REF_H;
       placeWorld(cx, cy, lerp(START_G, endG, eP));
 
@@ -1451,6 +1550,26 @@ export default function ScrollPhone() {
       el.style.clipPath = `inset(0 round ${SCREEN_RADIUS}px)`;
     };
 
+    /* CLIP DA BASE — recorta o overlay fixed z-[60] (só o phone mora nele desde
+       que a água saiu) na aresta de baixo da fita do Pricing. `landing` é eP: o
+       gate só abre pousando (CLIP_GATE), e a linha de corte interpola do pé da
+       tela até `r.bottom` pra não haver degrau. `inset(... Npx ...)` remove a
+       faixa abaixo da aresta — a parte do aparelho que fica "atrás" da fita. */
+    const clipPhone = (landing: number) => {
+      const el = overlay.current;
+      if (!el) return;
+      const clipEl = document.querySelector<HTMLElement>("[data-phone-clip]");
+      const g = smoothstep(CLIP_GATE[0], CLIP_GATE[1], landing);
+      if (!clipEl || g <= 0.001) {
+        el.style.clipPath = "none";
+        return;
+      }
+      const r = clipEl.getBoundingClientRect();
+      const line = lerp(window.innerHeight, r.bottom, g);
+      const below = Math.max(0, window.innerHeight - line);
+      el.style.clipPath = below > 0.5 ? `inset(0 0 ${below.toFixed(1)}px 0)` : "none";
+    };
+
     /* `d` é o bump do PHONE (centrado em wp) e governa o que é do phone: o roll,
        o DIVE_SHRINK, o piso. `camAmt` é a curva atrasada da ALTURA da câmera.
        Quem governa a ÁGUA não é nenhum dos dois — ver waterAmt abaixo. */
@@ -1577,7 +1696,9 @@ export default function ScrollPhone() {
           // a névoa segue SÓ a saída — ver hazeExit na declaração do ref.
           hazeExit.current = exitGate;
         }
-        camera.rotation.x = seamPitch * pitchGate;
+        camera.rotation.x = 0; // água removida — câmera nivelada, sem pitch de mergulho
+        void seamPitch;
+        void pitchGate;
         /* A ALTURA segue max(camAmt, waterGate) — a água manda na ENTRADA, o
            camAmt na SAÍDA, e as duas metades têm donos diferentes de direito.
 
@@ -1918,7 +2039,7 @@ export default function ScrollPhone() {
         className="pointer-events-none fixed inset-x-0 bottom-0 z-[59] hidden lg:block"
         style={{ top: "50%" }}
       />
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-[60] hidden lg:block">
+      <div ref={overlay} aria-hidden className="pointer-events-none fixed inset-0 z-[60] hidden lg:block">
       {/* pointerEvents:none NÃO é redundante com o pointer-events-none do
           wrapper: o R3F escreve pointerEvents:'auto' no style inline do seu
           container, e pointer-events é herdado — mas um descendente pode
@@ -1944,25 +2065,10 @@ export default function ScrollPhone() {
         <PerspectiveCamera makeDefault position={[0, 0, CAM_Z]} fov={CAM_FOV} />
         <CameraBridge camRef={cam} />
         <Lights />
-        {/* Céu e água só existem na janela do Mergulho — ver setDive(). */}
-        {waterOn && (
-          <Suspense fallback={null}>
-            {/* Ver NÉVOA no topo. O shader vendorizado já vinha com fog:true e
-                o #include <fog_fragment> — faltava a cena ter névoa. O Sky3D não
-                usa fog e fica intacto, que é o certo: o céu é o destino da
-                névoa, não vítima dela. */}
-            <fog attach="fog" args={["#EFEAF4", FOG_NEAR, FOG_FAR]} />
-            {/* hazeExit, não waterAmt nem dive: a névoa fecha pra engolir a
-                água quando ela desmonta — a SAÍDA. Já leu o bump do phone
-                (fechava no clímax, medido) e o waterAmt inteiro (fechava na
-                ENTRADA e chapava o phone em quadro no frame em que waterOn
-                liga — print da Laura). As duas erravam pelo mesmo motivo:
-                carregavam curvas que não são a do desmonte. Ver hazeExit. */}
-            <FogSync diveRef={hazeExit} />
-            <Sky3D />
-            <WaterScene stateRef={water} />
-          </Suspense>
-        )}
+        {/* Céu e água removidos do site (2026-07-17). O rig do phone e o seu
+            trilho de duas pernas via [data-phone-water] seguem — só o cenário
+            aquático saiu. void waterOn mantém o gate declarado sem warning. */}
+        {void waterOn}
         <Suspense fallback={<Html center>Carregando…</Html>}>
           <group ref={group}>
             <IPhoneModel

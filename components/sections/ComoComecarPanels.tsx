@@ -1,6 +1,27 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+/* Stagger dirigido pelo scroll: cada item entra conforme `--reveal` (0..1) sobe
+   — o ComoComecar seta essa var por painel no scroll. `var(--reveal, 1)` garante
+   que no stacked/reduced (sem a var) tudo nasce revelado e parado.
+   `start` escalona o k-ésimo item; `spread` é a janela em que ele completa. */
+function reveal(
+  k: number,
+  count: number,
+  opts: { axis?: "y" | "x" | "scaleY"; dist?: number; spread?: number } = {},
+): CSSProperties {
+  const { axis = "y", dist = 8, spread = 0.2 } = opts;
+  const start = count > 1 ? (k / count) * (1 - spread) : 0;
+  const p = `clamp(0, calc((var(--reveal, 1) - ${start.toFixed(3)}) / ${spread}), 1)`;
+  const move =
+    axis === "x"
+      ? `translateX(calc((1 - ${p}) * ${dist}px))`
+      : axis === "scaleY"
+        ? `scaleY(calc(0.12 + ${p} * 0.88))`
+        : `translateY(calc((1 - ${p}) * ${dist}px))`;
+  return { opacity: p as unknown as number, transform: move };
+}
 
 /* ──────────────────────────────────────────────────────────────
    Painéis "Como Começar" — placeholders de produto (nível awwwards).
@@ -153,6 +174,20 @@ function GlassCard({
       }}
       className={`relative overflow-hidden rounded-2xl ${glassBase} ${glassSurface[tone]} ${className}`}
     >
+      {/* especular que segue o cursor: usa o mesmo --px/--py do parallax de mouse
+          (setado no track pelo ComoComecar). Fora do pinned a var cai pra 0 e o
+          brilho fica centrado e discreto. mix-blend screen → só clareia o vidro. */}
+      {sheen && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-70 transition-opacity duration-500"
+          style={{
+            background:
+              "radial-gradient(240px circle at calc(50% + var(--px, 0) * 55%) calc(40% + var(--py, 0) * 55%), rgba(255,255,255,0.12), transparent 62%)",
+            mixBlendMode: "screen",
+          }}
+        />
+      )}
       {children}
       {/* brilho de luz cruzando o vidro de tempos em tempos */}
       {sheen && (
@@ -257,6 +292,9 @@ export function Panel1({ active }: PanelProps) {
                     height: h,
                     animationDelay: `${(i % 9) * 90}ms`,
                     animationDuration: `${1 + (i % 5) * 0.14}s`,
+                    // só opacity: o scaleY já é da animação gaia-eq (pulso ao vivo).
+                    // Barras acendem da esquerda pra direita conforme o scroll entra.
+                    opacity: `clamp(0, calc((var(--reveal, 1) - ${((i / WAVE.length) * 0.55).toFixed(3)}) / 0.4), 1)` as unknown as number,
                   }}
                   className="gaia-eq-bar w-[3px] shrink-0 rounded-full bg-white/40"
                 />
@@ -264,9 +302,9 @@ export function Panel1({ active }: PanelProps) {
             </div>
             {/* transcrição ao vivo */}
             <div className="space-y-2">
-              <div className="h-2 w-full rounded-full bg-white/15" />
-              <div className="h-2 w-4/5 rounded-full bg-white/15" />
-              <p className="font-body text-[11px] leading-snug text-white/70">
+              <div style={reveal(3, 6, { dist: 6 })} className="h-2 w-full rounded-full bg-white/15" />
+              <div style={reveal(4, 6, { dist: 6 })} className="h-2 w-4/5 rounded-full bg-white/15" />
+              <p style={reveal(5, 6, { dist: 6 })} className="font-body text-[11px] leading-snug text-white/70">
                 “…dorme mal desde que trocou o turno no trabalho.”
               </p>
             </div>
@@ -323,7 +361,11 @@ export function Panel2({ active }: PanelProps) {
             </div>
             {/* barra de progresso — luz correndo dentro do preenchido */}
             <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-              <div className="relative h-full w-[57%] overflow-hidden rounded-full bg-gradient-to-r from-sage-200 to-white/80">
+              <div
+                // preenche de 8%→57% conforme o scroll entra no passo
+                style={{ width: "calc(8% + var(--reveal, 1) * 49%)", transition: "width 120ms linear" }}
+                className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-sage-200 to-white/80"
+              >
                 <span className="gaia-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
               </div>
             </div>
@@ -333,8 +375,8 @@ export function Panel2({ active }: PanelProps) {
                 aria-hidden
                 className="gaia-scan pointer-events-none absolute inset-x-0 z-10 h-6 opacity-0 bg-gradient-to-b from-transparent via-white/12 to-transparent"
               />
-              {TOPICS.map(([label, done]) => (
-                <div key={label} className="flex items-center gap-3">
+              {TOPICS.map(([label, done], i) => (
+                <div key={label} style={reveal(i, TOPICS.length, { axis: "x", dist: 12, spread: 0.26 })} className="flex items-center gap-3">
                   {done ? (
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]">
                       <svg
@@ -415,9 +457,10 @@ export function Panel3({ active }: PanelProps) {
               </span>
             </div>
             <div className="space-y-2.5">
-              {soap.map(([letter, label, value]) => (
+              {soap.map(([letter, label, value], i) => (
                 <div
                   key={letter}
+                  style={reveal(i, soap.length, { dist: 10, spread: 0.24 })}
                   className="flex gap-3 border-t border-white/10 pt-2.5 first:border-t-0 first:pt-0"
                 >
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10 font-body text-[12px] font-semibold text-white/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">

@@ -46,6 +46,24 @@ export type SkyStop = {
    Os stops até 0.72 estão intactos de propósito: é sobre eles que "A Gaia cuida
    do resto." (text-ink) é lida, e essa legibilidade já estava calibrada. Só a
    cauda mudou. */
+/* A CAUDA MORRE NO ÍNDIGO DO CAMPO, não mais no lavanda.
+   O Pricing deixou de começar claro (creme/lavanda) — hoje ele abre no céu
+   escuro do campo florido (pricing-campo-bg, topo ~#0E133A→#151948). O Manifesto
+   morria em #C0B0D7 (lavanda claro) e essa cauda aparecia como uma FAIXA CLARA no
+   meio da transição, antes de o campo entrar (o "branco no centro" que a Laura
+   apontou). Agora a cauda desce pro índigo do campo: a section de textos termina
+   no MESMO tom em que a de pricing começa, e a mask do topo do campo
+   ([data-campo] em Pricing) costura as duas sem faixa clara.
+   Stops até 0.72 intactos — é sobre eles que "A Gaia cuida do resto." (text-ink)
+   é lida, calibração que já valia. Só a cauda mudou de lavanda pra índigo. */
+/* A CAUDA AGORA CRAVA O NAVY EXATO DO VÍDEO (#0E133B), não mais #151948.
+   O campo virou VÍDEO (a mesma imagem em motion, ver [data-campo] em Pricing) e o
+   pedido da Laura é a section de textos terminar EXATAMENTE no tom em que o vídeo
+   abre. O topo de pricing-campo-bg (= frame 1 do vídeo) é #0E133B; #151948 lia um
+   toque mais claro/roxo. Os dois últimos stops seguram #0E133B chapado nos ~6% de
+   baixo, então a base do Manifesto É esse navy — e a mask bottom da section (ver
+   Manifesto.tsx) o entrega sem aresta. Reamostrar o frame 1 do vídeo real e ajustar
+   aqui se divergir do webp. */
 export const SKY_STOPS: SkyStop[] = [
   { color: "#0A0C11", pos: 0.0 },
   { color: "#0A0C11", pos: 0.12 },
@@ -54,41 +72,39 @@ export const SKY_STOPS: SkyStop[] = [
   { color: "#372953", pos: 0.46 },
   { color: "#5F4590", pos: 0.56 },
   { color: "#6E52A0", pos: 0.64 },
-  { color: "#A493C2", pos: 0.72 },
-  { color: "#B4A3CE", pos: 0.86 },
-  { color: "#C0B0D7", pos: 1.0 },
+  { color: "#574385", pos: 0.72 },
+  { color: "#332963", pos: 0.86 },
+  { color: "#0E133B", pos: 0.94 },
+  { color: "#0E133B", pos: 1.0 },
 ];
 
-/* O céu do MERGULHO — e agora ele é SÓ CÉU, do topo à base.
+/* O céu do MERGULHO — e ele SEGURA O LAVANDA, não resolve mais pro creme.
 
-   Nasce no #C0B0D7 exato em que o Manifesto morre e morre NO HORIZONTE — porque
-   a base desta seção É o horizonte (ver Mergulho.tsx: a seção acabou virando o
-   ar, e a aresta de baixo dela é a linha d'água).
+   Nasce no #C0B0D7 em que o Manifesto morre e MORRE NO MESMO #C0B0D7: é uma
+   faixa fina (6vh no lg) de lavanda chapado. Quem faz a descida ao creme é o
+   TOPO do Pricing, numa curva-S longa (ver o background da <section> em
+   Pricing.tsx).
 
-   ELE RESOLVIA PRO CREME (#FAF9F5) E NÃO RESOLVE MAIS. Aquilo existia porque o
-   Mergulho emendava direto no creme do topo do Pricing, e a cauda creme morava
-   na metade de baixo, "abaixo da linha d'água, fora do que o horizonte
-   amostra". Essa metade não existe mais: a seção acaba NA linha. Uma cauda
-   creme aqui seria céu creme bem na altura em que a água o reflete — e céu
-   creme é o bug já registrado duas vezes aqui (água lavada, sem cor nenhuma).
+   POR QUE NÃO RESOLVER O CREME AQUI. Já tentei — DIVE_STOPS ia até #FAF9F5 e o
+   Mergulho emendava creme-em-creme com o Pricing. O valor casava, mas a
+   INCLINAÇÃO não: a rampa lavanda→creme cabia nos ~57px desta seção e depois o
+   Pricing era creme CHAPADO. Rampa íngreme batendo em chapado = quebra de
+   segunda derivada = BANDA DE MACH: o olho inventa uma linha branca na quina,
+   mesmo sem nenhum pixel mais claro que o creme (medido: 0 pixels acima de
+   #FAF9F5 na zona, e a "faixa branca" continuava lá). Foi o "corte seco" que a
+   Laura apontou @1920.
 
-   O TOPO É LAVANDA DE VERDADE, e isso É A COR DA ÁGUA — não decoração de fundo.
-   No ângulo rasante o Fresnel faz o reflexo mandar sobre a cor própria da água,
-   então quem pinta a água é este gradiente. Isso vale MAIS agora, não menos: o
-   horizonte não passeia mais pela seção, ele mora fixo na base — então é a cauda
-   DAQUI que a água reflete o tempo todo.
-
-   A cauda clareia pra #DED7E8 e para. Não é creme: é o embranquecimento que todo
-   céu tem na altura do horizonte (a atmosfera espalha e desatura quanto mais
-   rasante o olhar). Dá a distância sem entregar a cor.
-
-   Os valores até 0.46 são os mesmos de quando esta lista ia até o creme —
-   intactos de propósito, porque a metade de cima nunca foi o problema. */
+   A cura é geométrica, não de cor: a transição precisa de DISTÂNCIA e de slope
+   ZERO nas duas pontas. Numa faixa de 57px não cabe. Então o Mergulho fica
+   lavanda chapado (slope 0, casando com o fim do Manifesto) e entrega o
+   #C0B0D7 pro topo do Pricing, onde a curva-S tem ~480px pra chegar no creme
+   com a inclinação morrendo suave — sem quina, sem Mach. */
+/* Mergulho — a faixa fina entre Manifesto e Pricing. Segue o fim do Manifesto:
+   agora índigo do campo (#151948), não mais lavanda, pra não reintroduzir a
+   faixa clara. É coberto pela mask do topo do campo de qualquer forma. */
 export const DIVE_STOPS: SkyStop[] = [
-  { color: "#C0B0D7", pos: 0.0 },
-  { color: "#C8B9DD", pos: 0.44 },
-  { color: "#D5CCE0", pos: 0.78 },
-  { color: "#DED7E8", pos: 1.0 },
+  { color: "#151948", pos: 0.0 },
+  { color: "#151948", pos: 1.0 },
 ];
 
 /* A ÁGUA DO PRICING — o terceiro da cadeia, e o primeiro que não é céu.

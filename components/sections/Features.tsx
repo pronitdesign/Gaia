@@ -618,11 +618,17 @@ function Hotspot({ className = "", rgb = "255,255,255" }: { className?: string; 
    comeria o dado no lugar do enfeite. Mesma razão pela qual o PhoneScreen tem
    `detail` próprio: superfície diferente, orçamento de linha diferente.
    `c` é a espinha colorida da linha — só a lista usa (no baralho quem
-   identifica o prato é a foto). */
+   identifica o prato é a foto).
+   `carb`/`gord` completam o `prot` que já existia (a etiqueta do baralho
+   só precisa de proteína). Os três por refeição SOMAM os totais que já
+   estavam hardcoded no card — 112 / 168 / 47 g, 327 g no total — porque é
+   isso que a tag "somou pela TACO" alega: se o número da barra não é a
+   soma real destes três, a tag mente. MockPlano deriva os totais daqui,
+   não os declara de novo. */
 const PLANO_MEALS = [
-  { img: "/plano-cafe.webp", t: "07:30", n: "Café da manhã", food: "Ovos mexidos com aveia em flocos, mamão papaia e café sem açúcar", short: "Ovos mexidos, aveia e mamão", kcal: 410, prot: 24, c: "#A385C0" },
-  { img: "/plano-almoco.webp", t: "12:30", n: "Almoço", food: "Frango grelhado, arroz integral e salada de folhas com azeite", short: "Frango grelhado, arroz e salada", kcal: 620, prot: 46, c: "#95A9C4" },
-  { img: "/plano-jantar.webp", t: "20:00", n: "Jantar", food: "Salmão assado com legumes no vapor e purê de abóbora", short: "Salmão assado e legumes", kcal: 480, prot: 42, c: "#8B9E6F" },
+  { img: "/plano-cafe.webp", t: "07:30", n: "Café da manhã", food: "Ovos mexidos com aveia em flocos, mamão papaia e café sem açúcar", short: "Ovos mexidos, aveia e mamão", kcal: 410, prot: 24, carb: 52, gord: 13, c: "#A385C0" },
+  { img: "/plano-almoco.webp", t: "12:30", n: "Almoço", food: "Frango grelhado, arroz integral e salada de folhas com azeite", short: "Frango grelhado, arroz e salada", kcal: 620, prot: 46, carb: 72, gord: 18, c: "#95A9C4" },
+  { img: "/plano-jantar.webp", t: "20:00", n: "Jantar", food: "Salmão assado com legumes no vapor e purê de abóbora", short: "Salmão assado e legumes", kcal: 480, prot: 42, carb: 44, gord: 16, c: "#8B9E6F" },
 ];
 
 /* Baralho de refeições — a refeição da vez fica na frente; as outras espiam
@@ -779,13 +785,45 @@ function MealDeck({ front, dealt }: { front: number; dealt: boolean }) {
   );
 }
 
+// Soma os três macros de uma refeição — usado tanto pro header da barra
+// (Café · 89 g) quanto, implicitamente, pros 327g totais (soma de soma).
+const mealMacroTotal = (m: (typeof PLANO_MEALS)[number]) => m.prot + m.carb + m.gord;
+
 function MockPlano() {
+  // Totais derivados de PLANO_MEALS, não hardcoded: 112/168/47 (327 no
+  // total) são a SOMA real dos três pratos, não número solto — é o que a
+  // tag "somou pela TACO" alega. A largura de cada segmento da barra
+  // (`m.g / totalG`, calculada onde ela é usada) sai proporcional aos
+  // gramas de verdade — 34,3 / 51,4 / 14,4% — não mais 30/48/22 fixo.
+  const totals = {
+    prot: PLANO_MEALS.reduce((s, m) => s + m.prot, 0),
+    carb: PLANO_MEALS.reduce((s, m) => s + m.carb, 0),
+    gord: PLANO_MEALS.reduce((s, m) => s + m.gord, 0),
+  };
+  const totalG = totals.prot + totals.carb + totals.gord;
   const macros = [
-    { k: "Prot", g: 112, pct: 30, c: "bg-brand" },
-    { k: "Carbo", g: 168, pct: 48, c: "bg-azul-400" },
-    { k: "Gord", g: 47, pct: 22, c: "bg-sage-400" },
+    { field: "prot" as const, k: "Prot", g: totals.prot, c: "bg-brand" },
+    { field: "carb" as const, k: "Carbo", g: totals.carb, c: "bg-azul-400" },
+    { field: "gord" as const, k: "Gord", g: totals.gord, c: "bg-sage-400" },
   ];
+
   const [i, ref, entered] = useAutoCycle(PLANO_MEALS.length, 3600);
+  const frontMeal = PLANO_MEALS[i];
+
+  // Lido no corpo do render, não em state — mesmo motivo do `reducedMotionRef`
+  // do <Swap> (comentário lá em cima): o efeito de mount roda ANTES de
+  // qualquer troca real do `i` (essa só vem do IntersectionObserver do
+  // useAutoCycle, sempre pós-mount), então dá pra confiar no ref sem
+  // `matchMedia` no SSR nem um re-render extra por ciclo.
+  const reducedMotionRef = useRef(false);
+  useEffect(() => {
+    reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+  // TAREFA 2e — com motion reduzido a barra fica no agregado puro (sem
+  // fatia, sem cross-fade, "327 g" fixo); `entered` cobre a 2f (nada anima
+  // fora de tela). As duas condições vivem numa flag só porque toda peça
+  // dinâmica da barra (fatia + header) liga e desliga junto.
+  const showMealView = entered && !reducedMotionRef.current;
 
   // ASSINATURA — dar as cartas. O leque só abre 420ms depois do card entrar:
   // é o tempo do painel de cima assentar (a transição do .gaia-parallax é de
@@ -816,8 +854,13 @@ function MockPlano() {
           os macros do dia. É a leitura de dados do plano, densa e parada.
           O baralho NÃO mora aqui: ele é a mesma informação com foto, e as
           duas coisas juntas no meio brigavam. Aqui a lista; embaixo, solto,
-          o baralho. */}
-      <div data-enter-delay={0} style={px(0.4, 1)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
+          o baralho.
+          Painel reto de propósito (rot 0) — o desalinho da cena é trabalho
+          do baralho diagonal embaixo, não deste painel. 1° aqui derruba o
+          lado direito ~14px, e é onde moram os números ("1.510 kcal",
+          "410", "620"): torto, eles leem como bug de alinhamento, não como
+          composição. */}
+      <div data-enter-delay={0} style={px(0.4)} className={"gaia-parallax relative z-10 rounded-[18px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
           <Avatar person={MARINA} className="h-9 w-9 text-[13px]" />
           <div className="min-w-0 flex-1">
@@ -846,14 +889,98 @@ function MockPlano() {
         <div className="mt-3 rounded-[12px] bg-white/[0.06] p-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="font-body text-[11px] font-medium text-white/70">Macros do dia</span>
-            <span className="font-body text-[11px] tabular-nums text-white/40">327 g</span>
+            {/* Cross-fade curto: o baralho nunca para, então o lado direito
+                nunca "descansa" em 327g durante o movimento normal — mostra
+                sempre a refeição da carta da frente (Café · 89 g etc.) e só
+                volta a 327g fixo quando não há o que mostrar (motion
+                reduzido ou antes de `entered`, TAREFA 2e/2f). Remonta via
+                `key` + o keyframe `gaia-fade` (já usado no crossfade de aba
+                do PhoneScreen) — mas em 250ms, não os 450ms de lá: aqui é
+                update de rótulo, não troca de tela, e Swap (560ms) seria
+                pesado demais pra uma palavra. Sem contador de dígitos: o
+                número troca de uma vez, não conta subindo. */}
+            <span
+              key={showMealView ? `meal-${i}` : "agg"}
+              style={{ animation: "gaia-fade 250ms ease both" }}
+              className="font-body text-[11px] tabular-nums text-white/40"
+            >
+              {showMealView ? (
+                <>
+                  {frontMeal.n} · <span className="font-medium text-white/60">{mealMacroTotal(frontMeal)} g</span>
+                </>
+              ) : (
+                `${totalG} g`
+              )}
+            </span>
           </div>
-          <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10">
-            {macros.map((m) => (
-              <span key={m.k} data-bar className={m.c} style={{ width: `${m.pct}%` }} />
-            ))}
-          </div>
-          <div className="mt-2.5 flex items-center justify-between">
+          {/* Geometria da fatia acesa, uma vez só: a barra e a fileira de
+              carets embaixo precisam do MESMO left/width por macro — se cada
+              uma calculasse a sua, um arredondamento de ponto flutuante
+              divergente faria o caret desalinhar da fatia por sub-pixel. */}
+          {(() => {
+            const sliceGeom = macros.map((m) => {
+              // soma dos gramas das refeições ANTERIORES (na ordem de
+              // PLANO_MEALS) como % do segmento; a fatia é a da frente.
+              // Ex. Almoço/Prot: before = Café(24) → left 21,4%;
+              // width = 46/112 = 41,1%.
+              const before = PLANO_MEALS.slice(0, i).reduce((s, meal) => s + meal[m.field], 0);
+              return { left: (before / m.g) * 100, width: (frontMeal[m.field] / m.g) * 100 };
+            });
+            return (
+              <>
+                <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10">
+                  {macros.map((m, idx) => (
+                    <span key={m.k} data-bar className={"relative overflow-hidden " + m.c} style={{ width: `${(m.g / totalG) * 100}%` }}>
+                      {/* A cor do macro é a gramática da barra e não se toca —
+                          dentro do segmento de Prot tudo é roxo, sempre; o que
+                          muda é o brilho. Véu escuro por cima escurece o
+                          RESTO pra ~0,30 sem virar cinza (ainda lê como "roxo
+                          apagado"); a fatia acesa é o próprio `m.c` em opacidade
+                          cheia — luz, não tinta de refeição. Quem carrega a cor
+                          da refeição é o caret, numa camada separada abaixo. */}
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 bg-[#0A0C11] transition-opacity duration-[700ms] ease-gaia"
+                        style={{ opacity: showMealView ? 0.3 : 0 }}
+                      />
+                      {showMealView && (
+                        <span
+                          aria-hidden
+                          className={"pointer-events-none absolute inset-y-0 transition-[left,width] duration-[700ms] ease-gaia " + m.c}
+                          style={{ left: `${sliceGeom[idx].left}%`, width: `${sliceGeom[idx].width}%` }}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </div>
+                {/* Carets — a identidade da refeição entra aqui, como
+                    anotação embaixo do dado, não pintada em cima dele. Fora
+                    do overflow-hidden da barra de propósito (um traço sob a
+                    fatia seria cortado se vivesse dentro do segmento).
+                    left/width idênticos ao da fatia acesa: os três deslizam
+                    em sincronia com ela, 700ms/ease-gaia. Rima com a espinha
+                    colorida da lista acima e com o baralho embaixo — mesma
+                    cor (`frontMeal.c`), papel de marcação em vez de dado. */}
+                <div className="mt-[3px] flex h-[2px] gap-0.5" aria-hidden>
+                  {macros.map((m, idx) => (
+                    <span key={m.k} className="relative" style={{ width: `${(m.g / totalG) * 100}%` }}>
+                      {showMealView && (
+                        <span
+                          className="absolute inset-y-0 rounded-full transition-[left,width] duration-[700ms] ease-gaia"
+                          style={{ left: `${sliceGeom[idx].left}%`, width: `${sliceGeom[idx].width}%`, background: frontMeal.c }}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
+          {/* mt-[5px], não mt-2.5: os 5px que o caret+gap comem (3px de vão
+              + 2px de traço) saem daqui, não somam altura nova ao card — o
+              card é dimensionado pelo palco do baralho embaixo (ver
+              comentário do MealDeck), não pode respirar sozinho. */}
+          <div className="mt-[5px] flex items-center justify-between">
             {macros.map((m) => (
               <span key={m.k} className="flex items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 rounded-full ${m.c}`} />
@@ -1630,19 +1757,37 @@ function ProntuarioLeft() {
   );
 }
 
-/* Cluster direito — dois cards de vidro espalhados na vertical: Calibragem no
-   topo (largo, com lista + lastro), Exames novos embaixo colado na direita
-   (mais estreito, w-[210px]). justify-between abre o vão que deixa os dois
-   flanqueando a borda direita do phone (lg+). */
+/* Cluster direito — dois cards de vidro empilhados: Calibragem no topo (largo,
+   com lista + lastro), Exames novos embaixo colado na direita (mais estreito).
+
+   GAP EXPLÍCITO, NÃO justify-between — e a diferença foi medida, não é gosto.
+   O container era h-[92%] (312px @1440) com justify-between, mas os dois cards
+   somam 357px de conteúdo natural: num container MAIS CURTO que o conteúdo,
+   justify-between não tem vão pra distribuir e os cards se ENCAVALAM. Medido no
+   render: −2,7px entre o rodapé da Calibragem e o topo dos Exames, os dois se
+   tocando em quadro. Altura livre + gap fixo diz o que se queria dizer o tempo
+   todo — "estes dois se separam por 20px" — e não depende de a soma dos cards
+   caber num percentual do palco que ninguém recalcula quando o texto cresce.
+
+   A FRESTA PRO PHONE É CONTRA O APARELHO, NÃO CONTRA A ÂNCORA. Esta era
+   right-[4%] w-[256px], e o comentário antigo prometia "44px de fresta" com a
+   conta feita em cima de [data-phone-start] (x 596–844). Só que a âncora tem
+   248px e o phone RENDERIZA 326 — o glb no START_G nasce ~35px mais largo de
+   cada lado que a caixa que marca o lugar dele. A borda real do aparelho está
+   em x 883, não 844, e o cluster começava em 888,8: fresta REAL de 5,8px, o
+   Calibrado encostado no phone (o print da Laura). w-[240px] com a borda quase
+   no fim do palco recompõe a folga em ~60px, medidos contra o pixel do
+   aparelho. Quem for mexer nisto de novo: mede o phone no render, a âncora
+   mente sobre o tamanho dele. */
 function ProntuarioRight() {
   return (
-    <div className="pointer-events-none absolute right-[4%] top-1/2 hidden h-[92%] w-[256px] -translate-y-1/2 flex-col justify-between lg:flex xl:right-[5%]">
+    <div className="pointer-events-none absolute right-[1%] top-1/2 hidden w-[240px] -translate-y-1/2 flex-col gap-5 lg:flex xl:right-[2%]">
       {/* par da direita SEM rotação, borda direita flush: Calibragem preenche o
           container e Exames (mais estreito) cola na mesma borda via self-end. */}
       <div data-enter-delay={40} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <CalibragemCard />
       </div>
-      <div data-enter-delay={140} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r w-[210px] self-end rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
+      <div data-enter-delay={140} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r w-[200px] self-end rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <ExamesNovosCard />
       </div>
     </div>
@@ -2736,14 +2881,20 @@ export default function Features() {
                 decisão visual pendente, não desta troca.
 
                 A geometria fica registrada porque custou régua no DOM e vale se
-                alguém tentar reacender isto: o phone ocupa x 596–844 e desce até
-                668 (passa da borda do card, que fecha em 619); o satélite
-                esquerdo vai até x 563 e o direito começa em 888 — frestas de
-                33px e 44px. Uma luz redonda de ~220px centrada fica INTEIRA
-                atrás do aparelho: existe no DOM, mede certo, não aparece em
-                tela. O único vão real é a FAIXA de 55px na base (y 564–619),
-                livre em toda a largura fora do phone — por isso a elipse era
-                rasa e deitada (900×260). */}
+                alguém tentar reacender isto — mas MEDIDA NO PIXEL DO APARELHO,
+                não na âncora. A versão anterior deste bloco dizia "o phone ocupa
+                x 596–844", que é o rect de [data-phone-start]; o glb no START_G
+                renderiza 326px de largura e ocupa x 557–883 @1440. Os 39px de
+                diferença por lado foram exatamente o que encostou o Calibrado no
+                phone (ver ProntuarioRight). A ÂNCORA NÃO DIZ O TAMANHO DO PHONE,
+                ela só marca o centro.
+                Com os números certos: satélite esquerdo termina em 562 (fresta
+                de −5px, ele passa POR TRÁS do aparelho de propósito) e o direito
+                começa em 933 (fresta de 50px). Uma luz redonda de ~220px
+                centrada continua ficando INTEIRA atrás do aparelho: existe no
+                DOM, mede certo, não aparece em tela. O único vão real é a FAIXA
+                na base, livre em toda a largura fora do phone — por isso a
+                elipse era rasa e deitada (900×260). */}
             <Grain at="50% 100%" />
             <EdgeLight at="50% 100%" />
 

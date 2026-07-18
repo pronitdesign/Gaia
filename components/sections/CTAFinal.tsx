@@ -12,44 +12,50 @@ gsap.registerPlugin(ScrollTrigger);
 /* ── CTA Final ─────────────────────────────────────────────────────────────
    Fechamento da página — o momento mais quente (Figma 60:65 / 9:553).
    Âncora de motion: CTA da Zipline. A section não é mais uma tela: é uma
-   PISTA de 340vh com um PALCO sticky de 100vh. O scroll não empurra a cena,
-   ele a executa — mask, câmera e texto são três tempos de uma só timeline
-   scrubada no eixo da section.
+   PISTA de 400vh com um PALCO sticky de 100vh. O scroll não empurra a cena,
+   ele a executa — mask, DUAS câmeras e texto são tempos de uma só timeline
+   scrubada no eixo da section. São dois vídeos: o pull-back que traz a mulher
+   com o tablet, e o pull-out que abre pro campo e apresenta o footer.
 
    Os tempos (progresso 0→1 da pista):
-     · MASK   0    → 0.24 — o telhado abre enquanto o palco ainda desliza pra
-       dentro da viewport, e ABRE ATÉ PREENCHER a section (vira retângulo
-       full-bleed, sem creme). O vídeo só começa depois que ela encheu tudo.
-     · FRASE  0.10 → 0.36 — "Enquanto você atendia, a Gaia anotou." Nasce
-       DENTRO do gesto do arco (não numa cena parada) e morre cavalgando o
-       início do scrub do vídeo (0.30): quem dispensa a frase é a câmera se
-       mexendo, não um fade avulso. Só existe na primeira cena — câmera
-       fechada na tela do tablet, antes do pull-back — por isso não sobrevive
-       além de 0.36.
-     · DIM    0    → 0.44 — a primeira cena entra ESCURA (CSS, desde o mount)
-       e a luz só SOBE, dentro do mesmo pull-back que tira a frase: a câmera
-       saindo é quem apaga o texto E acende a cena, num sentido só. Ver o
-       comentário de `sceneDim` no corpo do componente pro porquê do número.
-     · VÍDEO  0.30 → 0.62 — o scroll é a agulha da timeline: pull-back saindo
-       da tela do tablet até a cena inteira. Só começa com o palco parado.
-     · ROBERTA 0.62 → 0.67 — o recorte alpha (mesmo pixel do frame final) faz
-       fade por cima do vídeo. Invisível por definição; existe só pra não ter
-       pop de decode quando ele passa a ser o que segura a cena.
-     · CTA    0.64 → 0.88 — headline + botão sobem de cima do corpo dela, POR
-       TRÁS da Roberta, e assentam AO LADO DO TABLET. Não acima dela: com a
+     · MASK   0    → 0.25 — o telhado abre NO COMPASSO da entrada: a subida do
+       palco gasta os primeiros 100vh da pista (=0.25 de 400vh) e o arco fecha
+       EXATO nesse ponto, virando retângulo full-bleed (sem creme) no mesmo
+       instante em que a tela enche. Nunca antes — senão o arco fica pronto com
+       a section de cima ainda no topo. Frase e vídeo só depois que ela encheu.
+     · FRASE  0.25 → 0.40 — "Enquanto você atendia, a Gaia anotou." Só assenta
+       DEPOIS que a tela encheu (entra 0.25→0.31, com o arco recém-fechado) e
+       morre cavalgando o início do scrub do vídeo 1 (0.31): quem dispensa a
+       frase é a câmera se mexendo, não um fade avulso. Só existe na primeira
+       cena — câmera fechada na tela do tablet, antes do pull-back.
+     · DIM    0    → 0.45 — a primeira cena entra ESCURA (CSS, desde o mount) e
+       fica cheia durante toda a subida; a luz só SOBE em 0.31→0.45, dentro do
+       mesmo pull-back que tira a frase: a câmera saindo é quem apaga o texto E
+       acende a cena, num sentido só. Ver o comentário de `sceneDim` no corpo.
+     · VÍDEO 1 0.31 → 0.46 — o scroll é a agulha: pull-back saindo da tela do
+       tablet até a mulher segurando o iPad. Só começa DEPOIS da tela cheia.
+     · RECORTE 0.46 → 0.50 — a image280 (alpha, mesmo pixel do frame final do
+       vídeo 1) faz fade por cima do vídeo. Invisível por definição; existe pra
+       não ter pop de decode quando ela passa a ser o que segura a cena.
+     · CTA    0.48 → 0.72 — headline + botão sobem de cima do corpo dela, POR
+       TRÁS da mulher, e assentam AO LADO DO TABLET. Não acima dela: com a
        cena full-bleed a cabeça fica em y≈72 e não existe teto. A coluna roxa
        à direita do tablet é o único vazio real da tela.
-     · 0.88 → 1 — pausa. Nada se move: é o tempo de ler o CTA antes do palco
-       soltar o sticky.
+     · HOLD   0.72 → 0.80 — pausa. Nada se move: é o tempo de ler o CTA.
+     · VÍDEO 2 0.80 → 1.0 — "assim que o texto está no lugar, remove a imagem e
+       entra o outro vídeo". O recorte sai por baixo e o vídeo 2 entra na MESMA
+       pose (crossfade trava a silhueta, sem pop), opaco em z-40 cobre CTA e
+       recorte, e o pull-out abre pro campo — é ele que apresenta o footer.
 
    O FOOTER não está no palco. Ele vive depois da pista, em fluxo normal: o
-   palco solta, a cena sai por cima e o footer sobe ABAIXO DA LINHA DO QUADRIL
-   dela (que é a borda de baixo da cena — ver SCENE_BOX). Bônus: fora do
-   sticky, o reveal interno do próprio Footer volta a disparar sozinho.
+   palco solta, o vídeo 2 já abriu pro campo e o footer sobe ABAIXO DA LINHA
+   DE BAIXO da cena (ver SCENE_BOX). Bônus: fora do sticky, o reveal interno
+   do próprio Footer volta a disparar sozinho.
 
-   Ordem de camadas (baixo→cima): vídeo → wash → CTA → Roberta. A Roberta (e o
-   tablet, que vem no mesmo recorte) fica na frente do texto; é o que faz o CTA
-   passar atrás dela.
+   Ordem de camadas (baixo→cima): vídeo 1 → wash → base → CTA → recorte →
+   vídeo 2. O recorte (a mulher e o tablet, no mesmo alpha) fica na frente do
+   texto — é o que faz o CTA passar atrás dela; o vídeo 2 fica na frente de
+   tudo — é o que cobre a cena e leva pro footer.
 
    Por cima do vídeo: wash de marca (lavanda→escuro) + scrim central
    (legibilidade AA) + scrim de base forte + luz aurora fluindo — tudo DENTRO
@@ -63,6 +69,12 @@ gsap.registerPlugin(ScrollTrigger);
 // vez no mount, pelo viewport (ver `sources`).
 const CTA_VIDEO_LG = "/video/cta-tablet-1920.mp4";
 const CTA_VIDEO_SM = "/video/cta-tablet-1280.mp4";
+// Vídeo 2 — o PULL-OUT que apresenta o footer. Parte da MESMA pose do recorte
+// (frame 0 = a mulher segurando o tablet, registro idêntico à image280) e abre
+// a câmera até o campo de flores. Também all-intra pelo mesmo motivo do vídeo 1:
+// o scrub é a agulha, o seek tem que ser instantâneo. Dois pesos por viewport.
+const CTA_FIELD_LG = "/video/cta-field-1920.mp4";
+const CTA_FIELD_SM = "/video/cta-field-1280.mp4";
 // Recorte da Roberta com alpha — é EXATAMENTE o último frame do vídeo, com
 // registro pixel-perfect verificado. Assenta invisível por cima do frame final
 // desde que a caixa seja idêntica à do vídeo (ver SCENE_BOX + MEDIA).
@@ -70,12 +82,12 @@ const CTA_CUTOUT_LG = "/video/cta-roberta-cutout.webp";
 const CTA_CUTOUT_SM = "/video/cta-roberta-cutout-sm.webp";
 // Frame 0 — cobre o vídeo enquanto ele carrega.
 const CTA_POSTER = "/video/cta-tablet-poster.webp";
+// Frame 0 do vídeo 2 (a mulher na mesma pose do recorte) — cobre o vídeo 2
+// enquanto ele carrega, então mesmo antes de decodar o crossfade já casa a pose.
+const CTA_FIELD_POSTER = "/video/cta-field-poster.webp";
 // Último frame (cena aberta) — o que reduced-motion recebe: sem vídeo baixado,
 // o usuário vê direto o destino da câmera em vez do ponto de partida.
 const CTA_STILL = "/video/cta-tablet-still.webp";
-// Buquê bordô/lavanda com alpha — a peça que costura a cena no footer. Fica na
-// dissolvência, montada na emenda: o que era um degrau vira uma intenção.
-const CTA_FLOWER = "/video/cta-floral.webp";
 // A CAIXA DA CENA. O vídeo e o recorte compartilham ESTA string, palavra por
 // palavra. Qualquer divergência de geometria entre os dois (transform, scale,
 // object-position, aspecto do container) desalinha o recorte do frame e a tela
@@ -153,7 +165,7 @@ const archD = (p: number) => {
 // reduced-motion enxerga.
 const ARCH_REST = archD(1);
 
-type Sources = { video: string; cutout: string };
+type Sources = { video: string; cutout: string; field: string };
 
 /** Safari/iOS não pinta o primeiro frame nem responde bem a seek num vídeo que
  *  nunca tocou. Um play()/pause() assim que há frame decodificado destrava. */
@@ -218,6 +230,13 @@ export default function CTAFinal() {
   const arch = useRef<SVGPathElement>(null); // o `d` é reescrito a cada frame
   const video = useRef<HTMLVideoElement>(null); // agulha do scrub (currentTime)
   const clipRoberta = useRef<HTMLDivElement>(null); // camada do recorte alpha
+  // VÍDEO 2 — o pull-out que apresenta o footer. `field` é a agulha do scrub
+  // (currentTime); `fieldLayer` é a camada (z-40) cuja opacidade faz o crossfade
+  // por cima do recorte: como o frame 0 dele é a MESMA pose da image280, subir a
+  // opacidade tranca a silhueta e a troca não tem pop. Opaco, ele cobre CTA e
+  // recorte e leva a cena pro campo.
+  const field = useRef<HTMLVideoElement>(null);
+  const fieldLayer = useRef<HTMLDivElement>(null);
   // A FRASE da primeira cena — câmera ainda fechada na tela do tablet, antes
   // do pull-back. Vive e morre dentro do gesto do arco (ver timeline); depois
   // disso quem fala é a câmera se afastando, não mais texto sobre a tela.
@@ -235,6 +254,13 @@ export default function CTAFinal() {
   // entra na timeline são os filhos dela, um a um (ver useGSAP): é o que
   // permite o stagger sem uma ref por card.
   const cardStack = useRef<HTMLDivElement>(null);
+  // A BASE ESCURA — a mancha de roxo profundo (roxo-900 tendendo ao breu) que
+  // sobe do pé da cena quando o vídeo acaba e o recorte assume, subindo ATÉ
+  // ATRÁS DO BOTÃO. Ela mora no z-0 (dentro do clip, por cima do vídeo e do
+  // Wash), então a Roberta (z-30) fica POR CIMA dela: é o chão em que ela
+  // pousa. Nasce em 0 e só acende, junto com o CTA subindo — ver o tween em
+  // useGSAP.
+  const baseMask = useRef<HTMLDivElement>(null);
 
   // null = indeciso: o matchMedia só resolve depois do primeiro paint, e nesse
   // vão não renderizamos nem vídeo nem still — a base cobre. Sem isso o still de
@@ -261,8 +287,8 @@ export default function CTAFinal() {
     const lg = window.matchMedia("(min-width: 768px)").matches;
     setSources(
       lg
-        ? { video: CTA_VIDEO_LG, cutout: CTA_CUTOUT_LG }
-        : { video: CTA_VIDEO_SM, cutout: CTA_CUTOUT_SM },
+        ? { video: CTA_VIDEO_LG, cutout: CTA_CUTOUT_LG, field: CTA_FIELD_LG }
+        : { video: CTA_VIDEO_SM, cutout: CTA_CUTOUT_SM, field: CTA_FIELD_SM },
     );
   }, []);
 
@@ -317,40 +343,47 @@ export default function CTAFinal() {
         },
       });
 
-      // ── MASK 0 → 0.24 ─────────────────────────────────────────────────────
-      // Abre cedo e fecha o assunto antes do palco grudar (~0.294): quando ele
-      // para, o arco já está em repouso e a próxima coisa a se mover é a câmera.
+      // ── MASK 0 → 0.25 ─────────────────────────────────────────────────────
+      // O arco abre NO COMPASSO da entrada e só termina quando o palco grudou.
+      // A entrada (o palco deslizando até preencher a viewport) gasta os
+      // primeiros 100vh da pista = progresso 0→0.25 (100vh de 400vh). Casar a
+      // duração do mask com esses 0.25 faz o telhado abrir junto com a subida e
+      // fechar EXATO no instante em que a tela enche — nem antes (senão o arco
+      // fica full-bleed com o creme da section de cima ainda no topo), nem
+      // depois. Só quando ela encheu é que a câmera começa a andar. Antes disso
+      // o vídeo fica no frame 0 (tela do tablet), tight, sob o dim.
       tl.to(
         mask,
         {
           p: 1,
-          duration: 0.24,
+          duration: 0.25,
           onUpdate: () => writeArch(mask.p),
         },
         0,
       );
 
-      // ── FRASE 0.10 → 0.36 ────────────────────────────────────────────────
+      // ── FRASE 0.25 → 0.40 ────────────────────────────────────────────────
       // "Enquanto você atendia, a Gaia anotou." — a única linha da primeira
-      // cena, câmera ainda fechada na tela do tablet. Entra em 0.10→0.20:
-      // DENTRO do gesto do arco (que roda 0→0.24), não numa cena parada — ela
-      // nasce junto com a abertura do telhado. Segura 0.20→0.30. Sai em
-      // 0.30→0.36, começando JUNTO com o scrub do vídeo (0.30, ver VÍDEO
-      // abaixo) e com o DIM apagando (ver `sceneDim`): quem dispensa a frase é
+      // cena, câmera ainda fechada na tela do tablet. Só assenta DEPOIS que a
+      // tela encheu: entra em 0.25→0.31 (o arco acabou de fechar no full-bleed,
+      // ver MASK), não durante a subida — a frase é a recompensa de ter chegado,
+      // não um letreiro por cima do creme que ainda desliza. Segura 0.31→0.35.
+      // Sai em 0.35→0.40, cavalgando o início do scrub do vídeo (0.31, ver
+      // VÍDEO abaixo) e o DIM apagando (ver `sceneDim`): quem dispensa a frase é
       // a CÂMERA se mexendo, não um fade avulso — o `y:-24` sobe contra o
       // recuo. `fromTo` com immediateRender pelo mesmo motivo do ctaBlock e
       // dos cards: precisa nascer invisível desde o mount, senão fica de
-      // fantasma sobre a tela do tablet.
+      // fantasma sobre a tela do tablet durante toda a entrada.
       tl.fromTo(
         firstLine.current,
         { autoAlpha: 0, y: 0 },
-        { autoAlpha: 1, duration: 0.1, ease: "power2.out" },
-        0.1,
+        { autoAlpha: 1, duration: 0.06, ease: "power2.out" },
+        0.25,
       );
       tl.to(
         firstLine.current,
-        { autoAlpha: 0, y: -24, duration: 0.06, ease: "power2.in" },
-        0.3,
+        { autoAlpha: 0, y: -24, duration: 0.05, ease: "power2.in" },
+        0.35,
       );
 
       // ── DIM 0 → 0.44 (SAÍDA) ─────────────────────────────────────────────
@@ -370,15 +403,17 @@ export default function CTAFinal() {
       // mostrar. Uniforme, o tablet vira brilho num quarto escuro e o produto
       // continua legível.
       //
-      // Apaga em 0.30→0.44 e a frase sai em 0.30→0.36: as duas coisas começam
-      // JUNTO com o scrub do vídeo (0.30). Quem apaga a frase e acende a luz é
+      // Apaga em 0.31→0.45 e a frase sai em 0.35→0.40: as duas coisas começam
+      // JUNTO com o scrub do vídeo (0.31). Quem apaga a frase e acende a luz é
       // a CÂMERA saindo — a luz sobe DENTRO do pull-back, terminando depois da
       // frase, então a última coisa que acontece é a cena acendendo, já sem
-      // texto.
+      // texto. Enquanto a tela ainda enchia (0→0.25) o dim fica cheio: a frase
+      // só nasce em 0.25 e o pull-back só em 0.31, então nada acende antes da
+      // hora.
       tl.to(
         sceneDim.current,
         { opacity: 0, duration: 0.14, ease: "power2.inOut" },
-        0.3,
+        0.31,
       );
 
       // ── CTA 0.64 → 0.88 ───────────────────────────────────────────────────
@@ -394,7 +429,7 @@ export default function CTAFinal() {
         ctaBlock.current,
         { y: 520, autoAlpha: 0 },
         { y: 0, autoAlpha: 1, duration: 0.24, ease: "power3.out" },
-        0.64,
+        0.48,
       );
 
       // ── CARDS 0.70 → 0.88 ────────────────────────────────────────────────
@@ -422,60 +457,96 @@ export default function CTAFinal() {
           ease: "power3.out",
           stagger: 0.05,
         },
-        0.7,
+        0.54,
       );
 
-      // ── ROBERTA 0.62 → 0.67 ───────────────────────────────────────────────
+      // ── RECORTE (image280) 0.46 → 0.50 ────────────────────────────────────
       // Fade puro de `opacity` (não autoAlpha: `visibility:hidden` é caminho
       // curto pro browser adiar o decode, e é exatamente o pop que este tween
-      // existe pra evitar). São os mesmos pixels do frame final — o fade não se
-      // vê; ele só cobre a troca de quem segura a cena. Não invade o scrub do
-      // vídeo: começa quando ele termina.
+      // existe pra evitar). São os mesmos pixels do frame final do vídeo 1 — o
+      // fade não se vê; ele só cobre a troca de quem segura a cena. Começa
+      // quando o scrub do vídeo 1 termina (0.46).
       tl.fromTo(
         clipRoberta.current,
         { opacity: 0 },
-        { opacity: 1, duration: 0.05 },
-        0.62,
+        { opacity: 1, duration: 0.04 },
+        0.46,
       );
 
-      // ── PAUSA 0.88 → 1 ────────────────────────────────────────────────────
-      // O footer saiu do palco e levou a fase dele junto. Os ~0.12 finais são
-      // de propósito: a cena fica parada, montada, pro CTA ser lido antes de o
-      // sticky soltar.
-      // Este tween vazio não anima nada — ele SEGURA A RÉGUA. A duração da
-      // timeline é o que o scrub usa pra mapear scroll→tempo; sem ele a
-      // timeline terminaria em 0.88 (fim do CTA) e todas as posições absolutas
-      // acima seriam reescaladas por 1/0.88 — o contrato "tempo do tween ===
-      // progresso do scroll" quebraria em silêncio, e cada fase adiantaria ~14%.
-      tl.to({}, { duration: 0.12 }, 0.88);
+      // ── BASE 0.64 → 0.88 ──────────────────────────────────────────────────
+      // A noite sobe do pé no MESMO tempo do CTA (0.64→0.88, ver CTA acima): o
+      // texto emerge por trás da Roberta e o chão escurece embaixo dela na
+      // mesma respiração, plantando os dois planos. `power2.inOut` pra subir e
+      // assentar sem batida — o pedido era "bem smooth". `fromTo` com
+      // immediateRender pelo mesmo motivo dos outros: nasce invisível desde o
+      // mount, senão pintaria a base escura sobre a primeira cena (tela do
+      // tablet) durante todo o scrub do vídeo.
+      tl.fromTo(
+        baseMask.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.24, ease: "power2.inOut" },
+        0.48,
+      );
 
-      // ── VÍDEO 0.30 → 0.62 ─────────────────────────────────────────────────
-      // Entra na MESMA timeline, mas só quando a duração é conhecida — sem ela
-      // não há alvo pro currentTime. Inserir depois é seguro: 0.30+0.32 = 0.62
-      // não estica a timeline (o `set` vazio já a fecha em 1.0), e o refresh
-      // manda renderizar de novo no progresso atual, então um deep link no meio
-      // da pista já nasce com o frame certo.
-      const v = video.current;
-      if (!v) {
-        // motion/sources ainda indecisos: não há vídeo no DOM. O resto da
-        // timeline já vale; este efeito reroda quando `sources` resolver.
-        ScrollTrigger.refresh();
-        return;
-      }
+      // ── HOLD 0.72 → 0.80 ──────────────────────────────────────────────────
+      // Nada se move: o recorte segura a mulher, o CTA já assentou ao lado dela
+      // e a pilha à esquerda. É o tempo de LER o botão antes de a cena sair —
+      // o vazio na timeline É a pausa, não precisa de tween.
 
-      const attachScrub = () => {
+      // ── TRANSIÇÃO → VÍDEO 2  0.80 → 0.86 ──────────────────────────────────
+      // "Assim que o texto já está no lugar, remova a imagem e coloque o outro
+      // vídeo." O recorte (image280) sai por baixo e o vídeo 2 entra na MESMA
+      // pose (frame 0 = a mulher com o tablet): subir a opacidade da camada
+      // z-40 tranca a silhueta, então a troca não tem pop. Opaco, o vídeo 2
+      // cobre o CTA e o recorte, e o pull-out (scrub 0.80→1.0, ver VÍDEO 2
+      // abaixo) abre a cena pro campo — é ele que apresenta o footer.
+      tl.to(clipRoberta.current, { opacity: 0, duration: 0.06 }, 0.8);
+      tl.fromTo(
+        fieldLayer.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.06 },
+        0.8,
+      );
+
+      // ── VÍDEO 1 0.31 → 0.46  ·  VÍDEO 2 0.80 → 1.0 ────────────────────────
+      // Os dois scrubs entram na MESMA timeline, cada um só quando SUA duração
+      // é conhecida — sem ela não há alvo pro currentTime. Inserir depois é
+      // seguro: as posições absolutas não esticam a timeline, e o refresh manda
+      // renderizar de novo no progresso atual (deep link no meio da pista já
+      // nasce com o frame certo). O vídeo 2 é o único tween que chega a 1.0 —
+      // é ele que SEGURA A RÉGUA (o contrato "tempo do tween === progresso do
+      // scroll"); sem ele a timeline terminaria em 0.86 e tudo reescalaria.
+      const v1 = video.current;
+      const v2 = field.current;
+
+      const attach = (v: HTMLVideoElement, at: number, dur: number) => {
         if (!Number.isFinite(v.duration) || v.duration <= 0) return;
-        tl.to(v, { currentTime: v.duration, duration: 0.32 }, 0.3);
-        // o vídeo entrou depois do layout: remede os triggers já criados.
+        tl.to(v, { currentTime: v.duration, duration: dur }, at);
         ScrollTrigger.refresh();
       };
 
-      if (v.readyState >= 1) attachScrub();
-      else v.addEventListener("loadedmetadata", attachScrub, { once: true });
+      // gsap.context reverte tweens/triggers, mas NÃO listeners de DOM — daí
+      // guardar cada removedor pra desmontar antes do metadata não vazar trigger.
+      const cleanups: Array<() => void> = [];
+      const wire = (v: HTMLVideoElement | null, at: number, dur: number) => {
+        if (!v) return;
+        const go = () => attach(v, at, dur);
+        if (v.readyState >= 1) {
+          go();
+          return;
+        }
+        v.addEventListener("loadedmetadata", go, { once: true });
+        cleanups.push(() => v.removeEventListener("loadedmetadata", go));
+      };
 
-      // gsap.context reverte tweens/triggers, mas não listeners de DOM: sem isso
-      // um unmount antes do metadata deixaria um trigger nascer fora do context.
-      return () => v.removeEventListener("loadedmetadata", attachScrub);
+      wire(v1, 0.31, 0.15);
+      wire(v2, 0.8, 0.2);
+
+      // motion/sources ainda indecisos (nenhum vídeo no DOM): o resto da
+      // timeline já vale e este efeito reroda quando `sources` resolver.
+      if (!v1 && !v2) ScrollTrigger.refresh();
+
+      return () => cleanups.forEach((fn) => fn());
     },
     { scope: root, dependencies: [motion, sources] },
   );
@@ -491,9 +562,11 @@ export default function CTAFinal() {
         // Sem `overflow-hidden` aqui — ele transformaria a section no scroll
         // container do palco e mataria o sticky. O recorte é do palco.
         className="relative bg-neutro-50"
-        // A pista. 340vh: ~100vh de entrada (o palco desliza até grudar) + 240vh
-        // de execução da timeline. reduced-motion não tem pista.
-        style={still ? undefined : { height: "340vh" }}
+        // A pista. 400vh: ~100vh de entrada (o palco desliza até grudar) + 300vh
+        // de execução da timeline — agora com dois vídeos (o pull-back e o
+        // pull-out que apresenta o footer), o pull-out sozinho leva os últimos
+        // 20% (~80vh de scroll). reduced-motion não tem pista.
+        style={still ? undefined : { height: "400vh" }}
       >
         {/* PALCO — 100vh grudado no topo enquanto a pista corre por baixo.
           `isolate` prende os z-index das camadas aqui dentro. */}
@@ -547,6 +620,27 @@ export default function CTAFinal() {
             {/* DENTRO do clip de propósito: fora dele os scrims pintariam o creme
               ao redor do arco. */}
             <Wash />
+
+            {/* BASE ESCURA — roxo profundo que sobe do pé quando o recorte
+              assume o quadro, subindo ATÉ ATRÁS DO BOTÃO (h-72%). É o CHÃO da
+              Roberta: vive no z-0 (por cima do vídeo e do Wash, abaixo do CTA
+              z-20 e da Roberta z-30), então ela pousa POR CIMA dele e o texto
+              branco do CTA ganha contraste em vez de perder. Cor de marca, não
+              breu neutro: base #17102A (roxo-900 puxado pro escuro) fundindo em
+              rgba(36,26,56)=roxo-900 — o chão fica no mesmo mundo lavanda da
+              cena, não vira buraco preto. Não é o scrim de base permanente do
+              Wash (aquele é só tonalidade, sempre ligado) — esta é temporal e
+              forte, existe pra ancorar a troca de vídeo→recorte. Nasce em
+              opacity 0 via CSS e a timeline só a acende (ver o tween BASE em
+              useGSAP). Só com motion: em reduced-motion o still já traz a cena
+              montada, sem troca pra ancorar. */}
+            {motion === true ? (
+              <div
+                ref={baseMask}
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-[72%] opacity-0 bg-[linear-gradient(to_top,#17102A_0%,rgba(36,26,56,0.92)_26%,rgba(36,26,56,0.55)_54%,rgba(36,26,56,0.22)_74%,transparent_92%)]"
+              />
+            ) : null}
 
             {/* DIM da primeira cena — legibilidade da FRASE, não da marca (isso é
               o Wash). Precisa vir DEPOIS do Wash (cobre vídeo+wash) e ANTES da
@@ -927,190 +1021,69 @@ export default function CTAFinal() {
               </div>
             </div>
           ) : null}
+
+          {/* z-40 · VÍDEO 2 — o pull-out que apresenta o footer. Acima de TUDO
+            (recorte z-30, CTA z-20, cena z-0): quando a opacidade sobe (0.80→
+            0.86) ele cobre a cena inteira. O frame 0 é a MESMA pose do recorte
+            (a mulher com o tablet), então o crossfade tranca a silhueta e a
+            troca não tem pop; daí a câmera abre pro campo. MESMA caixa
+            (SCENE_BOX/MEDIA) e MESMO clip do vídeo 1 — o arco já está em
+            retângulo full-bleed nesse ponto, então o clip não corta nada, só
+            mantém a geometria idêntica. Não gated por aspecto: é vídeo cheio,
+            vale em qualquer viewport (é ele que leva mobile e desktop pro
+            footer). `opacity-0` desde o mount pra nascer invisível. */}
+          {motion === true && sources ? (
+            <div
+              ref={fieldLayer}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-40 opacity-0"
+              style={{ clipPath: `url(#${ARCH_ID})` }}
+            >
+              <div className={SCENE_BOX}>
+                <video
+                  ref={field}
+                  src={sources.field}
+                  poster={CTA_FIELD_POSTER}
+                  onLoadedData={primeForSeek}
+                  muted
+                  playsInline
+                  preload="auto"
+                  disablePictureInPicture
+                  tabIndex={-1}
+                  aria-hidden
+                  className={MEDIA}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
-      {/* FOOTER — fora do palco, em fluxo normal. O sticky solta exatamente no pé
-        da pista (`end: "bottom bottom"`), e o pé da pista é o pé do palco, que é
-        a LINHA DO QUADRIL dela: continuar scrollando traz o footer por baixo
-        dela, que era o pedido. Dentro do sticky ele nunca teve essa chance — e
-        de quebra o reveal próprio do Footer (`start: "top 88%", once: true`)
-        queimava a seco lá dentro; aqui ele volta a disparar sozinho.
-
-        A COSTURA É PRETA — e a única regra estável, depois de a coisa ter
-        dado meia-volta DUAS vezes, é esta: ela fecha na cor DE QUE O FOOTER É
-        FEITO. Nunca na do <body>. As duas voltas, porque cada uma parece um
-        erro até você saber o que o rodapé era na época:
-
-        1. Costura `#0E1016` + rodapé CREME → pé preto da cena encostado num
-           card claro: degrau duro. Daí a BANDA DE EMERGÊNCIA (55vh subindo do
-           preto ao creme + 24vh de noite sobrando = 79vh de gradiente vazio,
-           que lia como página inacabada).
-        2. Costura `#FAF9F5` + rodapé CREME → dissolve, e a banda morre sem ter
-           o que resolver. Foi o mundo que este arquivo descreveu por um tempo.
-        3. (hoje) Rodapé volta pra NOITE, agora como VIDRO PRETO sobre
-           `#0E1016` — e o creme passa a ser o degrau. A costura acompanha:
-           volta pro `#0E1016`, junto com o fundo do rodapé, na mesma placa.
-
-        Quem pinta isso agora é a PLACA NOTURNA (primeiro filho do wrapper
-        abaixo), não um gradiente solto: costura e fundo do rodapé viraram um
-        elemento só, porque são a mesma cor por definição.
-
-        24vh NÃO é gosto, é medido. É o que o `-mt` toma do palco, o que a
-        sub-caixa devolve, e onde o gradiente da placa fecha. Pés medidos (%
-        da altura do palco, timeline no fim): botão "Começar grátis" em 64.6
-        (1920) / 67.7 (1440) / 69.2 (1280); pilha de cards em 75.1 (1920) /
-        55.7 (1440) / 66.1 (1280). O pior caso é a pilha em 1920, a 75.1% — a
-        costura nasce em 76% e passa raspando, com o topo dela em opacidade 0
-        de qualquer forma. Mais que 24vh e a noite começa a subir pelo card de
-        rotina; menos e a mescla encurta. */}
-      {/* Regra desta caixa (o wrapper `-mt-[24vh]` inteiro): nada aqui pode
-        passar do PÉ dele. Um absolute que ultrapassa o pai por baixo estica o
-        scrollHeight do documento, e o que aparece nesse excedente é o creme do
-        <body> — foi exatamente assim que nasceu a faixa branca embaixo do
-        footer (o bloom era `h-[70vh]` a partir de `top-[16vh]`: 144+630 num
-        wrapper de 646). Por isso todo absolute aqui dentro ancora em
-        `bottom-0`, nunca em altura fixa. Passar do TOPO pode: crescer pra cima
-        não mexe no scroll — é o que a flor faz.
-
-        A COSTURA tem sub-caixa própria e mede EXATAMENTE os 24vh que o `-mt`
-        tomou do palco. Não é coincidência, é a definição de "colado": ela
-        inteira mora POR CIMA do pé da cena, custa 0vh de documento, e o card
-        do footer começa no mesmo pixel em que o palco acaba. Os 24vh são
-        também o número do gradiente — ele fecha no `#FAF9F5` em `24vh`, ou
-        seja, no pé exato da sub-caixa: a mescla termina de pintar no instante
-        em que o card entra. É por isso que os dois números têm que andar
-        juntos; mexer num sem o outro ou recria vão (`-mt` menor que a caixa)
-        ou deixa a mescla inacabada quando o card chega (gradiente mais longo
-        que a caixa).
-
-        A FLOR NÃO mora nessa sub-caixa — ela é filha DIRETA do wrapper, e é o
-        que a deixa atravessar o footer. Ver o comentário dela. */}
-      <div className="relative -mt-[24vh]">
-        {/* A PLACA NOTURNA — um só elemento fazendo os dois trabalhos, porque
-          são o mesmo trabalho: `transparent` no topo, `#0E1016` aos 24vh, e
-          daí pra baixo SEGURA a cor (gradiente CSS mantém o último stop). Ou
-          seja: nos primeiros 24vh ela é a COSTURA (a cena dissolve na noite,
-          no pé exato do palco); do 24vh ao fim do wrapper ela é o FUNDO do
-          rodapé. Uma peça, porque a cor de chegada da costura e a cor do
-          rodapé têm que ser a mesma por definição — separá-las em dois
-          elementos é convidar as duas a dessincronizar.
-
-          POR QUE ELA É O PRIMEIRO FILHO: tudo aqui é positioned sem z-index,
-          então pinta na ordem do DOM. A placa vem antes da FLOR de propósito —
-          a flor passa POR CIMA dela e é isso que a deixa existir dentro do
-          rodapé. Pintar esta noite mais embaixo (ex.: um bg no wrapper do
-          card) tapa a flor: já foi feito, já quebrou.
-
-          POR QUE NÃO NO WRAPPER: `bg` no `-mt-[24vh]` seria opaco desde o topo
-          e comeria os últimos 24vh da cena. É o gradiente que resolve — ele
-          nasce transparente exatamente onde a cena ainda precisa aparecer.
-
-          É preta, e não creme, por uma razão só: a costura fecha na cor DE QUE
-          O FOOTER É FEITO. O footer é vidro preto sobre `#0E1016`. Se ele
-          voltar a ser claro, este é o número que muda — e o alvo é a cor dele,
-          nunca a do <body>. */}
+      {/* FOOTER — fora do palco, em fluxo normal, mas SOBE sobre o pé do palco
+        (`-mt`) porque a PRÓPRIA imagem do campo é o fundo dele: o conteúdo do
+        rodapé mora POR CIMA da foto, não num card escuro que a corta. O still
+        do campo (mesmo frame final do vídeo 2) entra como fundo, com fade no
+        topo pra emendar com a cena e um scrim sutil só pra legibilidade. O
+        reveal próprio do Footer (`start: "top 88%", once: true`) volta a
+        disparar sozinho aqui fora do sticky. Ver os dois filhos abaixo. */}
+      <div className="relative isolate -mt-[30vh]">
+        {/* FUNDO = a imagem do campo. `bg-bottom` mostra o primeiro plano (as
+          flores escuras), que é o que continua o pé da cena. A máscara faz o
+          topo nascer transparente (a cena aparece através) e a foto entrar por
+          baixo — como é a MESMA imagem, a emenda some. Sobe sobre o palco via
+          `-mt`, então a foto é literalmente parte do fundo do footer. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0,#0E1016_24vh)]"
+          className="pointer-events-none absolute inset-0 -z-20 bg-[url('/video/cta-field-still.webp')] bg-cover bg-bottom [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)]"
         />
-
-        {/* Sub-caixa VAZIA, e é de propósito: ela não pinta nada (quem pinta é
-          a placa acima), só paga os 24vh que o `-mt` tomou do palco. Os dois
-          números continuam atados (ver a regra acima) — e agora são TRÊS: o
-          `-mt`, esta altura e o stop do gradiente da placa. Mexer num sem os
-          outros recria vão, sobreposição, ou uma costura que acaba no lugar
-          errado. */}
-        <div className="relative h-[24vh]" />
-
-        {/* A FLOR — a peça que ATRAVESSA a emenda. É o único elemento que
-          existe dos dois lados dela: nasce na cena, cruza a mescla e mergulha
-          ATRÁS do card do footer. É por isso que ela é filha DIRETA do wrapper
-          e não da sub-caixa da costura — `bottom-0` aqui resolve contra o pé
-          do FOOTER, não contra o fim da mescla, e é essa uma linha que a deixa
-          entrar no rodapé. (Ela morou na sub-caixa enquanto a banda de
-          emergência existia: naquele mundo o pé do wrapper ficava depois de
-          55vh de gradiente claro, e sem a sub-caixa a flor vazaria por cima de
-          um creme pro qual o asset — pensado pra fundo quase-preto — não foi
-          feito. Sem banda, o pé do wrapper voltou a ser o pé do card, e a
-          sub-caixa deixou de ter função pra ela.)
-
-          A ORDEM DO DOM É O EFEITO INTEIRO, e são duas regras opostas de uma
-          vez. DEPOIS da costura: elementos positioned sem z-index pintam na
-          ordem do DOM, então a flor fica POR CIMA do gradiente creme e não é
-          lavada por ele — ela sobrevive à mescla nítida enquanto a cena
-          dissolve atrás, que é o que faz dela a âncora visual da emenda em vez
-          de mais uma coisa que some. ANTES do footer: pelo mesmo mecanismo, o
-          card (que é `relative`, ver o wrapper dele abaixo) pinta POR CIMA
-          dela. Inverter qualquer um dos dois quebra um lado — a flor sumiria
-          na mescla, ou passaria por cima do texto do rodapé.
-
-          Ela aparece na FOLGA lateral do card (`mx-auto max-w-7xl`): 320px de
-          cada lado em 1920, 80px em 1440, 12px em 1280. Quanto mais estreita a
-          tela, mais o card a engole — degrada pra "flor só na cena", que é o
-          comportamento certo, e não pra nada quebrado.
-
-          `-top-[1vh]`: o topo do wrapper está em 76% do palco (o `-mt-[24vh]`),
-          então -1vh planta a flor em 75%, exatamente onde ela já nascia antes
-          desta seção. Não subir mais é deliberado: ela é `w-full`, pinta depois
-          do palco (por cima de TUDO que é cena) e o `-scale-x-100` a joga na
-          direita, que é a coluna do CTA — o pé do bloco do botão fica em
-          64.6–69.2% conforme o viewport, então cada vh a mais que ela sobe
-          começa a comer o "Começar grátis". Pra cima é seguro só até aqui. */}
-        {/* SEM MÁSCARA — a flor vai inteira, e quem desenha TODAS as bordas
-          é o alpha do PNG (`w-full`, altura livre, nada de `object-cover`, que
-          era o que ceifava as pétalas em linha reta — bug antigo, documentado,
-          já corrigido uma vez).
-
-          O `mask-image` que morava aqui (fade pra transparent em 46%→74%)
-          existia por UM motivo, e o motivo caiu. O asset tem base reta por
-          construção — o prompt de geração pediu "base falls below the frame
-          edge": ele foi feito pra SANGRAR pra fora do quadro, não pra terminar
-          sozinho. Enquanto o rodapé era um card CREME, essa base aterrissava à
-          vista na folga lateral, sobre um fundo pro qual o asset não foi feito;
-          o fade a matava antes disso. Agora a folga é `#0E1016` (ver o bg do
-          wrapper do footer) e o card é vidro: a flor tem o fundo quase-preto de
-          que precisa, e atravessa o rodapé em vez de morrer antes dele.
-
-          O `overflow-hidden` FICA, e agora ele é a feature, não o bug: ele corta
-          no pé do wrapper, que é o pé do documento — exatamente a borda pra fora
-          da qual o asset foi desenhado pra sangrar. Medido no asset atual
-          (1600x893): a última linha ainda tem pixels em alpha 255 em ~6% das
-          colunas, então a base RETA continua existindo — ela só deixou de ser
-          visível porque cai fora da página.
-
-          O QUE ISSO CUSTA: depende da flor transbordar a caixa. Ela é `w-full`,
-          então a altura dela segue a LARGURA (h ≈ 0.558 × vw), enquanto a caixa
-          segue 24vh + a altura do rodapé. Em telas largas e baixas (1920×1080:
-          flor ~1072px contra caixa ~800px) sobra flor e o corte cai fora. Em
-          telas estreitas e altas a conta pode inverter — aí a base reta pousa
-          DENTRO da página. Se aparecer uma linha reta no pé da flor, é isto, e
-          o conserto é no asset (dar base própria a ele), não em remascarar. */}
+        {/* SCRIM sutil — quase nada no topo (a cena segue à vista), subindo só
+          o necessário pro texto no pé. É o único escurecimento; nada de placa
+          preta nem card opaco. Se o texto ficar apagado sobre a flor, é ESTE
+          número que sobe, não o card (que agora é transparente). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-[1vh] bottom-0 overflow-hidden"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {/* `-scale-x-100`: o recorte reto do asset fica na ponta esquerda —
-            espelhando, ele cai fora do lado que a cena mostra. */}
-          <img src={CTA_FLOWER} alt="" className="absolute inset-x-0 top-0 w-full -scale-x-100" />
-        </div>
-
-        {/* `relative` senão o card fica ATRÁS do gradiente e da flor.
-          SEM `pt`, e agora por um motivo mais forte que antes: `pt` aqui é
-          literalmente o vão que o pedido veio matar. O `-mt-[16vh]` sobe o
-          wrapper por cima do palco e a zona noturna consome esses 16vh por
-          dentro (ver o comentário dela) — então este bloco JÁ começa no pé
-          exato do palco. Qualquer padding aqui descola o card da cena, que é
-          a única coisa que esta caixa não pode fazer.
-
-          SEM bg próprio, e isso é uma regra, não um esquecimento: pintar a
-          noite AQUI é o jeito errado, e custou uma volta. Este div é
-          `relative` e vem DEPOIS da flor no DOM — qualquer fill opaco nele
-          tapa a flor inteira no rodapé (é o mesmo mecanismo que faz o card
-          pintar por cima dela, ver o comentário da flor). A noite mora na
-          PLACA lá em cima, antes da flor. Aqui só o `relative`, que é o que
-          põe o card na frente dela. */}
+          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_bottom,transparent_0,rgba(11,13,18,0.34)_34vh,rgba(11,13,18,0.74)_100%)]"
+        />
         <div className="relative">
           <Footer embedded />
         </div>

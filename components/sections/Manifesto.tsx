@@ -43,6 +43,19 @@ const BLUR_RANGE = {
    céu. Ver o cabeçalho de lib/sky.ts pro raciocínio inteiro. */
 const SKY = skyGradientCss();
 
+/* O navy EXATO em que o vídeo do campo abre (topo de pricing-campo-bg, = SKY_STOPS
+   cauda). É o fundo SÓLIDO da section — a mask bottom derrete o gradiente do céu
+   nele, então a section "termina exatamente no tom de azul que começa o vídeo".
+   Se o vídeo real divergir do webp, reamostrar o frame 1 e cravar aqui (e em
+   SKY_STOPS). */
+const MANIFESTO_END = "#0E133B";
+
+/* Mask bottom: o céu (camada por cima do navy sólido) desmancha nos últimos ~24%,
+   revelando MANIFESTO_END — uma pluma pro azul do vídeo em vez de uma aresta reta.
+   Fica na CAMADA do gradiente, não na section: mascarar a section inteira exporia
+   o body por trás; mascarar só o céu entrega o navy que mora atrás dele. */
+const SKY_MASK = "linear-gradient(to bottom, #000 76%, transparent 100%)";
+
 /* mesmo grão do Features/Pricing — aqui ele tem função, não só textura: um
    gradiente de 130vh com poucos stops faz banding em tela boa, e o ruído
    quebra as faixas. */
@@ -148,9 +161,22 @@ export default function Manifesto() {
       /* Mobile: pb menor que o pt pelo mesmo motivo do md: — a frase de baixo
          encosta no capítulo seguinte; 32vh de cada lado deixava "A Gaia cuida
          do resto." a ~2 telas do mar (ver Mergulho.tsx). */
-      className="relative flex min-h-[110vh] flex-col justify-between overflow-hidden pt-[32vh] pb-[18vh] md:min-h-[160vh] md:pb-[8vh] md:pt-[42vh]"
-      style={{ background: SKY }}
+      className="relative flex min-h-[90vh] flex-col justify-between overflow-hidden pt-[32vh] pb-[30vh] md:min-h-[130vh] md:pb-[24vh] md:pt-[42vh]"
+      /* Fundo SÓLIDO = o navy exato em que o vídeo do campo abre. O céu (gradiente)
+         vem numa camada por cima com mask bottom, e ao desmanchar entrega este
+         navy — a section acaba no mesmo tom em que o vídeo começa. */
+      style={{ background: MANIFESTO_END }}
     >
+      {/* CÉU — o gradiente do Manifesto, agora numa camada própria pra poder ter
+          MASK BOTTOM (ver SKY_MASK). Desmancha nos ~24% de baixo no navy sólido de
+          trás. Fica atrás de tudo (primeiro filho, sem z) — halo, grão e as duas
+          frases seguem por cima como antes. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: SKY, WebkitMaskImage: SKY_MASK, maskImage: SKY_MASK }}
+      />
+
       {/* halo de aurora no crossover — mesma família do Pricing, costura a luz */}
       <div
         aria-hidden

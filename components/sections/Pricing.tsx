@@ -1,14 +1,12 @@
 "use client";
 
-import { useRef } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { IconCheck, IconArrowUpRight } from "@/components/ui/icons";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
-import { Badge } from "@/components/ui/Badge";
 import { pricingGradientCss } from "@/lib/sky";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -18,11 +16,7 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
   ssr: false,
 });
 
-/* Ambiente submerso (cáusticas/raios/partículas) — client-only pelo mesmo
-   motivo: é WebGL. */
-const Underwater = dynamic(() => import("@/components/sections/Underwater"), {
-  ssr: false,
-});
+// Ambiente submerso (Underwater/recife) removido do site em 2026-07-17.
 
 /* ── Pricing ────────────────────────────────────────────────────────────────
    Desktop: REVERT VISUAL pra layout de referência — um card único e largo
@@ -47,7 +41,7 @@ const Underwater = dynamic(() => import("@/components/sections/Underwater"), {
 /* pose fixa do iPhone 3D — [x, y, z] rad. usada no mobile (estático) e espelha
    a pose final [END_TILT[0], END_YAW, END_TILT[1]] do ScrollPhone (desktop),
    pra que as duas versões pousem com a mesma inclinação editorial. */
-const PHONE_POSE: [number, number, number] = [0.1, Math.PI - 0.34, -0.19];
+const PHONE_POSE: [number, number, number] = [0, Math.PI, 0];
 
 const INCLUDES = [
   "Anamnese ilimitada",
@@ -69,11 +63,15 @@ const CARD_SHEEN =
 const NOISE =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
-/* o céu da seção — mesmo idioma do Manifesto/Mergulho: os stops moram em
-   lib/sky (é a cadeia inteira num arquivo só) e entram por style, não por
-   classe. Constante de módulo porque o gradiente é fixo: recalcular a string a
-   cada render não muda nada. */
-const PRICING_SKY = pricingGradientCss();
+/* Fundo INTERIM (água removida 2026-07-17). Continua a lavanda em que o
+   Manifesto/Mergulho morrem (#C0B0D7) e desce ao creme da marca — claro o
+   bastante pro text-neutro-800 ler, sóbrio pro momento da decisão. NÃO é o
+   ambiente final: o pricing ainda vai ganhar a direção escolhida (luz da
+   manhã / consultório / prontuário). pricingGradientCss (o teal submerso)
+   fica em lib/sky, sem uso, até o redesign. */
+const PRICING_SKY =
+  "linear-gradient(180deg, #C0B0D7 0%, #D3CBE0 30%, #E7E0DC 66%, #FAF9F5 100%)";
+void pricingGradientCss;
 
 /* a dissolução do recife na água — ver o comentário longo na cena, lá embaixo,
    pro porquê de existir. Aqui só o número: 30% é a travessia, e ela é ASSIMÉTRICA
@@ -140,6 +138,17 @@ export default function Pricing() {
      (ver comentário longo do bloco AMBIENTE sobre a REEF_MASK). */
   const reefImgRef = useRef<HTMLImageElement>(null);
   const surfaceLightRef = useRef<HTMLDivElement>(null);
+
+  // Campo em motion (ver [data-campo]): só dá autoplay se o usuário não pediu
+  // menos movimento. Sob reduce fica no poster (o mesmo frame parado da webp).
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduceMotion(m.matches);
+    sync();
+    m.addEventListener("change", sync);
+    return () => m.removeEventListener("change", sync);
+  }, []);
 
   useGSAP(
     () => {
@@ -399,144 +408,45 @@ export default function Pricing() {
          d'água sem nada disputando o quadro — recife, god rays, o phone
          afundando — antes de o preço chegar. É a seção virar submersa em vez de
          ser um card sobre um fundo azul. */
-      className="relative overflow-x-clip py-28 md:py-36 lg:pt-[70vh]"
-      style={{ background: PRICING_SKY }}
+      /* -mt-px: mesma fresta de subpixel do Mergulho (alturas em vh → px
+         fracionário), agora na boundary Mergulho→Pricing. Sem isto o creme do
+         <body> vaza como uma linha #CFC3DF de 1px sobre o lavanda (medido em
+         y=421 @390). Puxa o Pricing 1px sobre o Mergulho — invisível porque as
+         duas encostam no mesmo #C0B0D7. */
+      className="relative -mt-px overflow-x-clip py-20 md:py-24 lg:pt-[22vh] lg:pb-24"
+      /* FUNDO = a descida lavanda→creme, e ela é uma CURVA-S de ~480px, não um
+         degradê linear batendo em creme chapado. O Mergulho entrega #C0B0D7
+         lavanda (slope 0); aqui a cor desce pro creme #FAF9F5 e a INCLINAÇÃO
+         morre suave nas duas pontas (stops espaçados por smoothstep: devagar no
+         topo, devagar no creme). Isso é o que conecta as duas seções sem "corte
+         seco": uma rampa curta batendo em chapado cria BANDA DE MACH — o olho
+         inventa uma linha branca na quina mesmo sem pixel algum mais claro que o
+         creme (medido @1920: 0 pixels acima de #FAF9F5, e a faixa continuava).
+         Slope→0 nas pontas mata a quina. Abaixo de 480px o último stop segura o
+         creme. Px (não %) porque a distância é que é a decisão; a section é
+         altíssima (pt-[22vh]+mt-[18vh]) e um % encolheria/esticaria a rampa. */
+      /* FUNDO = a descida lavanda→creme (curva-S). O campo florido NÃO mora
+         aqui: ele é uma camada limitada SOBRE a fita (ver [data-campo] abaixo),
+         que não pode ultrapassar a aresta de baixo do SVG. Este gradiente é só o
+         que costura a emenda com o Mergulho (#C0B0D7, topo) e entrega o creme
+         que vive ABAIXO da fita, no rodapé da seção. */
+      style={{
+        background:
+          "linear-gradient(180deg,#C0B0D7 0px,#C3B4D9 67px,#CBBEDD 134px,#D6CBE2 202px,#E4DDEA 274px,#EFEBEF 341px,#F6F5F3 408px,#FAF9F5 480px)",
+      }}
     >
-      {/* AMBIENTE — a cena é uma FAIXA DE RODAPÉ de h-[30%], não o fundo inteiro
-          da seção. O recife é um asset composto (recife distante dissolvido na
-          névoa azul ao fundo, uma água-viva à deriva, o monograma "A" luminoso
-          pousado num afloramento de coral à direita do centro, corais e areia
-          ondulada na frente). Acima da faixa quem aparece é o PRICING_SKY puro,
-          e é sobre ele que o h2 é lido.
-
-          O ENQUADRAMENTO É QUEM SALVA O MONOGRAMA, e ele é o object-center
-          PADRÃO — o que parece "não ter decisão" aqui é a decisão. A faixa só
-          mostra uma janela do asset (no cover a largura manda), e o "A" mora
-          entre 32,9% e 70,2% da altura dele. Medido nos três cortes: object-top
-          decepa a base, object-bottom deixa só o pé, e só o centrado o mostra
-          inteiro.
-
-          TUDO AQUI EM FRAÇÃO DA ALTURA, de propósito: o Next/Image serve o asset
-          REESCALADO (a 1440 chega 1440×1075, não os 1920×1434 do arquivo), então
-          conta em px do arquivo-fonte mente. Já mentiu: comparar bbox do original
-          contra janela do servido deu "monograma cortado" numa tela onde ele está
-          inteiro.
-
-          A JANELA VISÍVEL = altura_da_faixa / (largura_da_viewport / 1,339), em
-          fração — e ela ENCOLHE conforme a viewport ALARGA, que é o contra-senso
-          do cover aqui. O "A" precisa de ≥40,4% da altura pra entrar inteiro:
-            1440 → 51,0% visível (janela 24,5–75,5%) → inteiro, folga 8,4/5,3
-            1920 → 38,2% visível (janela 30,9–69,1%) → base cortada em 1,1%
-          O corte a 1920 fica CONFERIDO como aceitável: 1,1% cai na linha em que
-          o "A" já entra no coral, então some no desenho em vez de ler como
-          decepado. Se um dia incomodar, o caminho não é o object-position (já é o
-          centro, que é o melhor corte): é subir a faixa pra ~32% ou recortar o
-          asset pra perto da proporção da faixa, pra o cover parar de ampliar.
-
-          O céu próprio da section (PRICING_STOPS em lib/sky) não morre com a
-          mudança: ele segue sendo o que aparece acima da faixa e nos ~100px de
-          fade da REEF_MASK — é ele que emenda o creme do Mergulho no teal
-          deste asset. z-0 pra ficar atrás de tudo; por cima da cena seguem as
-          cáusticas do Underwater e o film grain, na mesma ordem de antes — o
-          Underwater é `multiply`, então tinge o recife sem lavar. Ver o
-          cabeçalho de Underwater.tsx pro porquê da água ser clara (a pill
-          escura do CTA foi desenhada pra viver sobre o creme).
-
-          A MÁSCARA NÃO É ENFEITE — é o que faz a emenda existir.
-
-          O asset antigo era céu liso: uma cor só na borda do corte, então
-          bastava o gradiente terminar naquela cor exata e a emenda sumia sem
-          máscara nenhuma. Este não é. A borda de cima do recife varia no
-          horizontal — os cantos batem ~#5BC2DD/#68C5DE e o meio clareia pra
-          ~#A8E3F3, 86/255 de amplitude só no vermelho. Contra isso NENHUMA cor
-          única de gradiente fecha a conta. Uma cor não resolve variação;
-          só a dissolução resolve. Daí o mesmo recurso da DIVE_MASK do
-          Underwater (transparent → black nos primeiros %): o recife entra por
-          fade em cima e a linha reta não tem onde aparecer. ~100px de travessia
-          a 1440 — o bastante pra sumir, pouco o bastante pra não lavar o
-          coral. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[30%]"
-        style={{
-          maskImage: REEF_MASK,
-          WebkitMaskImage: REEF_MASK,
-        }}
-      >
-        <Image
-          ref={reefImgRef}
-          src="/pricing-reef-bg.webp"
-          alt=""
-          fill
-          priority={false}
-          sizes="100vw"
-          className="object-cover"
-        />
-      </div>
-      {/* luz de superfície — segunda camada do parallax de cursor, PERTO
-          (anda ±48/±28 contra os ±10/±4 do recife, ver constantes
-          LIGHT_PARALLAX e REEF_PARALLAX acima). z-0, mesma faixa do
-          recife, e DEPOIS dele no DOM/ANTES do Underwater — fica atrás do
-          conteúdo e atrás das cáusticas. O translate anda o div inteiro
-          (inset-0, cobrindo a section); o gradiente fica centrado nele via
-          background-position, então mover o div move o halo. */}
-      <div
-        ref={surfaceLightRef}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-0 mix-blend-screen"
-        style={{
-          backgroundImage: SURFACE_LIGHT_GRADIENT,
-          backgroundSize: SURFACE_LIGHT_SIZE,
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-        }}
-      />
-      <Underwater />
-      {/* film grain — overlay estático, mistura suave */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.045] mix-blend-soft-light"
-        style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
-      />
-
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
-        {/* framing editorial — eyebrow + título grande à esquerda */}
-        <div data-reveal>
-          <Badge tone="light">Preço</Badge>
-          {/* max-w em ch VAI NO h2, não no pai: ch resolve na font-size do próprio
-              elemento — no pai (16px) daria ~120px e quebrava o título em 4 linhas */}
-          <h2 className="mt-6 max-w-[13ch] text-balance font-title text-h2 font-medium leading-[1.02] text-neutro-800 md:text-[4rem] lg:max-w-[11ch] lg:text-[5rem] lg:leading-[0.94] lg:tracking-[-0.032em] xl:text-[6rem]">
-            Sem surpresa no{" "}
-            {/* azul-700, não neutro-600: a escala neutro MUDA DE MATIZ na
-                rampa — é fria no 800/700 (#2B2E3A) e vira quente no 600/500
-                (#8E8E86 é oliva). O título escuro usa neutro-800 e casa com o
-                fundo; este itálico caía justo onde a escala esquenta, e lia
-                sujo contra a água azul-lavanda.
-
-                ESTE PONTO NÃO PASSA EM CONTRASTE, E NÃO TEM COMO PASSAR SEM
-                MATAR O TÍTULO DE DOIS TONS. Medido contra o fundo real (a água
-                da seção nesta altura, mediana sobre a caixa do span):
-                neutro-600 dava 2.27:1, azul-600 dá 1.97, azul-700 dá 2.85 —
-                todos abaixo do 3:1 que texto grande pede. Só azul-800 (3.94)
-                passa, e ele é praticamente o neutro-800 da primeira linha: o
-                itálico deixaria de ser voz secundária e o contraste entre as
-                duas linhas morreria. azul-700 é o teto do que dá pra fazer
-                mantendo o desenho — e ainda assim é MELHOR que o 2.27 que
-                estava aqui antes, além de frio. Se um dia o contraste tiver
-                que passar de verdade, o caminho não é escurecer o texto: é
-                escurecer/desfocar a água atrás dele.
-
-                OS NÚMEROS ACIMA SÃO DE ANTES DA TROCA DO ASSET (o céu/musgo
-                virou recife; ver PRICING_STOPS em lib/sky) e não foram
-                remedidos com o mesmo método. A água aqui era periwinkle
-                (~#748EB7) e virou teal (~#75A3B4): mesma luminância, matiz
-                outro — o veredito (só azul-800 passa, e passar custa o
-                desenho) sobrevive à troca, mas os decimais não. Remedir antes
-                de citá-los como prova. */}
-            <span className="italic text-azul-700">fim do mês.</span>
-          </h2>
-        </div>
-      </div>
+      {void [
+        REEF_MASK,
+        SURFACE_LIGHT_GRADIENT,
+        SURFACE_LIGHT_SIZE,
+        NOISE,
+        PRICING_SKY,
+      ]}
+      {/* FITA — o SVG mudou-se pra DENTRO do container do desktop (logo abaixo),
+          pra centrar na altura do grid card+phone e o entalhe cair atrás deles,
+          como na referência 286:48. Antes vivia aqui no nível da section, mas a
+          section é altíssima (a descida submersa, pt-[22vh]+mt-[18vh]) e um
+          top-1/2 daqui centrava a fita ACIMA do grid, solta do phone. */}
 
       {/* ══ DESKTOP (lg+) ═══════════════════════════════════════════════════
           MESMO palco do header (max-w-6xl px-6 md:px-10 lg:px-16), de
@@ -549,7 +459,104 @@ export default function Pricing() {
           folgados as 904px que card (560) + gap (56) + phone (288) somam;
           a 1024 (piso do lg) os 896px de conteúdo cabem os 707px de
           460+40+207. Container único = borda única. */}
-      <div className="relative z-10 mx-auto mt-12 hidden w-full max-w-6xl px-6 md:px-10 lg:px-16 lg:block">
+      <div className="relative z-10 mx-auto mt-12 hidden w-full max-w-6xl px-6 md:px-10 lg:mt-[18vh] lg:block lg:px-16">
+        {/* FITA (node 286:47 do Figma, SVG exato) — o retângulo com UM entalhe
+            trapezoidal descendo no meio-direita. Agora é FILL DA SECTION: sai do
+            wrapper max-w-6xl e sangra de borda a borda da viewport
+            (left-1/2 -ml-[50vw] w-screen — o -mx casa com o max-w centrado). É a
+            direção 286:48: a fita roxa preenche a largura toda e o card
+            (esquerda) + phone (direita) montam POR CIMA dela, subindo acima do
+            topo dela; a base do phone é clipada exatamente nesta aresta de baixo
+            (ver [data-phone-clip] + ScrollPhone).
+
+            aspect-[775/217] trava a proporção NATIVA — o entalhe NÃO distorce por
+            mais larga que a fita fique (preserveAspectRatio="none" só preenche a
+            caixa, que já tem a razão do viewBox). A base fica ancorada ao fundo
+            do grid por bottom-[BAND_LIFT]: é essa folga que o phone ultrapassa e
+            que o clip corta, dando o "phone emergindo de trás da fita". Gradiente
+            #9080FA→#8F066D@0.25 userSpaceOnUse, idêntico ao paint0_linear do
+            arquivo exportado — o roxo pedido, preservado. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[185px] left-1/2 z-0 -ml-[50vw] w-screen xl:bottom-[215px]"
+        >
+          {/* CAMPO FLORIDO — a imagem-hero vive SOBRE a fita e é LIMITADA por
+              ela: bottom-0 ancora na aresta de baixo do wrapper, que é o fim do
+              SVG, então a imagem nunca ultrapassa o "final do svg" (pedido da
+              Laura). O aspect nativo (775/624) sobe a partir daí pra mostrar
+              céu + o "A" + o campo. A mask no bottom (to top: transparente→opaco
+              em ~20%) derrete a base do campo no escuro da fita — grama escura e
+              fita near-black viram o mesmo pixel na emenda, sem aresta. z-10 pra
+              ficar POR CIMA da fita; abaixo do card (grid z-[1]) e do phone
+              (overlay z-[60]). Abaixo da fita continua o creme do fundo. */}
+          {/* Era um <div> com bg-[url] da webp; virou VÍDEO — a MESMA imagem em
+              motion (pedido da Laura). Mesma caixa, mesmo aspect, MESMA mask
+              (topo+bottom). poster = a webp de sempre, então enquanto o arquivo de
+              vídeo não existir (ou sob reduce) o quadro parado idêntico aparece —
+              zero regressão. Soltar o vídeo em public/pricing-campo-motion.mp4 e
+              ele assume. object-cover object-center replica o bg-cover bg-center. */}
+          <video
+            data-campo
+            aria-hidden
+            poster="/pricing-campo-bg.webp"
+            src="/pricing-campo-motion.mp4"
+            autoPlay={!reduceMotion}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            /* bottom-[41%]: a imagem termina numa LINHA RETA acima do entalhe —
+               ~41% acima da base da fita, que espelha a proporção do Figma
+               (imagem 280 morre a 58,7% do topo da fita). Assim ela é
+               RETANGULAR e NÃO desce pelo recorte onde o phone está; abaixo dela
+               fica a faixa escura + o entalhe (com o phone) + o creme. O melt do
+               bottom é curto (3%) pra grama derreter no escuro sem virar recorte
+               — retangular, como pedido. */
+            className="pointer-events-none absolute inset-x-0 bottom-[49%] z-10 aspect-[775/624] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_top,transparent_0%,#000_3%,#000_84%,transparent_100%)] [mask-image:linear-gradient(to_top,transparent_0%,#000_3%,#000_84%,transparent_100%)]"
+          />
+          <div data-phone-clip className="relative aspect-[759/77] w-full">
+            <svg
+              viewBox="0 0 759 76.999"
+              preserveAspectRatio="none"
+              fill="none"
+              className="h-full w-full"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* Geometria EXATA do Figma (Frame 157 · node 303:119 "Union",
+                  export SVG). A fita renderizava alta demais: o wrapper era
+                  aspect-[775/217] (~3.57:1) full-bleed, ~2.8× mais alto que o
+                  nativo do design (759/77 ≈ 9.9:1), então o entalhe descia fundo
+                  e agressivo em vez de raso. Agora aspect-[759/77] devolve a fita
+                  larga-e-rasa do desenho. Faixa reta até y40.89, tab até y77
+                  (aresta de baixo = clip do phone). As proporções reto/tab
+                  (~53/47) são as mesmas de antes, então campo (bottom-49%) e clip
+                  seguem ancorados por %. */}
+              <path
+                d="M759 40.8887H700.968L649.862 76.999H402.763L352.659 40.8887H0V0H759V40.8887Z"
+                fill="url(#pricing-band)"
+              />
+              <defs>
+                <linearGradient
+                  id="pricing-band"
+                  x1="-9.833"
+                  y1="4.059"
+                  x2="350.467"
+                  y2="152.47"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  {/* DARK (2026-07-17): a fita virou escura pra pousar sobre o
+                      campo ao crepúsculo — near-black com um leve roxo, mesma
+                      forma/entalhe de antes. Opaca nas duas pontas (era 0.25 na
+                      segunda) porque agora ela precisa ocultar a base do phone
+                      no clip, não só tingir. */}
+                  <stop stopColor="#211A3C" />
+                  <stop offset="1" stopColor="#0D0A1B" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+        </div>
+
         {/* vidro claro em gradiente diagonal — lavanda saturada
             (topo-esquerda) até creme opaco (baixo-direita), na diagonal
             COMPLETA original. O checklist não tem mais vidro próprio nem
@@ -589,7 +596,7 @@ export default function Pricing() {
             vidro (preço) e o slot de tamanho fixo (phone) — cada um
             assentando centrado no próprio tamanho, não um par de cards
             precisando ler com a mesma altura. */}
-        <div className="relative z-[1] grid grid-cols-[minmax(0,460px)_207px] items-center gap-x-10 xl:grid-cols-[minmax(0,560px)_288px] xl:gap-x-14">
+        <div className="relative z-[1] grid grid-cols-[minmax(0,420px)_254px] items-end gap-x-10 xl:grid-cols-[minmax(0,500px)_338px] xl:gap-x-14">
           {/* CARD DO PREÇO — coluna 1 (primeiro na leitura e no DOM):
               título, preço, checklist compacto e CTA. Sem badge "Plano
               único" — o card abre direto no h3 (removida; a versão MOBILE,
@@ -599,7 +606,19 @@ export default function Pricing() {
               cadenciamento de entrada de sempre. */}
           <div
             data-glass
-            className="relative overflow-hidden rounded-[2.5rem] border border-white/60 bg-[linear-gradient(135deg,rgba(193,169,211,0.78)_0%,rgba(234,223,239,0.42)_40%,#FAF9F5_86%)] p-10 shadow-glass backdrop-blur-xl backdrop-saturate-[1.1] xl:p-14"
+            /* -ml grande de propósito: a fita 286:48 tem o tab trapezoidal
+               centrado no viewport (~x665→761 a aba ESQUERDA @1440 xl / ~x473→541
+               @1024 lg). Com o card só em -ml-16 a borda dele (~x704) caía em cima
+               dessa aba e o recorte sumia. -ml-14 (lg) / -ml-28 (xl) recuam o card
+               pra ~x468 / ~x656 — atrás do início do tab — então a aba esquerda do
+               recorte fica visível entre o card e o phone, como na ref 286:48. */
+            /* LIFT via MARGIN, não transform: o reveal do GSAP anima
+               transform.y ([data-glass] y:44→0) e clobra qualquer -translate-y
+               do Tailwind — por isso o lift tem que ser margem (como o -ml já
+               é). -mt negativo sobe o card pra ele pousar ACIMA do corte (a
+               fita), na grama, sem sobrepor o escuro. Escala por breakpoint
+               porque a fita é w-screen (altura ∝ vw). */
+            className="relative -ml-14 -mt-[268px] self-start overflow-hidden rounded-[2.5rem] border border-white/60 bg-[linear-gradient(135deg,rgba(193,169,211,0.78)_0%,rgba(234,223,239,0.42)_40%,#FAF9F5_86%)] px-10 py-12 shadow-glass backdrop-blur-xl backdrop-saturate-[1.1] xl:-ml-28 xl:-mt-[330px] xl:px-12 xl:py-16"
           >
             {/* realce de vidro — camada separada, padrão CARD_SHEEN do CTAFinal */}
             <div aria-hidden className={CARD_SHEEN} />
@@ -610,7 +629,7 @@ export default function Pricing() {
               className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/60 to-transparent"
             />
 
-            <div className="relative z-[1] flex flex-col gap-5">
+            <div className="relative z-[1] flex flex-col gap-6">
               <h3
                 data-zone
                 className="font-title text-[1.75rem] font-medium leading-[1.05] text-neutro-800 xl:text-[2.25rem]"
@@ -693,7 +712,7 @@ export default function Pricing() {
                 <p className="font-body text-[13px] text-azul-700">
                   Tudo incluído. <span className="italic">Sem add-on.</span>
                 </p>
-                <ul data-includes className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <ul data-includes className="grid grid-cols-1 gap-y-2.5">
                   {INCLUDES.map((item) => (
                     <li key={item} className="flex items-center gap-2.5">
                       <IconCheck
@@ -745,10 +764,20 @@ export default function Pricing() {
               (xl) e h-368/w-207 (lg) foram recalculados pra bater nisso:
               largura-alvo = 0,22×largura-do-card, altura = largura-alvo /
               0,58. Menor slot = card mais baixo = sem sobra no rodapé. */}
+          {/* 2026-07-17 — REVERTIDO pra grande: a referência 286:48 quer o
+              aparelho DOMINANTE à direita, sangrando muito pra fora da fita em
+              cima e embaixo (na ref o phone é ~2,9× a altura do corpo da fita).
+              O slot voltou a crescer — h-600/w-338 (xl) e h-440/w-248 (lg),
+              razão 0,5625 mantida — porque o ScrollPhone lê rect.height DESTE
+              slot pra escalar o phone (endG = rect.height/PHONE_FILL/900), então
+              é aqui, e só aqui, que se controla o tamanho renderizado. */}
           <div
             data-phone-end
             aria-hidden
-            className="pointer-events-none relative z-20 mx-auto h-[368px] w-[207px] xl:h-[512px] xl:w-[288px]"
+            /* -translate-y-10 sobe o slot 40px; o ScrollPhone lê o rect VIVO
+               deste slot (getBoundingClientRect, que inclui o transform), então
+               o phone renderizado pousa 40px mais alto — sem tocar em ScrollPhone. */
+            className="pointer-events-none relative z-20 mx-auto h-[540px] w-[254px] -translate-y-10 translate-x-[80px] xl:h-[720px] xl:w-[338px] xl:translate-x-[130px]"
           />
         </div>
       </div>

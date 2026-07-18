@@ -45,12 +45,19 @@ const BACKDROP = "/quem-construiu-olhos.webp";
 // Nenhum ease conserta latência de decode. A forma awwwards (Apple AirPods et al.) é
 // pré-decodificar os frames em ImageBitmap e desenhar num <canvas> — seek síncrono,
 // custo de um drawImage — com crossfade sub-frame entre vizinhos (o degrau vira motion
-// blur) e scrub amortecido (ver o damp no useGSAP). 73 webp q68 = 5.0MB, o mesmo
-// payload do mp4 que substituem. SÓ carrega no modo pinned (Armadilha 4) — o fallback
-// stacked/mobile nunca busca um frame.
+// blur) e scrub amortecido (ver o damp no useGSAP). SÓ carrega no modo pinned
+// (Armadilha 4) — o fallback stacked/mobile nunca busca um frame.
+//
+// QUALIDADE (pedido da Laura "aumente a qualidade da intro"): reencodados do MASTER
+// pristino (3852×2152) a 2400×1340 q84 (antes 1920×1072 q68, 5MB → agora ~11MB). O
+// salto de q68→q84 mata o mush de compressão (pele/cílios/veias da esclera) e os
+// 2400px dão backing retina nítido no full-bleed (o dpr do canvas é capado em SEQ_W/vw,
+// ver resizeCanvas — subir SEQ_W foi o que destravou a nitidez em tela 2×). A geometria
+// abaixo (SEQ_W/H, DISC_*) foi TODA reescalada ×1.25 do espaço 1920 pro 2400 — mesma
+// anatomia, só num raster maior; as FRAÇÕES da íris não mudam.
 const SEQ_FRAMES = 73;
-const SEQ_W = 1920;
-const SEQ_H = 1072;
+const SEQ_W = 2400;
+const SEQ_H = 1340;
 const seqSrc = (i: number) => `/olho-seq/olho-${String(i + 1).padStart(3, "0")}.webp`;
 
 // Geometria da íris (centro = pupila), MEDIDA no frame de origem (3852×2152) como
@@ -64,18 +71,19 @@ const IRIS_W_FRAC = 0.2191;
 const IRIS_H_FRAC = 0.3281;
 
 // ── Disco pupila+íris no frame FINAL (73) — a anatomia que o portal imita ──────
-// MEDIDO no frame com grade de 95px (px do frame 1920×1072, não fração): centro
-// (1103, 539) e raios 235×190. É uma ELIPSE (aspect 0.81) — o olho está em leve
-// 3/4, a pupila nunca foi um círculo perfeito na tela. Duas coisas nascem daqui:
-// a MÁSCARA do portal (que abre nesta elipse, não num círculo genérico — círculo
-// era o que fazia a transição ler como wipe de slideshow, não como pupila) e o
-// ANEL DE ÍRIS (sprite recortado em runtime do próprio frame 73, ver
-// buildIrisSprite no useGSAP: limbus escuro + textura + veias da esclera, com
-// alpha radial elíptico) que cavalga a borda do portal enquanto ele dilata.
-const DISC_CX_SRC = 1103;
-const DISC_CY_SRC = 539;
-const DISC_RX_SRC = 235;
-const DISC_ASPECT = 190 / 235; // ry/rx ≈ 0.81
+// MEDIDO no frame de 1920×1072 (grade de 95px): centro (1103, 539) e raios 235×190.
+// REESCALADO ×1.25 pro raster de 2400×1340 (ver bloco do SEQ_W acima): centro
+// (1378.75, 673.75) e raios 293.75×237.5 — MESMA elipse, só em px maiores. Aspect
+// 0.81 (o olho está em leve 3/4, a pupila nunca foi círculo perfeito). Duas coisas
+// nascem daqui: a MÁSCARA do portal (que abre nesta elipse, não num círculo genérico
+// — círculo lia como wipe de slideshow, não como pupila) e o ANEL DE ÍRIS (sprite
+// recortado em runtime do próprio frame 73, ver buildIrisSprite no useGSAP: limbus
+// escuro + textura + veias da esclera, com alpha radial elíptico) que cavalga a
+// borda do portal enquanto ele dilata.
+const DISC_CX_SRC = 1378.75;
+const DISC_CY_SRC = 673.75;
+const DISC_RX_SRC = 293.75;
+const DISC_ASPECT = 190 / 235; // ry/rx ≈ 0.81 (razão inalterada pelo reescalamento)
 // Fim do fade EXTERNO do sprite, em múltiplos de rx — até onde entra esclera/veias.
 const DISC_SPRITE_OUT = 1.35;
 
@@ -706,7 +714,7 @@ export default function ARoberta() {
       //    com alpha fracionário. É o que apaga o degrau dos 73 frames — entre dois
       //    quadros o olho atravessa um blend contínuo, lido como motion blur, não
       //    como salto. (Backing do canvas tem teto na resolução da fonte: dpr acima
-      //    de 1920/vw só queima fill-rate ampliando webp, sem ganhar nitidez.)
+      //    de SEQ_W/vw só queima fill-rate ampliando webp, sem ganhar nitidez.)
       //
       // 3. DAMP — o scroll escreve só seq.target; um ticker leva seq.current até lá
       //    com decaimento exponencial POR deltaTime (frame-rate-independent — lerp
@@ -1009,6 +1017,14 @@ export default function ARoberta() {
         stagger: 0.14,
         scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
       });
+      // Scrim da headline entra junto — a mancha escura só faz sentido quando o texto
+      // aparece (substitui a text-shadow antiga que a Laura reprovou).
+      gsap.from("[data-headline-scrim]", {
+        autoAlpha: 0,
+        duration: 1.1,
+        ease: "power2.out",
+        scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
+      });
       // O retrato NÃO tem tween de entrada disparado por ScrollTrigger próprio — de
       // propósito. O frame de abertura (t=0) precisa ser SÓ o vídeo (olho + glow) +
       // a headline, e um `gsap.from` com `once:true` separado correria contra o
@@ -1069,15 +1085,18 @@ export default function ARoberta() {
           { yPercent: -22, autoAlpha: 0, filter: "blur(10px)", ease: "power2.in", duration: 0.15 },
           0.25,
         )
-        // Beat 1 — MERGULHO: o dolly não para no fim do vídeo; o frame congelado
-        // segue pupila adentro (ver applyDive). Começa exatamente onde o scrub
-        // termina (0.45) — sem gap nem overlap, senão ou sobra um instante de câmera
-        // parada, ou o mergulho arranca com o vídeo ainda trocando de frame.
-        // power2.in, não inOut: aceleração contínua através do portal — a queda só
-        // desacelera no pouso do retrato (beat 2).
+        // Beat 1 — MERGULHO/PORTAL: o dolly não para no fim do scrub; o frame
+        // congelado segue pupila adentro (ver applyDive). Começa onde o scrub termina
+        // (0.45). ACELERADO (pedido da Laura: "só mais rápido"): a Laura quis o
+        // efeito de aceleração SÓ aqui, no portal — o olho segue scrubbado 1:1 pelo
+        // scroll, e é este beat que ganha punch. `power3.in` (era power2.in) segura
+        // mais no começo e chicoteia no fim; `duration: 0.2` (era 0.35) encurta o
+        // scroll que o portal consome (~46vh → ~26vh), então ele abre rápido e seco
+        // em vez de arrastar. Composto com o 9^d exponencial do applyDive, o fim é
+        // vertiginoso — a queda só desacelera no pouso do retrato (beat 2).
         .to(
           state,
-          { dive: 1, ease: "power2.in", duration: 0.35, onUpdate: () => applyDive(state.dive) },
+          { dive: 1, ease: "power3.in", duration: 0.2, onUpdate: () => applyDive(state.dive) },
           0.45,
         )
         // Beat 2 — o pouso, DENTRO do portal que ainda abre. O retrato não aparece
@@ -1086,17 +1105,19 @@ export default function ARoberta() {
         // POUSANDO (scale→1, rack focus blur→0, exposição recupera) enquanto o
         // portal termina de abrir — a câmera que vinha caindo desde o olho
         // desacelera e aterrissa do outro lado, sem nenhum frame escuro no caminho.
-        // 0.66 ≈ o portal já visível (d≈0.36); dur 0.44 → pousa em 1.10.
+        // Adiantado pra 0.56 (era 0.66) pra acompanhar o portal mais curto: o retrato
+        // já está pousando QUANDO a máscara abre (não depois), senão o portal rápido
+        // revelaria um retrato ainda parado em 1.12 e o pouso viraria um 2º passo.
         .fromTo(
           "[data-portrait-inner]",
           { scale: 1.12, filter: "blur(10px) brightness(0.82)" },
           { scale: 1, filter: "blur(0px) brightness(1)", ease: "power3.out", duration: 0.44 },
-          0.66,
+          0.56,
         )
-        // O canvas (já 100% coberto pelo retrato mascarado a partir de d=1, tl 0.80)
-        // apaga num .set reversível — nada de compositar um canvas 9× com blur de
-        // 14px atrás de camada opaca pelo resto do pin.
-        .set(seqCanvas.current, { autoAlpha: 0 }, 0.84)
+        // O canvas (já 100% coberto pelo retrato mascarado a partir de d=1, tl 0.65
+        // com o portal encurtado) apaga num .set reversível — nada de compositar um
+        // canvas 9× com blur de 14px atrás de camada opaca pelo resto do pin.
+        .set(seqCanvas.current, { autoAlpha: 0 }, 0.7)
         .to(scrim.current, { autoAlpha: 1, ease: "none", duration: 0.16 }, 0.9)
         // Beat 3 — editorial sobe nos 60vh de baixo; números contam. 1.16: depois do
         // pouso do retrato (0.66+0.44) — o texto entra sobre foto estável e nítida,
@@ -1618,31 +1639,39 @@ export default function ARoberta() {
               bottom-anchored, não top: mais robusto pra uma headline que mora no
               rodapé do frame, imune a diferença de line-height entre fontes.
 
-              text-shadow RECALIBRADO contra o glow magenta real (medido no render,
-              texto escondido, p95 do fundo sob a caixa da headline no frame 0): a
-              sombra difusa antiga (24px/50%) sozinha dava só 2.91:1 (branco sobre o
-              p95 do glow) — abaixo do 3:1 AA de texto grande, e caía pra ~2:1 no pixel
-              mais claro do hotspot. O glow NÃO sustenta o branco sozinho. Trocado por
-              um halo escuro apertado (0/1px/4px a 0.85–0.9 de opacidade — funciona como
-              contorno, não como sombra) + o glow difuso original por baixo pra
-              profundidade. WCAG não modela text-shadow, então o número de 2.91:1 não
-              muda com esse halo — o que muda é a leitura real: o halo cria uma borda
-              quase sólida em volta do glifo, que é o que de fato resolve legibilidade
-              sobre fundo fotográfico imprevisível (mesma técnica de label de mapa). */}
+              LEGIBILIDADE — a Laura reprovou a text-shadow antiga (halo escuro
+              apertado que lia como contorno duro/sujo sobre o glow magenta). Trocada
+              por um SCRIM: uma mancha radial escura ATRÁS do bloco (data-headline-
+              scrim), emplumada, que baixa o fundo fotográfico imprevisível sob o texto
+              sem tocar no glifo — texto branco limpo, o fundo é que cede. Entra junto
+              com as linhas (ver gsap.from no useGSAP) e sai com o bloco. */}
           <div
             ref={headline}
             className="absolute z-30 whitespace-nowrap text-left"
             style={{ left: "38.9%", bottom: "8.6%" }}
           >
+            {/* Scrim atrás do texto — cobre o bloco com folga, borda desmanchada.
+                -z-10 o mantém atrás das linhas; a mancha some antes das bordas (não
+                vira retângulo visível). */}
+            <div
+              data-headline-scrim
+              aria-hidden
+              className="pointer-events-none absolute -inset-x-[18%] -inset-y-[28%] -z-10"
+              style={{
+                background:
+                  "radial-gradient(60% 62% at 42% 54%, rgba(6,2,10,0.62) 0%, rgba(6,2,10,0.42) 42%, rgba(6,2,10,0.16) 68%, transparent 82%)",
+                filter: "blur(14px)",
+              }}
+            />
             <span
               data-word-inner
-              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0 [text-shadow:0_0_1px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.85),0_0_14px_rgba(0,0,0,0.7),0_2px_24px_rgba(20,4,30,0.5)]"
+              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0"
             >
               QUEM ESTÁ
             </span>
             <span
               data-word-inner
-              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0 [text-shadow:0_0_1px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.85),0_0_14px_rgba(0,0,0,0.7),0_2px_24px_rgba(20,4,30,0.5)]"
+              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0"
             >
               POR TRÁS?
             </span>

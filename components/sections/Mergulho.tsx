@@ -93,7 +93,12 @@ export default function Mergulho() {
          390×844, somado ao pb do Manifesto e ao pt do Pricing dava ~2 telas
          de gradiente vazio entre "A Gaia cuida do resto." e "Sem surpresa";
          num phone isso lê como página quebrada, não como respiro. */
-      className="relative min-h-[42vh] overflow-hidden lg:min-h-[6vh]"
+      /* -mt-px: fecha a fresta de 1px em que o creme do <body> vazava entre o
+         Manifesto e esta seção (alturas em vh dão px fracionário → gap de
+         subpixel). Puxa o Mergulho 1px pra cima, sobre a borda do Manifesto —
+         invisível porque as duas encostam no mesmo #C0B0D7. Medido: matava a
+         linha #CEC2DD full-width em y≈684 @1440. */
+      className="relative -mt-px min-h-[42vh] overflow-hidden lg:min-h-[6vh]"
       style={{ background: DIVE_SKY }}
     >
       <div

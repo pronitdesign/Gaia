@@ -26,3 +26,6 @@ npm-debug.log*
 /emenda-mergulho-pricing.png
 /pricing-novo.png
 /aroberta-p0*.png
+
+# brainstorm visual companion
+.superpowers/
