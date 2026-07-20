@@ -1060,7 +1060,7 @@ function MockQuestionarios() {
             linha do grid: o Antropometria ao lado é quem dita essa altura, e
             ela é fixa). O pb-10 sobra de propósito: é o vidro vazio embaixo
             da última linha onde o Insight pousa por cima. */}
-        <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax ml-14 -mr-7 rounded-[18px] p-4 pb-10 md:ml-16 md:-mr-8 " + GLASS_ON_LIGHT}>
+        <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax ml-8 -mr-7 rounded-[18px] p-4 pb-10 md:ml-10 md:-mr-8 " + GLASS_ON_LIGHT}>
           <div className="mb-1 flex items-baseline justify-between">
             <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
             <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
@@ -1781,7 +1781,7 @@ function ProntuarioLeft() {
    mente sobre o tamanho dele. */
 function ProntuarioRight() {
   return (
-    <div className="pointer-events-none absolute right-[1%] top-1/2 hidden w-[240px] -translate-y-1/2 flex-col gap-5 lg:flex xl:right-[2%]">
+    <div className="pointer-events-none absolute right-[3%] top-1/2 hidden w-[240px] -translate-y-1/2 flex-col gap-5 lg:flex xl:right-[5%]">
       {/* par da direita SEM rotação, borda direita flush: Calibragem preenche o
           container e Exames (mais estreito) cola na mesma borda via self-end. */}
       <div data-enter-delay={40} style={px(1.5, 0)} className={"gaia-parallax gaia-converge-r rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
@@ -2592,6 +2592,50 @@ export default function Features() {
 
   return (
     <section ref={root} id="features" className="relative overflow-hidden bg-[#0A0C11] py-24 md:py-32">
+      {/* Luz ambiente — um feixe frouxo descendo do canto superior esquerdo.
+          Minimalista de propósito: radial largo e fraco direto sobre o #0A0C11
+          (sem blend-mode, que a esta luminância ~12 mal moveria o pixel), com um
+          fio de lavanda pra concordar com a marca sem pintar a cena. Fica no
+          fundo, sem z-index, atrás do conteúdo z-10 e dos cards. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(120% 90% at 0% 0%, rgba(188,176,214,0.10) 0%, rgba(188,176,214,0.035) 30%, transparent 58%)",
+        }}
+      />
+      {/* Pontes de luz — poças neutras nas frestas escuras do bento. Fica atrás
+          dos cards (z abaixo do conteúdo z-10): como os cards são opacos, a luz
+          só ESCAPA nos vãos e por baixo das quinas arredondadas — é o que a lê
+          como luz vinda de trás, não como halo por card.
+          NEUTRA (mesma lavanda do ambiente), NÃO a cor de conteúdo de cada card:
+          é essa a diferença da versão que a régua do Zouti reprovou (linhas
+          61-75), onde seis cores viravam arco-íris nos vãos. Aqui é um tom só.
+          NÃO PODE SER MARCADA: por isso o `blur(38px)` no layer + o stop externo
+          esticado até 82% — o que mataria a forma é o olho achar uma borda, e não
+          há nenhuma pra achar. E fica COLADA nos cards: os centros pousam nas
+          bordas/quinas, não no meio do vão, então a luz huga a silhueta em vez de
+          boiar na fresta.
+          Só md+ (o layout de coluna única no mobile não tem esses vãos).
+          Posições em % do 1440×2575 medido no DOM:
+          cruz central (50% 36,6%), seam baixo (50% 54,8%), borda do Exames
+          (84% 45,7%), abaixo da quina de baixo do Plano (14,5% 72,5%) e bem
+          acima da quina de cima do Prontuário (14,5% 70%). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 hidden md:block"
+        style={{
+          filter: "blur(38px)",
+          background: [
+            "radial-gradient(280px 240px at 50% 36.6%, rgba(188,176,214,0.085) 0%, rgba(188,176,214,0.028) 42%, transparent 82%)",
+            "radial-gradient(280px 240px at 50% 54.8%, rgba(188,176,214,0.08) 0%, rgba(188,176,214,0.026) 42%, transparent 82%)",
+            "radial-gradient(240px 280px at 84% 45.7%, rgba(188,176,214,0.07) 0%, rgba(188,176,214,0.022) 44%, transparent 84%)",
+            "radial-gradient(260px 240px at 14.5% 72.5%, rgba(188,176,214,0.08) 0%, rgba(188,176,214,0.026) 42%, transparent 82%)",
+            "radial-gradient(260px 240px at 14.5% 70%, rgba(188,176,214,0.075) 0%, rgba(188,176,214,0.024) 42%, transparent 82%)",
+          ].join(","),
+        }}
+      />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
         <header className="mb-14 max-w-2xl md:mb-16">
           <span data-reveal className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">
@@ -2909,8 +2953,18 @@ export default function Features() {
                 <CardBody tone="hero">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
               </div>
 
-              {/* mobile/tablet — sem phone 3D: satélites empilhados */}
-              <ProntuarioStacked />
+              {/* mobile/tablet — o phone 3D AGORA viaja também no mobile (ver
+                  ScrollPhone, gate liberado). Âncora de início mobile centrada
+                  sobre a pilha de satélites; o aparelho nasce aqui e desce até o
+                  Pricing como no desktop. */}
+              <div className="relative lg:hidden">
+                <ProntuarioStacked />
+                <div
+                  data-phone-start
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 top-1/2 h-[460px] w-[220px] -translate-x-1/2 -translate-y-1/2"
+                />
+              </div>
 
               {/* palco lg+ — clusters flanqueiam e o phone overlay pousa no centro */}
               <div className="relative mt-8 hidden flex-1 lg:block">

@@ -7,7 +7,6 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { IconCheck, IconArrowUpRight } from "@/components/ui/icons";
 import PhoneScreen from "@/components/iphone3d/PhoneScreen";
-import { pricingGradientCss } from "@/lib/sky";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -16,27 +15,35 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
   ssr: false,
 });
 
-// Ambiente submerso (Underwater/recife) removido do site em 2026-07-17.
-
 /* ── Pricing ────────────────────────────────────────────────────────────────
-   Desktop: REVERT VISUAL pra layout de referência — um card único e largo
-   (não mais coluna de 56% + phone sangrando à direita), vidro claro em
-   gradiente diagonal (lavanda → creme). A grade externa tem 2 colunas: o
-   card (título, preço, checklist compacto, CTA) e o slot do phone.
-   O card virou o palco inteiro — não um ledger dentro de um palco maior com
-   auroras próprias; a luz do card agora é o próprio gradiente do vidro, não
-   campos de blur atrás dele.
+   Layout 2026-07-19 (mockup da Laura): o campo florido vira o HERO da seção —
+   full-bleed, aresta de baixo RETA — e dois cards montam sobre a metade de
+   baixo dele. O mockup trazia cards brancos e accent laranja; a Laura pediu o
+   VIDRO que o card antigo já tinha (gradiente diagonal lavanda→creme denso,
+   sheen, borda de luz) e a paleta do DS — só o CONTEÚDO segue o mockup.
+   Card 1 (trial, LARGO): headline serifada "Teste grátis", subtítulo, o CTA
+   padrão da casa (pill ink + seta) e o phone pousando na metade direita,
+   descendo pra fora do card. Card 2 (preço, ESTREITO): toggle Anual/Mensal,
+   lockup do preço, total do período e checklist com checks na cor da marca.
+   (Ordem invertida em 2026-07-19: trial + phone foram pra ESQUERDA, o preço
+   pra coluna estreita da direita — o tab preto acompanhou o phone.)
+
+   A fita preta full-width morreu; sobrou só o TAB trapezoidal (a geometria do
+   entalhe do Figma 303:119) atrás do phone, emergindo da aresta do campo e
+   descendo sobre o creme. Ele é o [data-phone-clip]: o ScrollPhone corta o
+   overlay na aresta de BAIXO dele (r.bottom), então o phone lê como mergulhando
+   pra dentro do tab.
 
    Mobile (<lg): comportamento antigo preservado — aparelho estático em fluxo,
-   conteúdo empilhado num único card de vidro escuro abaixo.
+   conteúdo empilhado num único card de vidro escuro abaixo (agora com o mesmo
+   toggle/preço do desktop, via o mesmo estado React).
 
    STACKING: o ScrollPhone é um overlay `fixed z-[60]` na raiz que lê o rect
-   vivo de [data-phone-end] a cada frame. O slot vive em fluxo normal dentro
-   da coluna central do card (não mais absoluto/sangrando) — é o que faz o
-   card crescer até a altura do phone e é exatamente essa altura que dá ao
-   phone o "chão" pra pousar; como o overlay é z-[60] e o card não passa
-   de z-20, o phone sempre lê como flutuando SOBRE o vidro, mesmo ocupando
-   uma coluna real do grid. */
+   vivo de [data-phone-end] a cada frame. O slot agora é ABSOLUTO dentro do
+   card do trial (não mais coluna do grid): a altura do grid vem só dos cards,
+   e o slot pode descer além do rodapé deles sem esticar nada. Como o overlay
+   é z-[60] e os cards não passam do z do container, o phone sempre lê como
+   flutuando SOBRE os cards. */
 
 /* pose fixa do iPhone 3D — [x, y, z] rad. usada no mobile (estático) e espelha
    a pose final [END_TILT[0], END_YAW, END_TILT[1]] do ScrollPhone (desktop),
@@ -50,94 +57,60 @@ const INCLUDES = [
   "Suporte na migração",
 ] as const;
 
+/* PREÇOS por período — o toggle Anual/Mensal troca o lockup inteiro (mensal
+   equivalente + linha de total). Mensal é o preço vigente (R$ 49,90); o anual
+   (R$ 39,90/mês → 478,80/ano) é PLACEHOLDER de negócio até a Laura cravar o
+   desconto real. `monthly` como string já formatada porque é texto de UI, não
+   aritmética — o único consumidor numérico (count-up) faz o parse dele. */
+const PRICES = {
+  anual: { monthly: "39,90", note: "Total de R$ 478,80 anualmente" },
+  mensal: { monthly: "49,90", note: "Cobrado mês a mês, sem fidelidade" },
+} as const;
+type Period = keyof typeof PRICES;
+
 /* easing háptico (spring-like) para os hovers do CTA */
 const HAPTIC = "ease-[cubic-bezier(0.32,0.72,0,1)]";
 
-/* realce de vidro do card desktop — camada SEPARADA (não empilhada dentro do
-   shadow-glass do shell), mesmo padrão do CARD_SHEEN do CTAFinal: 1px de luz
-   na quina de cima. */
+/* vidro claro dos cards desktop — o MESMO efeito do card antigo do Pricing:
+   gradiente diagonal lavanda→creme com alphas DENSOS (~0.95 — o campo atrás é
+   escuro e um vidro mais translúcido lavava o texto, medido no render),
+   borda de luz, shadow-glass e backdrop-blur. rounded-card (40px) idem. */
+const GLASS_DESKTOP =
+  "overflow-hidden rounded-card border border-white/70 bg-[linear-gradient(135deg,rgba(206,190,222,0.95)_0%,rgba(233,225,239,0.94)_45%,rgba(250,249,245,0.97)_92%)] shadow-glass backdrop-blur-xl backdrop-saturate-[1.1]";
+
+/* realce de vidro — camada SEPARADA (não empilhada no shadow-glass do shell),
+   mesmo padrão do CARD_SHEEN do CTAFinal: 1px de luz na quina de cima. */
 const CARD_SHEEN =
   "pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)]";
 
-/* grão fino (film grain) — textura física, aplicado como overlay estático */
-const NOISE =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+/* TAB atrás do phone — trapézio do entalhe do Figma (topo 348 → base 247 numa
+   altura de 36): ~14% de recuo por lado, slant na altura inteira. O topo dele
+   fica ENTERRADO no campo (24px acima da aresta), preto sobre grama escura —
+   é o que faz ele ler como emergindo do campo, não como colado por cima. */
+const TAB_CLIP = "polygon(0 0, 100% 0, 86% 100%, 14% 100%)";
+const TAB_FILL = "linear-gradient(180deg, #161616 0%, #000 100%)";
 
-/* Fundo INTERIM (água removida 2026-07-17). Continua a lavanda em que o
-   Manifesto/Mergulho morrem (#C0B0D7) e desce ao creme da marca — claro o
-   bastante pro text-neutro-800 ler, sóbrio pro momento da decisão. NÃO é o
-   ambiente final: o pricing ainda vai ganhar a direção escolhida (luz da
-   manhã / consultório / prontuário). pricingGradientCss (o teal submerso)
-   fica em lib/sky, sem uso, até o redesign. */
-const PRICING_SKY =
-  "linear-gradient(180deg, #C0B0D7 0%, #D3CBE0 30%, #E7E0DC 66%, #FAF9F5 100%)";
-void pricingGradientCss;
-
-/* a dissolução do recife na água — ver o comentário longo na cena, lá embaixo,
-   pro porquê de existir. Aqui só o número: 30% é a travessia, e ela é ASSIMÉTRICA
-   de propósito (nada em baixo/nas laterais) porque só a borda de cima do asset
-   encosta no gradiente; as outras três morrem fora da tela.
-
-   O % É MEDIDO CONTRA A ALTURA DO ELEMENTO MASCARADO, não contra a section — e a
-   cena é uma faixa de h-[30%]. A travessia em px é que é a decisão (~100px a
-   1440); o % é só como ela se escreve, e por isso ele muda toda vez que a caixa
-   muda de tamanho. A section mede 1826px a 1440 (MEDIDA no render, não estimada
-   — ela é o dobro do que aparenta, e chutar isso já custou um número errado
-   aqui), então a faixa dá 548px:
-     faixa de 30% (548px a 1440) → 18% ≈  99px  ← hoje
-     inset-0      (1826px)       →  5,5% ≈ 100px
-   Manter os 9% que valiam pro inset-0 antigo daria ~49px — degrau visível.
-   Trocar a altura da caixa sem retocar este número quebra a emenda, e quebra em
-   silêncio: a máscara não reclama, ela só fica feia. */
-const REEF_MASK = "linear-gradient(to bottom, transparent 0%, #000 18%)";
-
-/* PARALLAX DE CURSOR — duas camadas em taxas diferentes (setup em useGSAP,
-   abaixo). Recife LONGE anda pouco, luz de superfície PERTO anda mais — é a
-   TAXA DIFERENCIAL entre as duas que lê como profundidade; movê-las iguais
-   leria como foto escorregando, não como paralaxe.
-
-   Y do recife é ±4 e não mais por motivo medido, não por gosto: o comentário
-   do bloco AMBIENTE registra que a 1920 o monograma "A" já corta 1,1% da
-   base, e o REEF_PARALLAX_SCALE abaixo encolhe a janela visível do cover —
-   agrava esse corte. Y maior empurraria o corte pra dentro do visível. Não
-   suba este número sem remedir aquele bloco. */
-const REEF_PARALLAX_X = 10;
-const REEF_PARALLAX_Y = 4;
-/* scale fixo (não animado) só pra dar folga ao translate: sem ele, ±10px de
-   X expõe a borda do cover no <Image>. 1.03 é o mínimo que cobre ±10/±4 sem
-   ampliar mais que o necessário — mais scale = janela visível menor = mais
-   perto do corte do "A" acima. */
-const REEF_PARALLAX_SCALE = 1.03;
-/* luz de superfície: ~5x a amplitude do recife em X. É essa razão — não o
-   valor isolado — que faz a camada ler como "mais perto". */
-const LIGHT_PARALLAX_X = 48;
-const LIGHT_PARALLAX_Y = 28;
-
-/* halo radial da luz de superfície — mesmo idioma do NOISE/REEF_MASK: string
-   de módulo porque o gradiente é fixo. "screen" (não normal/soft-light) no
-   className do overlay porque só clareia: sobre o teal da água acende sem
-   derrubar contraste do texto, que mede contra o vidro do card, não contra
-   este fundo. Tamanho (não o box do div, que cobre a section inteira) é
-   quem desenha a "caixa larga" — 60vw², centrado via background-position. */
-const SURFACE_LIGHT_GRADIENT =
-  "radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 60%)";
-const SURFACE_LIGHT_SIZE = "60vw 60vw";
-
-/* vidro fumê — versão MOBILE: card alto e estreito, single column. Um
-   gradiente diagonal correria quase na vertical nessa proporção e a região
-   mais rala cairia embaixo do checklist/CTA, matando o contraste do texto
-   branco. Por isso aqui é tint uniforme e denso — sem gradiente. */
+/* vidro fumê — versão MOBILE: card alto e estreito, single column. Tint
+   uniforme e denso (sem gradiente) pro texto branco não lavar. */
 const GLASS_MOBILE =
   "bg-[rgba(0,10,26,0.80)] backdrop-blur-[16px] backdrop-saturate-[1.6]";
 
 export default function Pricing() {
   const root = useRef<HTMLElement>(null);
-  /* alvos do parallax de cursor — ver bloco PARALLAX DE CURSOR acima e o
-     setup no useGSAP logo abaixo. reefImgRef aponta pro <Image> INTERNO ao
-     div mascarado, nunca pro div: é o filho que anda, o pai fica parado
-     (ver comentário longo do bloco AMBIENTE sobre a REEF_MASK). */
-  const reefImgRef = useRef<HTMLImageElement>(null);
-  const surfaceLightRef = useRef<HTMLDivElement>(null);
+
+  /* toggle Anual/Mensal — estado único compartilhado por desktop e mobile. */
+  const [period, setPeriod] = useState<Period>("anual");
+  /* o count-up do preço escreve textContent por fora do React; guardar o tween
+     pra poder matá-lo no primeiro toggle — senão ele continua contando pro
+     alvo antigo por cima do valor que o React acabou de escrever. */
+  const priceTween = useRef<gsap.core.Tween | null>(null);
+
+  const switchPeriod = (p: Period) => {
+    if (p === period) return;
+    priceTween.current?.kill();
+    priceTween.current = null;
+    setPeriod(p);
+  };
 
   // Campo em motion (ver [data-campo]): só dá autoplay se o usuário não pediu
   // menos movimento. Sob reduce fica no poster (o mesmo frame parado da webp).
@@ -163,23 +136,9 @@ export default function Pricing() {
       }
       const trigger = { trigger: root.current, start: "top 74%", once: true };
 
-      gsap.set("[data-reveal]", { opacity: 0, y: 44, filter: "blur(10px)" });
-      gsap.to("[data-reveal]", {
-        opacity: 1,
-        y: 0,
-        filter: "blur(0px)",
-        duration: 1.1,
-        ease: "power3.out",
-        scrollTrigger: trigger,
-        /* devolve filter:none no fim — blur(0px) ainda cria stacking context */
-        onComplete: () => gsap.set("[data-reveal]", { filter: "none" }),
-      });
-
-      /* [data-glass] cobre os dois cards de vidro (mobile escuro + desktop
-         claro). Entra sem filter: qualquer filter nele (mesmo blur(0px))
-         mexe em stacking/backdrop root, e é justo o backdrop dele que
-         precisa ficar limpo pro efeito de vidro fosco funcionar — por isso
-         esse tween anima só opacity/y, nunca filter. */
+      /* [data-glass] cobre os três cards (2 brancos desktop + vidro mobile).
+         Entra sem filter: qualquer filter (mesmo blur(0px)) mexe em
+         stacking/backdrop root — o card mobile precisa do backdrop limpo. */
       gsap.set("[data-glass]", { opacity: 0, y: 44 });
       gsap.to("[data-glass]", {
         opacity: 1,
@@ -187,14 +146,13 @@ export default function Pricing() {
         duration: 1.1,
         delay: 0.14,
         ease: "power3.out",
+        stagger: 0.1,
         scrollTrigger: trigger,
       });
 
-      /* Zonas do card desktop — ruler PRÓPRIO ([data-zone], não [data-reveal]):
-         o card inteiro já entra via [data-glass], e este segundo stagger
-         coreografa o que tem DENTRO dele. Delay maior que o do vidro (0.14)
-         pra as zonas nascerem depois que ele já assentou — senão as duas
-         entradas competem pela mesma leitura. */
+      /* Zonas internas dos cards — ruler próprio, delay maior que o do vidro
+         pra nascerem depois que ele assentou. A ordem DOM (headline do trial →
+         CTA → toggle → preço → checklist) é a ordem da cascata. */
       gsap.set("[data-zone]", { opacity: 0, y: 24 });
       gsap.to("[data-zone]", {
         opacity: 1,
@@ -206,16 +164,16 @@ export default function Pricing() {
         scrollTrigger: trigger,
       });
 
-      /* Count-up do preço — 0→49,90 DENTRO da revelação da primeira zona
-         (delay 0.3 = o mesmo instante em que ela começa a subir): o número
-         conta enquanto materializa, um evento só, não um truque depois do
-         outro. Sob reduce nunca chega aqui (guard lá em cima) e o 49,90
-         autoral fica parado. toFixed+replace fecha exatamente em "49,90". */
+      /* Count-up do preço — 0→39,90 (o anual, estado inicial do toggle) DENTRO
+         da revelação da zona do preço. Sob reduce nunca chega aqui e o valor
+         do React fica parado. O tween vive em priceTween pra o toggle poder
+         matá-lo (ver switchPeriod). */
       const price = root.current?.querySelector<HTMLElement>("[data-price]");
       if (price) {
+        const target = Number(PRICES.anual.monthly.replace(",", "."));
         const obj = { v: 0 };
-        gsap.to(obj, {
-          v: 49.9,
+        priceTween.current = gsap.to(obj, {
+          v: target,
           duration: 0.9,
           delay: 0.3,
           ease: "power2.out",
@@ -229,9 +187,8 @@ export default function Pricing() {
         });
       }
 
-      /* Cascata do checklist — as 4 linhas de "tudo incluído" pingam uma a
-         uma dentro da própria zona (que já subiu via [data-zone]); valores
-         mínimos de propósito: é cadência, não segunda entrada. */
+      /* Cascata do checklist — as linhas pingam uma a uma dentro da própria
+         zona; valores mínimos de propósito: é cadência, não segunda entrada. */
       gsap.set("[data-includes] li", { opacity: 0, y: 8 });
       gsap.to("[data-includes] li", {
         opacity: 1,
@@ -242,139 +199,53 @@ export default function Pricing() {
         stagger: 0.06,
         scrollTrigger: trigger,
       });
-
-      /* (pointer: fine) — sem parallax em touch: não tem cursor pra ler,
-         e o listener em todo o window custaria caro sem produzir nada. */
-      const pointerFine = window.matchMedia("(pointer: fine)").matches;
-      if (!pointerFine || !reefImgRef.current || !surfaceLightRef.current) return;
-
-      gsap.set(reefImgRef.current, { scale: REEF_PARALLAX_SCALE });
-
-      /* um quickTo por eixo, por camada — é a inércia do power3.out que vende
-         profundidade; follow instantâneo lê barato (foto colada no cursor,
-         não recife respondendo com peso próprio). */
-      const reefX = gsap.quickTo(reefImgRef.current, "x", { duration: 0.9, ease: "power3.out" });
-      const reefY = gsap.quickTo(reefImgRef.current, "y", { duration: 0.9, ease: "power3.out" });
-      const lightX = gsap.quickTo(surfaceLightRef.current, "x", { duration: 0.9, ease: "power3.out" });
-      const lightY = gsap.quickTo(surfaceLightRef.current, "y", { duration: 0.9, ease: "power3.out" });
-
-      /* normalizado contra a VIEWPORT, não contra a section: a section mede
-         1826px a 1440 (ver nota da REEF_MASK) — normalizar contra ela faria
-         o mesmo gesto de mouse produzir deslocamentos diferentes conforme o
-         cursor estivesse no topo ou no fim da faixa. */
-      const onPointerMove = (e: PointerEvent) => {
-        const nx = (e.clientX / window.innerWidth) * 2 - 1;
-        const ny = (e.clientY / window.innerHeight) * 2 - 1;
-        reefX(nx * REEF_PARALLAX_X);
-        reefY(ny * REEF_PARALLAX_Y);
-        lightX(nx * LIGHT_PARALLAX_X);
-        lightY(ny * LIGHT_PARALLAX_Y);
-      };
-
-      /* listener só existe enquanto a section está no viewport — do
-         contrário ele fica ouvindo pointermove na página inteira pelo
-         resto do scroll, sem nunca produzir efeito visível. */
-      ScrollTrigger.create({
-        trigger: root.current,
-        start: "top bottom",
-        end: "bottom top",
-        onToggle: (self) => {
-          if (self.isActive) window.addEventListener("pointermove", onPointerMove);
-          else window.removeEventListener("pointermove", onPointerMove);
-        },
-      });
-
-      /* ctx.revert() (useGSAP acima) mata tweens e ScrollTriggers sozinho,
-         mas este listener não nasceu de uma chamada gsap — cleanup próprio. */
-      return () => window.removeEventListener("pointermove", onPointerMove);
     },
     { scope: root },
   );
 
-  /* painel de migração morreu junto com o toggle: era um cartão construído
-     em volta do switch (pergunta + "2 meses grátis" + switch), e sem ele
-     não se sustentava como cartão próprio. A informação não sumiu — já
-     está no Preco (abaixo, "Nos 2 primeiros meses. Depois R$ 49,90/mês.")
-     e no Checklist ("Suporte na migração"). Manter o cartão só com a
-     pergunta+resposta estática duplicaria essas duas fontes; removido em
-     vez de colapsado. */
-
-  /* preço — versão MOBILE (grande, como sempre foi no card empilhado).
-     Estado único (sem toggle): sempre o fluxo de migração. */
-  const Preco = (
-    <div>
-      <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 backdrop-blur">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-        Plano único
-      </span>
-
-      <div className="mt-5 flex items-start gap-1.5">
-        <span className="mt-2 font-title text-h3 font-medium text-white/45">R$</span>
-        <span className="font-title text-[4rem] font-semibold leading-[0.85] tracking-[-0.02em] text-white tabular-nums">
-          0
-        </span>
-        <span className="self-end pb-2 font-body text-body-l text-white/40">/mês</span>
-      </div>
-
-      <p className="mt-4 font-body text-small leading-[1.55] text-white/60">
-        Nos 2 primeiros meses.{" "}
-        <span className="text-white/40">Depois R$ 49,90/mês.</span>
-      </p>
+  /* toggle Anual/Mensal — dois skins do mesmo controle: claro (vidro desktop)
+     e escuro (vidro mobile). Ativo em bg-brand (o roxo de CTA do DS, Figma
+     17-38). aria-pressed carrega o estado pra leitores de tela; clicar o
+     ativo é no-op (switchPeriod guarda). */
+  const toggle = (dark: boolean) => (
+    <div
+      className={`inline-flex rounded-full p-1.5 ${
+        dark
+          ? "bg-white/10 ring-1 ring-inset ring-white/15"
+          : "bg-white/45 ring-1 ring-inset ring-white/55"
+      }`}
+    >
+      {(Object.keys(PRICES) as Period[]).map((p) => (
+        <button
+          key={p}
+          type="button"
+          aria-pressed={period === p}
+          onClick={() => switchPeriod(p)}
+          className={`rounded-full px-6 py-2 font-body text-[16px] font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+            period === p
+              ? "bg-brand text-white"
+              : dark
+                ? "text-white/65 hover:text-white"
+                : "text-neutro-800 hover:text-azul-700"
+          }`}
+        >
+          {p === "anual" ? "Anual" : "Mensal"}
+        </button>
+      ))}
     </div>
   );
 
-  /* checklist — versão MOBILE, 2 colunas */
-  const Checklist = (
-    <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-      {INCLUDES.map((item) => (
-        <li key={item} className="flex items-center gap-3">
-          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-inset ring-white/15">
-            <IconCheck className="h-3 w-3" strokeWidth={2.25} />
-          </span>
-          <span className="font-body text-small text-white/70">{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-
-  /* CTA — DARK: pill branca com círculo escuro pra seta. Usada no card mobile,
-     que continua vivendo sobre o vidro escuro. */
+  /* CTA — DARK: pill branca com círculo escuro pra seta. Card mobile. */
   const ctaDark = (
     <a
       href="#"
-      /* duration-200 (era 500) e propriedades explícitas (era -all): meio
-         segundo atrás do cursor lê como lag num CTA — o botão do CTAFinal
-         (o modelo desta casa) já responde em 200; o active:scale herda a
-         mesma duração e o press volta a ser háptico de verdade. */
       className={`group/cta inline-flex shrink-0 items-center gap-3 rounded-full bg-white py-2 pl-6 pr-2 transition-[transform,box-shadow] duration-200 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent`}
     >
       <span className="whitespace-nowrap font-body text-[15px] font-medium text-ink">
-        Migrar e ganhar 2 meses
+        Começar de graça
       </span>
       <span
         className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform duration-200 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
-      >
-        <IconArrowUpRight className="h-4 w-4" />
-      </span>
-    </a>
-  );
-
-  /* CTA — LIGHT: pill escura de novo sobre vidro (a coluna 3 do card único),
-     mas em largura cheia da coluna — justify-between empurra o círculo da
-     seta pra ponta direita, ecoando o "preço ocupa a coluna inteira" da
-     referência. pl-8 (maior que o pr-2 do círculo) porque o texto precisa
-     de mais ar do lado que não tem o círculo compensando visualmente. */
-  const ctaLight = (
-    <a
-      href="#"
-      /* duration-200 + propriedades explícitas — mesma razão do ctaDark acima. */
-      className={`group/cta inline-flex w-full shrink-0 items-center justify-between gap-3 rounded-full bg-ink py-3 pl-8 pr-2 transition-[transform,box-shadow] duration-200 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-neutro-50`}
-    >
-      <span className="whitespace-nowrap font-body text-[15px] font-medium text-white">
-        Migrar e ganhar 2 meses
-      </span>
-      <span
-        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-transform duration-200 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
       >
         <IconArrowUpRight className="h-4 w-4" />
       </span>
@@ -386,115 +257,43 @@ export default function Pricing() {
       ref={root}
       id="pricing"
       /* overflow-x-clip (não -hidden): sem scroll horizontal, mas deixa o Y
-         livre pra cena de fundo sangrar pra cima e fundir com o fim branco
-         do Manifesto sem cortar numa linha reta na borda — era o "corte"
-         visível entre as seções que o -hidden causava. */
-      /* lg:pt-[70vh] — A DESCIDA SUBMERSA. Não é respiro, é SCROLL, e sem ele o
-         mergulho não fecha.
-         O topo desta seção é a linha d'água (ver Mergulho.tsx). Do outro lado
-         dela o leitor está dentro d'água, e a câmera do ScrollPhone vira pra
-         baixo acompanhando esta aresta — é o que abre o Fresnel e faz o recife
-         aparecer através da superfície. Só que a virada precisa TERMINAR e a
-         água precisa dissolver antes de o phone pousar no slot, senão ele pousa
-         visto por uma câmera torta.
-         Medido @1440×787 com pt-36: da linha até o centro do slot havia 624px, e
-         a virada consumia todos. Sobravam 0.03 de p — 80px de scroll — pra
-         desvirar a câmera e matar a água. O erro do horizonte contra a emenda ia
-         a 534px e o recife aparecia cru numa faixa ciano acima da linha d'água.
-         Não era tuning: era falta de espaço. Faltavam ~415px, meio viewport.
-         Em vh e não px porque a dívida é de VIEWPORT: quem paga a conta é a
-         emenda subir a tela inteira, e isso escala com a altura da janela.
-         E o que se ganha não é um vazio: é o único trecho em que se está DENTRO
-         d'água sem nada disputando o quadro — recife, god rays, o phone
-         afundando — antes de o preço chegar. É a seção virar submersa em vez de
-         ser um card sobre um fundo azul. */
-      /* -mt-px: mesma fresta de subpixel do Mergulho (alturas em vh → px
-         fracionário), agora na boundary Mergulho→Pricing. Sem isto o creme do
-         <body> vaza como uma linha #CFC3DF de 1px sobre o lavanda (medido em
-         y=421 @390). Puxa o Pricing 1px sobre o Mergulho — invisível porque as
-         duas encostam no mesmo #C0B0D7. */
-      className="relative -mt-px overflow-x-clip py-20 md:py-24 lg:pt-[22vh] lg:pb-24"
-      /* FUNDO = a descida lavanda→creme, e ela é uma CURVA-S de ~480px, não um
-         degradê linear batendo em creme chapado. O Mergulho entrega #C0B0D7
-         lavanda (slope 0); aqui a cor desce pro creme #FAF9F5 e a INCLINAÇÃO
-         morre suave nas duas pontas (stops espaçados por smoothstep: devagar no
-         topo, devagar no creme). Isso é o que conecta as duas seções sem "corte
-         seco": uma rampa curta batendo em chapado cria BANDA DE MACH — o olho
-         inventa uma linha branca na quina mesmo sem pixel algum mais claro que o
-         creme (medido @1920: 0 pixels acima de #FAF9F5, e a faixa continuava).
-         Slope→0 nas pontas mata a quina. Abaixo de 480px o último stop segura o
-         creme. Px (não %) porque a distância é que é a decisão; a section é
-         altíssima (pt-[22vh]+mt-[18vh]) e um % encolheria/esticaria a rampa. */
-      /* FUNDO = a descida lavanda→creme (curva-S). O campo florido NÃO mora
-         aqui: ele é uma camada limitada SOBRE a fita (ver [data-campo] abaixo),
-         que não pode ultrapassar a aresta de baixo do SVG. Este gradiente é só o
-         que costura a emenda com o Mergulho (#C0B0D7, topo) e entrega o creme
-         que vive ABAIXO da fita, no rodapé da seção. */
+         livre pro campo sangrar pra cima e fundir com a descida lavanda. */
+      /* lg:pt-[22vh] — A DESCIDA SUBMERSA (ver Mergulho.tsx): o scroll entre a
+         linha d'água e o pouso do phone. Não é respiro, é o espaço em que a
+         câmera desvira e a água dissolve. */
+      /* lg:pb-72 — o tab (e o phone clipado nele) agora morre na aresta do
+         campo (+64px do rodapé dos cards); o pb segura essa descida e dá o
+         creme de respiro antes do CTAFinal. */
+      /* -mt-px: fresta de subpixel da boundary Mergulho→Pricing (alturas em vh
+         → px fracionário). Invisível porque as duas encostam no #C0B0D7. */
+      className="relative -mt-px overflow-x-clip py-20 md:py-24 lg:pt-[22vh] lg:pb-72"
+      /* FUNDO = a descida lavanda→creme, curva-S de ~480px (stops por
+         smoothstep, slope→0 nas pontas pra não criar banda de Mach na chegada
+         do creme). O campo NÃO mora aqui: é camada própria (ver [data-campo]).
+         Abaixo da aresta do campo, este creme é o "branco" do novo layout. */
       style={{
         background:
           "linear-gradient(180deg,#C0B0D7 0px,#C3B4D9 67px,#CBBEDD 134px,#D6CBE2 202px,#E4DDEA 274px,#EFEBEF 341px,#F6F5F3 408px,#FAF9F5 480px)",
       }}
     >
-      {void [
-        REEF_MASK,
-        SURFACE_LIGHT_GRADIENT,
-        SURFACE_LIGHT_SIZE,
-        NOISE,
-        PRICING_SKY,
-      ]}
-      {/* FITA — o SVG mudou-se pra DENTRO do container do desktop (logo abaixo),
-          pra centrar na altura do grid card+phone e o entalhe cair atrás deles,
-          como na referência 286:48. Antes vivia aqui no nível da section, mas a
-          section é altíssima (a descida submersa, pt-[22vh]+mt-[18vh]) e um
-          top-1/2 daqui centrava a fita ACIMA do grid, solta do phone. */}
-
       {/* ══ DESKTOP (lg+) ═══════════════════════════════════════════════════
-          MESMO palco do header (max-w-6xl px-6 md:px-10 lg:px-16), de
-          propósito: é o que faz a borda esquerda do card alinhar com o "S"
-          de "Sem surpresa" do h2. Quando eram 3 colunas (texto + phone +
-          texto) o card não cabia nesse palco estreito e precisava de um
-          container próprio (max-w-1400) — mas a coluna de texto do meio
-          morreu (virou bloco compacto dentro do card, ver abaixo) e sobrou
-          espaço de sobra: a 1440 os 1024px de conteúdo do max-w-6xl cabem
-          folgados as 904px que card (560) + gap (56) + phone (288) somam;
-          a 1024 (piso do lg) os 896px de conteúdo cabem os 707px de
-          460+40+207. Container único = borda única. */}
-      <div className="relative z-10 mx-auto mt-12 hidden w-full max-w-6xl px-6 md:px-10 lg:mt-[18vh] lg:block lg:px-16">
-        {/* FITA (node 286:47 do Figma, SVG exato) — o retângulo com UM entalhe
-            trapezoidal descendo no meio-direita. Agora é FILL DA SECTION: sai do
-            wrapper max-w-6xl e sangra de borda a borda da viewport
-            (left-1/2 -ml-[50vw] w-screen — o -mx casa com o max-w centrado). É a
-            direção 286:48: a fita roxa preenche a largura toda e o card
-            (esquerda) + phone (direita) montam POR CIMA dela, subindo acima do
-            topo dela; a base do phone é clipada exatamente nesta aresta de baixo
-            (ver [data-phone-clip] + ScrollPhone).
-
-            aspect-[775/217] trava a proporção NATIVA — o entalhe NÃO distorce por
-            mais larga que a fita fique (preserveAspectRatio="none" só preenche a
-            caixa, que já tem a razão do viewBox). A base fica ancorada ao fundo
-            do grid por bottom-[BAND_LIFT]: é essa folga que o phone ultrapassa e
-            que o clip corta, dando o "phone emergindo de trás da fita". Gradiente
-            #9080FA→#8F066D@0.25 userSpaceOnUse, idêntico ao paint0_linear do
-            arquivo exportado — o roxo pedido, preservado. */}
+          Palco mais largo que o max-w-6xl do header (o mockup usa ~86% do
+          viewport pros dois cards): max-w-[1280px] px-10. O campo e o tab são
+          absolutos deste container; o grid dos cards é o único filho em fluxo,
+          então "100%" nas âncoras verticais = rodapé dos cards. */}
+      <div className="relative z-10 mx-auto mt-12 hidden w-full max-w-[1280px] px-6 md:px-10 lg:mt-[18vh] lg:block">
+        {/* CAMPO FLORIDO — full-bleed (left-1/2 -ml-[50vw] w-screen), aresta de
+            baixo RETA a 64px abaixo do rodapé dos cards (-bottom-16): é a linha
+            campo→creme do mockup, sem melt. O aspect nativo (775/624) sobe a
+            partir daí pra mostrar grama + o "A" + céu; o topo derrete na
+            descida lavanda via mask (16% de fade), como antes. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute bottom-[185px] left-1/2 z-0 -ml-[50vw] w-screen xl:bottom-[215px]"
+          className="pointer-events-none absolute -bottom-16 left-1/2 z-0 -ml-[50vw] w-screen"
         >
-          {/* CAMPO FLORIDO — a imagem-hero vive SOBRE a fita e é LIMITADA por
-              ela: bottom-0 ancora na aresta de baixo do wrapper, que é o fim do
-              SVG, então a imagem nunca ultrapassa o "final do svg" (pedido da
-              Laura). O aspect nativo (775/624) sobe a partir daí pra mostrar
-              céu + o "A" + o campo. A mask no bottom (to top: transparente→opaco
-              em ~20%) derrete a base do campo no escuro da fita — grama escura e
-              fita near-black viram o mesmo pixel na emenda, sem aresta. z-10 pra
-              ficar POR CIMA da fita; abaixo do card (grid z-[1]) e do phone
-              (overlay z-[60]). Abaixo da fita continua o creme do fundo. */}
-          {/* Era um <div> com bg-[url] da webp; virou VÍDEO — a MESMA imagem em
-              motion (pedido da Laura). Mesma caixa, mesmo aspect, MESMA mask
-              (topo+bottom). poster = a webp de sempre, então enquanto o arquivo de
-              vídeo não existir (ou sob reduce) o quadro parado idêntico aparece —
-              zero regressão. Soltar o vídeo em public/pricing-campo-motion.mp4 e
-              ele assume. object-cover object-center replica o bg-cover bg-center. */}
+          {/* Era um <div> com bg da webp; é VÍDEO — a mesma imagem em motion.
+              poster = a webp, então enquanto pricing-campo-motion.mp4 não
+              existir (ou sob reduce) o quadro parado idêntico aparece. */}
           <video
             data-campo
             aria-hidden
@@ -505,295 +304,180 @@ export default function Pricing() {
             muted
             playsInline
             preload="metadata"
-            /* bottom-[41%]: a imagem termina numa LINHA RETA acima do entalhe —
-               ~41% acima da base da fita, que espelha a proporção do Figma
-               (imagem 280 morre a 58,7% do topo da fita). Assim ela é
-               RETANGULAR e NÃO desce pelo recorte onde o phone está; abaixo dela
-               fica a faixa escura + o entalhe (com o phone) + o creme. O melt do
-               bottom é curto (3%) pra grama derreter no escuro sem virar recorte
-               — retangular, como pedido. */
-            className="pointer-events-none absolute inset-x-0 bottom-[49%] z-10 aspect-[775/624] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_top,transparent_0%,#000_3%,#000_84%,transparent_100%)] [mask-image:linear-gradient(to_top,transparent_0%,#000_3%,#000_84%,transparent_100%)]"
+            className="aspect-[775/624] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
           />
-          <div data-phone-clip className="relative aspect-[759/77] w-full">
-            <svg
-              viewBox="0 0 759 76.999"
-              preserveAspectRatio="none"
-              fill="none"
-              className="h-full w-full"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Geometria EXATA do Figma (Frame 157 · node 303:119 "Union",
-                  export SVG). A fita renderizava alta demais: o wrapper era
-                  aspect-[775/217] (~3.57:1) full-bleed, ~2.8× mais alto que o
-                  nativo do design (759/77 ≈ 9.9:1), então o entalhe descia fundo
-                  e agressivo em vez de raso. Agora aspect-[759/77] devolve a fita
-                  larga-e-rasa do desenho. Faixa reta até y40.89, tab até y77
-                  (aresta de baixo = clip do phone). As proporções reto/tab
-                  (~53/47) são as mesmas de antes, então campo (bottom-49%) e clip
-                  seguem ancorados por %. */}
-              <path
-                d="M759 40.8887H700.968L649.862 76.999H402.763L352.659 40.8887H0V0H759V40.8887Z"
-                fill="url(#pricing-band)"
-              />
-              <defs>
-                <linearGradient
-                  id="pricing-band"
-                  x1="-9.833"
-                  y1="4.059"
-                  x2="350.467"
-                  y2="152.47"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  {/* DARK (2026-07-17): a fita virou escura pra pousar sobre o
-                      campo ao crepúsculo — near-black com um leve roxo, mesma
-                      forma/entalhe de antes. Opaca nas duas pontas (era 0.25 na
-                      segunda) porque agora ela precisa ocultar a base do phone
-                      no clip, não só tingir. */}
-                  <stop stopColor="#211A3C" />
-                  <stop offset="1" stopColor="#0D0A1B" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
         </div>
 
-        {/* vidro claro em gradiente diagonal — lavanda saturada
-            (topo-esquerda) até creme opaco (baixo-direita), na diagonal
-            COMPLETA original. O checklist não tem mais vidro próprio nem
-            coluna própria — mudou-se pra dentro deste card, como bloco
-            compacto subordinado ao preço. A coluna de preço deixou de ser
-            uma fatia de metade de card: ela é o único card de vidro do
-            desktop, então carrega a diagonal inteira de ponta a ponta, não
-            mais um trecho dela.
+        {/* TAB do phone ([data-phone-clip]) — o trapézio preto que o phone
+            atravessa. SUTIL de propósito (pedido 2026-07-20): o grosso do
+            trapézio fica ENFIADO atrás do card do trial (top: 100% − 60/88px,
+            card z-[2] > tab z-[1]) e a BASE cai EXATA na aresta campo→creme
+            (card bottom + 64 = o -bottom-16 do campo) — as asas pretas só
+            existem sobre a grama escura e morrem na linha, nunca pingam no
+            creme. É essa base que o ScrollPhone usa como linha de corte
+            (r.bottom), então o phone também mergulha mais cedo. Horizontal:
+            aresta direita alinhada à aresta direita do card do TRIAL, que é o
+            da ESQUERDA — o offset soma o px do container (40) + coluna do
+            preço (340/420) + gap (24/36) = 404/496; com o slot em right-14 do
+            card o centro do tab segue a ~1px do centro do phone no xl. */}
+        <div
+          data-phone-clip
+          aria-hidden
+          className="absolute right-[404px] top-[calc(100%-60px)] z-[1] h-[124px] w-[330px] xl:right-[496px] xl:top-[calc(100%-88px)] xl:h-[152px] xl:w-[460px]"
+          style={{
+            clipPath: TAB_CLIP,
+            background: TAB_FILL,
+          }}
+        />
 
-            O stop final é opaco de propósito (sem alpha): com translucidez
-            o backdrop-blur + saturate deixa a aurora atrás vazar e
-            recolorir o "creme" de volta pra lavanda — medido no render, a
-            coluna do preço saía tão roxa quanto o checklist. neutro-50
-            (não branco puro) porque é a MESMA cor do fundo da seção — o
-            "creme quase branco" da referência, não um branco frio. É essa
-            cor que agora carrega a luz do card: as auroras que existiam
-            atrás do palco morreram junto com o palco — não tem mais atrás
-            do quê ficarem, o card É o palco. */}
-
-        {/* grade de 2 colunas (card + phone), empacotada no INÍCIO (sem
-            justify-center): o container agora é o mesmo max-w-6xl do
-            header, então a borda esquerda do grid já É a borda do palco —
-            é isso que alinha a borda do card com o "S" de "Sem surpresa"
-            no h2. justify-center recentraria o par card+phone dentro do
-            palco e quebraria esse alinhamento de novo.
-
-            minmax(0,460px)/560px no card: teto de largura pra ele não
-            esticar até o limite do container agora que só tem o phone como
-            vizinho. O slot do phone segue em BREAKPOINT, não fluido: tem
-            um footprint real em px (não pode ser %, senão o phone
-            renderizado — cuja escala vem do próprio rect deste slot, ver
-            ScrollPhone — encolheria/estufaria em qualquer largura
-            intermediária). 207px em lg, 288px em xl — razão 0,5625 mantida
-            nos dois (207/368, 288/512) pra não distorcer o phone.
-
-            items-center (não items-stretch): são só dois blocos — o card de
-            vidro (preço) e o slot de tamanho fixo (phone) — cada um
-            assentando centrado no próprio tamanho, não um par de cards
-            precisando ler com a mesma altura. */}
-        <div className="relative z-[1] grid grid-cols-[minmax(0,420px)_254px] items-end gap-x-10 xl:grid-cols-[minmax(0,500px)_338px] xl:gap-x-14">
-          {/* CARD DO PREÇO — coluna 1 (primeiro na leitura e no DOM):
-              título, preço, checklist compacto e CTA. Sem badge "Plano
-              único" — o card abre direto no h3 (removida; a versão MOBILE,
-              outro card, manteve a sua). Único card de vidro do desktop,
-              com a diagonal COMPLETA (não mais uma fatia dela — ver
-              comentário do gradiente acima). Zonas próprias mantêm o mesmo
-              cadenciamento de entrada de sempre. */}
+        {/* grade dos DOIS CARDS DE VIDRO — a proporção ~62/38 (o espelho da
+            ~38/62 do mockup, invertida em 2026-07-19). Alturas iguais por
+            stretch (default); quem dita é o card do preço. */}
+        <div className="relative z-[2] grid grid-cols-[1fr_minmax(0,340px)] gap-6 xl:grid-cols-[1fr_minmax(0,420px)] xl:gap-9">
+          {/* CARD DO TRIAL — headline serifada + subtítulo + CTA à esquerda;
+              a metade direita é o pouso do phone. CTA no idioma da casa (pill
+              ink com círculo branco pra seta — o mesmo desenho do ctaLight que
+              este card sempre teve), não o botão chapado do mockup. relative
+              porque o slot é absoluto DELE (é o que deixa o phone descer além
+              do rodapé sem esticar o card). */}
           <div
             data-glass
-            /* -ml grande de propósito: a fita 286:48 tem o tab trapezoidal
-               centrado no viewport (~x665→761 a aba ESQUERDA @1440 xl / ~x473→541
-               @1024 lg). Com o card só em -ml-16 a borda dele (~x704) caía em cima
-               dessa aba e o recorte sumia. -ml-14 (lg) / -ml-28 (xl) recuam o card
-               pra ~x468 / ~x656 — atrás do início do tab — então a aba esquerda do
-               recorte fica visível entre o card e o phone, como na ref 286:48. */
-            /* LIFT via MARGIN, não transform: o reveal do GSAP anima
-               transform.y ([data-glass] y:44→0) e clobra qualquer -translate-y
-               do Tailwind — por isso o lift tem que ser margem (como o -ml já
-               é). -mt negativo sobe o card pra ele pousar ACIMA do corte (a
-               fita), na grama, sem sobrepor o escuro. Escala por breakpoint
-               porque a fita é w-screen (altura ∝ vw). */
-            className="relative -ml-14 -mt-[268px] self-start overflow-hidden rounded-[2.5rem] border border-white/60 bg-[linear-gradient(135deg,rgba(193,169,211,0.78)_0%,rgba(234,223,239,0.42)_40%,#FAF9F5_86%)] px-10 py-12 shadow-glass backdrop-blur-xl backdrop-saturate-[1.1] xl:-ml-28 xl:-mt-[330px] xl:px-12 xl:py-16"
+            className={`relative ${GLASS_DESKTOP} p-10 xl:p-14`}
           >
-            {/* realce de vidro — camada separada, padrão CARD_SHEEN do CTAFinal */}
             <div aria-hidden className={CARD_SHEEN} />
-            {/* sheen animado — mesmo device do card mobile (.gaia-card-sheen,
-                ver globals.css). */}
             <span
               aria-hidden
               className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/60 to-transparent"
             />
-
-            <div className="relative z-[1] flex flex-col gap-6">
+            {/* max-w curto de propósito: a metade direita do card é do phone —
+                o texto não pode correr por baixo dele (medido: a coluna útil
+                até a borda do slot dá ~200px em lg, ~280px em xl). */}
+            <div className="relative z-[1] flex max-w-[190px] flex-col items-start gap-6 xl:max-w-[270px] xl:gap-8">
               <h3
                 data-zone
-                className="font-title text-[1.75rem] font-medium leading-[1.05] text-neutro-800 xl:text-[2.25rem]"
+                className="font-title text-[2.25rem] font-medium leading-[1.12] text-neutro-800 xl:text-[2.75rem]"
               >
-                Um preço, sem letra miúda.
+                Teste grátis
+                <br />
+                por 2 meses
               </h3>
+              <p data-zone className="font-body text-[1.0625rem] leading-[1.55] text-azul-700 xl:text-[1.125rem]">
+                Experimente todos os recursos da Gaia sem compromisso.
+              </p>
+              <div data-zone>
+                <a
+                  href="#"
+                  className={`group/cta inline-flex shrink-0 items-center gap-3 rounded-full bg-ink py-2 pl-7 pr-2 transition-[transform,box-shadow] duration-200 ${HAPTIC} hover:shadow-soft-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-neutro-50`}
+                >
+                  <span className="whitespace-nowrap font-body text-[15px] font-medium text-white">
+                    Começar de graça
+                  </span>
+                  <span
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-transform duration-200 ${HAPTIC} group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5`}
+                  >
+                    <IconArrowUpRight className="h-4 w-4" />
+                  </span>
+                </a>
+              </div>
+            </div>
 
-              {/* o preço agora é o valor cheio (R$ 49,90), não mais "0":
-                  sem toggle não existe mais período gratuito a destacar
-                  aqui — os "2 meses grátis" viraram a linha "Comece com 2
-                  meses grátis." logo abaixo, então este lockup pode voltar
-                  a mostrar o fato permanente do plano. */}
+            {/* VÃO — âncora de pouso do ScrollPhone. O tamanho DESTE slot é a
+                fonte única da escala do phone (endG = rect.height/PHONE_FILL/900,
+                ver ScrollPhone.tsx), razão 0,5625 mantida nos dois breakpoints.
+                Absoluto: desce ~170/260px além do rodapé do card — é essa sobra
+                que o tab corta, dando o "phone mergulhando no tab". */}
+            {/* top mais alto que o "90px abaixo do topo do card" do mockup de
+                propósito: o pivot do glb pousa o aparelho ~0.12·h ABAIXO do
+                centro do slot (PHONE_PIVOT_BIAS, ver ScrollPhone) — o slot sobe
+                esses ~50/75px pra o topo VISUAL do phone cair onde o mockup
+                pede. */}
+            <div
+              data-phone-end
+              aria-hidden
+              className="pointer-events-none absolute right-8 top-10 z-20 h-[444px] w-[250px] xl:right-14 xl:top-[25px] xl:h-[622px] xl:w-[350px]"
+            />
+          </div>
+
+          {/* CARD DO PREÇO — toggle, lockup, total do período, checklist. Sem
+              CTA de propósito: o botão único da seção vive no card do trial ao
+              lado. Paleta do card antigo: número neutro-800 em Sentient,
+              secundários azul-700 (o tom frio que crava 4.5:1+ sobre este
+              vidro — medido na versão anterior; neutro-500/600 é o trecho
+              oliva da rampa e suja sobre o lavanda). */}
+          <div
+            data-glass
+            className={`relative ${GLASS_DESKTOP} p-9 xl:p-11`}
+          >
+            <div aria-hidden className={CARD_SHEEN} />
+            <span
+              aria-hidden
+              className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/60 to-transparent"
+            />
+            <div className="relative z-[1] flex flex-col gap-7">
+              <div data-zone>{toggle(false)}</div>
+
               <div data-zone>
                 <div className="flex items-baseline gap-1">
-                  {/* azul-700 e não neutro-400: este lockup era o pior caso da
-                      seção — R$ e /mês em neutro-400 (#B7B6AD, o tom mais
-                      quente da escala) encostados no 49,90 em neutro-800, que é
-                      frio. O choque de matiz entre vizinhos imediatos denuncia o
-                      oliva muito mais que nos títulos. E neutro-400 já era claro
-                      demais aqui: a régua de "Sem fidelidade" abaixo registra
-                      que ele SUMIA sobre o vidro — medido, dava 1.42:1.
-
-                      azul-700 (#4B5D79) porque R$ e /mês têm ALVOS DIFERENTES
-                      apesar de serem um par visual: 28px conta como texto grande
-                      (3:1), 20px não (4.5:1). azul-600 passaria no R$ (3.21) e
-                      falharia no /mês (4.12) — e pintar os dois lados do número
-                      de tons diferentes pra satisfazer a régua leria como bug.
-                      azul-700 passa nos dois (4.56 e 5.90) com uma cor só, e
-                      segue claro o bastante pra não competir com o 49,90. */}
                   <span className="font-title text-[1.25rem] text-azul-700 xl:text-[1.75rem]">
                     R$
                   </span>
-                  {/* data-price: alvo do count-up (ver useGSAP) — o número
-                      sobe 0→49,90 enquanto a zona revela. tabular-nums já
-                      estava aqui, então os dígitos não dançam de largura. */}
+                  {/* data-price: alvo do count-up (ver useGSAP). tabular-nums
+                      pra os dígitos não dançarem de largura enquanto contam. */}
                   <span
                     data-price
                     className="font-title text-[3.5rem] font-semibold leading-none tracking-[-0.03em] text-neutro-800 tabular-nums xl:text-[5rem]"
                   >
-                    49,90
+                    {PRICES[period].monthly}
                   </span>
                   <span className="font-body text-[1rem] text-azul-700 xl:text-[1.25rem]">
                     /mês
                   </span>
                 </div>
-                {/* azul-700 e não azul-600: o 600 é o par de MATIZ do
-                    neutro-600 que estava aqui, mas não de LUMINOSIDADE — trocar
-                    um pelo outro derrubava o contraste de 4.67 (passava) pra
-                    4.05 (falha), porque 18px não conta como texto grande e o
-                    alvo é 4.5. azul-700 dá 5.86. Esfriar o tom não pode custar
-                    a legibilidade que já estava boa. */}
-                <p className="mt-2 font-body text-[1rem] text-azul-700 xl:text-[1.125rem]">
-                  Comece com 2 meses grátis.
+                <p className="mt-3 font-body text-[1rem] text-azul-700 xl:text-[1.125rem]">
+                  {PRICES[period].note}
                 </p>
               </div>
 
-              {/* /25 já foi tentado — o comentário original desta régua
-                  avisava "opacidade baixa simplesmente some" sobre o vidro
-                  lavanda, e era verdade: conferido no render, sumia de
-                  verdade. /50 é o piso onde ela volta a se ver sem virar
-                  uma linha pesada. */}
+              {/* /50 é o piso onde a régua se vê sobre o vidro lavanda sem
+                  virar linha pesada (opacidade menor some — já medido). */}
               <div
                 aria-hidden
                 className="h-px bg-gradient-to-r from-transparent via-neutro-800/50 to-transparent"
               />
 
-              {/* checklist compacto — mudou-se pra dentro do card (era um
-                  bloco solto na antiga coluna 3, com h3 grande e pills
-                  brancas; ver histórico). Aqui é subordinado ao preço, por
-                  isso sem fundo/pill/borda — qualquer moldura o devolveria
-                  pra uma briga de hierarquia que o card já resolveu.
-
-                  neutro-700 no item e não neutro-600/500: a escala neutro
-                  MUDA DE MATIZ na rampa — é fria no 800/700 e vira oliva no
-                  600/500 (ver a nota irmã no h2 do header), e oliva suja
-                  sobre o vidro lavanda. azul-700 no rótulo pelo mesmo
-                  motivo, e é o mesmo tom já usado em "Comece com 2 meses
-                  grátis." logo acima. */}
-              <div data-zone className="flex flex-col gap-3">
-                <p className="font-body text-[13px] text-azul-700">
-                  Tudo incluído. <span className="italic">Sem add-on.</span>
-                </p>
-                <ul data-includes className="grid grid-cols-1 gap-y-2.5">
-                  {INCLUDES.map((item) => (
-                    <li key={item} className="flex items-center gap-2.5">
-                      <IconCheck
-                        className="h-3.5 w-3.5 shrink-0 text-brand"
-                        strokeWidth={2.5}
-                      />
-                      <span className="font-body text-[14px] text-neutro-700">
-                        {item}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div data-zone className="flex flex-col items-start gap-3">
-                {ctaLight}
-                {/* azul-700 e não neutro-500: neutro-500 é o trecho oliva da
-                    rampa (ver a nota do h2 do header) e sumia sobre o creme
-                    do card — medido, ~2.5:1, abaixo do 4.5:1 que 13px pede.
-                    azul-700 é o tom frio que o resto do card já usa (mesmo
-                    de "Comece com 2 meses grátis." acima). */}
-                <p className="font-body text-[13px] text-azul-700">
-                  Sem fidelidade. Cancele quando quiser.
-                </p>
-              </div>
+              {/* checklist — single column como no mockup; checks soltos na
+                  cor da marca, sem pill (moldura devolveria a briga de
+                  hierarquia que o card já resolveu). */}
+              <ul data-zone data-includes className="flex flex-col gap-4">
+                {INCLUDES.map((item) => (
+                  <li key={item} className="flex items-center gap-3.5">
+                    <IconCheck
+                      className="h-[18px] w-[18px] shrink-0 text-brand"
+                      strokeWidth={2.5}
+                    />
+                    <span className="font-body text-[16px] text-neutro-800 xl:text-[17px]">
+                      {item}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-
-          {/* VÃO — só a âncora de pouso do ScrollPhone, ao lado do card de
-              preço. Fluxo normal (não absoluto); com a grade em
-              items-center o slot já centra sozinho, sem precisar de
-              self-center. Renderizar o IPhone3D aqui seria dobrar o
-              phone — o ScrollPhone já é quem desenha, este div só marca
-              onde.
-
-              O tamanho aqui é a FONTE ÚNICA da escala do phone: o
-              ScrollPhone lê `rect.height` deste slot ao vivo (endG =
-              rect.height / PHONE_FILL / 900 — PHONE_FILL corrige o phone
-              pra preencher a altura inteira do slot, não só ~75% dela,
-              ver ScrollPhone.tsx) em vez de uma constante — então qualquer
-              ajuste de tamanho, inclusive por breakpoint como aqui, se
-              propaga sozinho pro phone. Não tem mais como os dois lados
-              desincronizarem.
-
-              660px/460px eram grandes demais: mesmo com o slot preenchido
-              de ponta a ponta, o phone (~0,58 de aspect largura/altura
-              quando tilted) saía com ~29% da largura do card — a
-              referência usa um aparelho mais contido, ~22%. h-512/w-288
-              (xl) e h-368/w-207 (lg) foram recalculados pra bater nisso:
-              largura-alvo = 0,22×largura-do-card, altura = largura-alvo /
-              0,58. Menor slot = card mais baixo = sem sobra no rodapé. */}
-          {/* 2026-07-17 — REVERTIDO pra grande: a referência 286:48 quer o
-              aparelho DOMINANTE à direita, sangrando muito pra fora da fita em
-              cima e embaixo (na ref o phone é ~2,9× a altura do corpo da fita).
-              O slot voltou a crescer — h-600/w-338 (xl) e h-440/w-248 (lg),
-              razão 0,5625 mantida — porque o ScrollPhone lê rect.height DESTE
-              slot pra escalar o phone (endG = rect.height/PHONE_FILL/900), então
-              é aqui, e só aqui, que se controla o tamanho renderizado. */}
-          <div
-            data-phone-end
-            aria-hidden
-            /* -translate-y-10 sobe o slot 40px; o ScrollPhone lê o rect VIVO
-               deste slot (getBoundingClientRect, que inclui o transform), então
-               o phone renderizado pousa 40px mais alto — sem tocar em ScrollPhone. */
-            className="pointer-events-none relative z-20 mx-auto h-[540px] w-[254px] -translate-y-10 translate-x-[80px] xl:h-[720px] xl:w-[338px] xl:translate-x-[130px]"
-          />
         </div>
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
         {/* ══ MOBILE (<lg) ════════════════════════════════════════════════
             Comportamento preservado: aparelho estático em fluxo acima,
-            conteúdo empilhado num único card de vidro escuro abaixo. */}
+            conteúdo empilhado num único card de vidro escuro abaixo — agora
+            com o mesmo toggle/preço do desktop (mesmo estado React). */}
         <div className="mt-12 lg:hidden">
-          <div className="mx-auto -mb-24 h-[440px] w-[300px] animate-[gaia-float_6s_ease-in-out_infinite] motion-reduce:animate-none">
-            <IPhone3D
-              height="100%"
-              scale={16}
-              rotation={PHONE_POSE}
-              screen={<PhoneScreen variant="inicio" />}
-            />
+          {/* Pouso mobile do ScrollPhone viajante: o aparelho estático saiu — é o
+              MESMO phone que desceu do Features (ver [data-phone-start] mobile lá
+              e o gate liberado no ScrollPhone). A âncora só reserva a caixa; o
+              aparelho vive no overlay fixo. */}
+          <div className="relative mx-auto -mb-24 h-[440px] w-[300px]">
+            <div data-phone-end aria-hidden className="pointer-events-none absolute inset-0" />
           </div>
 
           <div
@@ -807,12 +491,34 @@ export default function Pricing() {
             />
 
             <div className="relative z-[1] flex flex-col gap-7 p-7">
-              {Preco}
-              {Checklist}
+              <div>
+                {toggle(true)}
+                <div className="mt-6 flex items-baseline gap-1.5">
+                  <span className="font-body text-h3 font-medium text-white/45">R$</span>
+                  <span className="font-body text-[3.25rem] font-semibold leading-[0.9] tracking-[-0.02em] text-white tabular-nums">
+                    {PRICES[period].monthly}
+                  </span>
+                  <span className="font-body text-body-l text-white/40">/mês</span>
+                </div>
+                <p className="mt-4 font-body text-small leading-[1.55] text-white/60">
+                  {PRICES[period].note}
+                </p>
+              </div>
+
+              <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                {INCLUDES.map((item) => (
+                  <li key={item} className="flex items-center gap-3">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-inset ring-white/15">
+                      <IconCheck className="h-3 w-3" strokeWidth={2.25} />
+                    </span>
+                    <span className="font-body text-small text-white/70">{item}</span>
+                  </li>
+                ))}
+              </ul>
 
               <div className="flex flex-col gap-5 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                 <p className="text-balance font-body text-small text-white/60">
-                  Sem fidelidade. Cancele quando quiser.
+                  Teste grátis por 2 meses. Cancele quando quiser.
                 </p>
                 {ctaDark}
               </div>

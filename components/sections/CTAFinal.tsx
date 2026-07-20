@@ -46,6 +46,8 @@ gsap.registerPlugin(ScrollTrigger);
        entra o outro vídeo". O recorte sai por baixo e o vídeo 2 entra na MESMA
        pose (crossfade trava a silhueta, sem pop), opaco em z-40 cobre CTA e
        recorte, e o pull-out abre pro campo — é ele que apresenta o footer.
+       Durante o fade (0.80→0.86) o vídeo SEGURA o frame 0; o scrub da câmera
+       só corre em 0.86→1.0, quando a camada já está opaca (ver wire(v2)).
 
    O FOOTER não está no palco. Ele vive depois da pista, em fluxo normal: o
    palco solta, o vídeo 2 já abriu pro campo e o footer sobe ABAIXO DA LINHA
@@ -432,14 +434,14 @@ export default function CTAFinal() {
         0.48,
       );
 
-      // ── CARDS 0.70 → 0.88 ────────────────────────────────────────────────
-      // A pilha da esquerda. Entra DEPOIS do CTA (offset 0.70 vs 0.64) e sobe
-      // bem menos (160px vs 520px): ela é o detalhe que equilibra a composição,
-      // não a protagonista — entrar junto e no mesmo curso deixaria a dupla
-      // mecânica. Termina em 0.88 com o CTA, quando a pausa segura a cena.
-      // `fromTo` pelo mesmo motivo do CTA: precisa nascer invisível desde o
-      // mount (immediateRender), senão fica de fantasma sobre o corpo dela
-      // durante o scrub do vídeo.
+      // ── CARDS — trigger de uma vez (fora da timeline scrubada) ────────────
+      // A pilha da esquerda NÃO segue o dedo. Antes ela era mais um tween nesta
+      // timeline (offset 0.54), então a posição/opacidade dos cards era função
+      // direta do scroll: rolar meio card pra cima mostrava meio card. Laura
+      // pediu o oposto — quando a Roberta assenta no quadro, os cards DISPARAM
+      // como animação de entrada e correm sozinhos em tempo real, independentes
+      // do scroll. Por isso saem da `tl` (scrub) e ganham um ScrollTrigger
+      // próprio, one-shot.
       //
       // Alvo são os FILHOS, não a coluna: animar a coluna moveria os três cards
       // como uma placa só. Um por um, o stagger deixa a leitura assentar em
@@ -447,18 +449,38 @@ export default function CTAFinal() {
       const cards = cardStack.current
         ? (Array.from(cardStack.current.children) as HTMLElement[])
         : [];
-      tl.fromTo(
-        cards,
-        { y: 160, autoAlpha: 0 },
-        {
-          y: 0,
-          autoAlpha: 1,
-          duration: 0.18,
-          ease: "power3.out",
-          stagger: 0.05,
-        },
-        0.54,
-      );
+      if (cards.length) {
+        // Timeline pausada e em TEMPO REAL (segundos, não progresso): o `fromTo`
+        // com immediateRender nasce invisível desde o mount — mesmo motivo do
+        // CTA, senão os cards ficam de fantasma sobre o corpo dela durante todo
+        // o scrub do vídeo. `play()` só quando o trigger cruza.
+        const cardsIn = gsap.timeline({ paused: true });
+        cardsIn.fromTo(
+          cards,
+          { y: 160, autoAlpha: 0 },
+          {
+            y: 0,
+            autoAlpha: 1,
+            duration: 0.55,
+            ease: "power3.out",
+            stagger: 0.08,
+          },
+        );
+
+        // Dispara no MESMO instante em que o bloco entrava na timeline scrubada
+        // (progresso 0.54 da pista) — depois do CTA (0.48) e do recorte da
+        // Roberta assentar (0.46→0.50): "os cards em seguida". Na pista de
+        // 340vh presa a `top bottom → bottom bottom`, 1 unidade de progresso =
+        // a altura de `root`, então `top+=54% bottom` é exatamente esse ponto.
+        // toggleActions play/reverse: some ao subir de volta, redispara ao
+        // descer — o trigger é do scroll, a coreografia não.
+        ScrollTrigger.create({
+          trigger: root.current,
+          start: "top+=54% bottom",
+          onEnter: () => cardsIn.play(),
+          onLeaveBack: () => cardsIn.reverse(),
+        });
+      }
 
       // ── RECORTE (image280) 0.46 → 0.50 ────────────────────────────────────
       // Fade puro de `opacity` (não autoAlpha: `visibility:hidden` é caminho
@@ -508,7 +530,7 @@ export default function CTAFinal() {
         0.8,
       );
 
-      // ── VÍDEO 1 0.31 → 0.46  ·  VÍDEO 2 0.80 → 1.0 ────────────────────────
+      // ── VÍDEO 1 0.31 → 0.46  ·  VÍDEO 2 0.86 → 1.0 ────────────────────────
       // Os dois scrubs entram na MESMA timeline, cada um só quando SUA duração
       // é conhecida — sem ela não há alvo pro currentTime. Inserir depois é
       // seguro: as posições absolutas não esticam a timeline, e o refresh manda
@@ -540,7 +562,14 @@ export default function CTAFinal() {
       };
 
       wire(v1, 0.31, 0.15);
-      wire(v2, 0.8, 0.2);
+      // 0.86, NÃO 0.8: o scrub do vídeo 2 só começa DEPOIS que o crossfade
+      // terminou (0.80→0.86). Começando junto com o fade, na metade dele o
+      // vídeo já estava em t≈0.45s — a câmera já tinha aberto e a pose não
+      // travava mais com o recorte embaixo: dupla exposição de duas Robertas
+      // em escalas diferentes, com CTA e cards vazando por baixo. Enquanto a
+      // camada sobe de opacidade o vídeo SEGURA o frame 0 (a pose do recorte,
+      // é isso que tranca a silhueta); o pull-out corre em 0.86→1.0, já opaco.
+      wire(v2, 0.86, 0.14);
 
       // motion/sources ainda indecisos (nenhum vídeo no DOM): o resto da
       // timeline já vale e este efeito reroda quando `sources` resolver.
@@ -585,6 +614,28 @@ export default function CTAFinal() {
               <clipPath id={ARCH_ID} clipPathUnits="objectBoundingBox">
                 <path ref={arch} d={ARCH_REST} />
               </clipPath>
+              {/* Correção do cast do recorte. O webp da Roberta tem ~6 pontos de
+                VERDE a menos que o frame final do vídeo (medido em pele, com
+                enquadramento registrado) — verde baixo = magenta, e é isso que
+                faz a cor dela "mudar" quando o recorte assume a cena. Multiplicar
+                o verde por 1.055 devolve o tom do vídeo e, de quebra, deixa o
+                crossfade vídeo→recorte contínuo. Só cor: nenhum pixel se move, o
+                registro pixel-perfect com o frame do vídeo continua intacto.
+                `sRGB` pra casar com a medição perceptual (o default linearRGB
+                multiplicaria na luz, não na cor). */}
+              <filter
+                id="cta-cutout-tint"
+                colorInterpolationFilters="sRGB"
+                x="0"
+                y="0"
+                width="100%"
+                height="100%"
+              >
+                <feColorMatrix
+                  type="matrix"
+                  values="1 0 0 0 0  0 1.055 0 0 0  0 0 1 0 0  0 0 0 1 0"
+                />
+              </filter>
             </defs>
           </svg>
 
@@ -688,8 +739,8 @@ export default function CTAFinal() {
           <div
             className={
               still
-                ? "relative z-20 flex flex-1 items-center justify-end px-[3vw] pb-[8vh]"
-                : "absolute inset-0 z-20 flex items-center justify-end px-[3vw] pb-[8vh]"
+                ? "relative z-20 flex flex-1 items-start justify-start px-[3vw] pt-[11vh]"
+                : "absolute inset-0 z-20 flex items-start justify-start px-[3vw] pt-[11vh]"
             }
           >
             {/* AO LADO DO TABLET, não acima dela. Com a cena full-bleed a cabeça
@@ -765,7 +816,7 @@ export default function CTAFinal() {
               <div className="relative pl-1">
                 <span
                   aria-hidden
-                  className="absolute top-1/2 right-full mr-4 h-px w-[7vw] bg-[linear-gradient(to_left,rgba(255,255,255,0.45),transparent)]"
+                  className="absolute top-1/2 left-full ml-4 h-px w-[7vw] bg-[linear-gradient(to_right,rgba(255,255,255,0.45),transparent)]"
                 />
                 <span className="font-body text-[11px] font-medium uppercase tracking-[0.28em] text-white/55">
                   Pronta pra começar?
@@ -898,7 +949,7 @@ export default function CTAFinal() {
               timeline escreve transform nesses mesmos nós — ver CARDS.) */}
             <div
               ref={cardStack}
-              className="absolute left-[1vw] top-[30vh] hidden flex-col items-start gap-10 [@media(min-aspect-ratio:12/7)]:flex"
+              className="absolute right-[1vw] top-[32vh] hidden flex-col items-end gap-14 [@media(min-aspect-ratio:12/7)]:flex"
             >
               {/* MOMENTO — o produto agindo, não um número sobre ele. Mesmo
                 vocabulário da tela "início" do iPhone 3D (ver PhoneScreen:
@@ -908,7 +959,7 @@ export default function CTAFinal() {
                 `rounded-lg` (24px) e não `rounded-card` (40px): num bloco de
                 ~72px de altura, 40px de raio vira pílula. */}
               <div
-                className={`relative ml-[6vw] flex w-[248px] items-center gap-3 overflow-hidden rounded-lg p-4 ${CARD_SHADOW} ${CARD_GLASS}`}
+                className={`relative mr-[6vw] flex w-[324px] items-center gap-3 overflow-hidden rounded-lg p-5 ${CARD_SHADOW} ${CARD_GLASS}`}
               >
                 <div aria-hidden className={`${CARD_SHEEN} rounded-lg`} />
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-azul-100 font-title text-[12px] font-semibold text-azul-800">
@@ -931,7 +982,7 @@ export default function CTAFinal() {
                 de altura e um arco centrado sobre conteúdo alinhado à esquerda
                 não tem onde se apoiar. */}
               <div
-                className={`relative ml-[1vw] w-[248px] overflow-hidden rounded-card p-6 ${CARD_SHADOW} ${CARD_GLASS}`}
+                className={`relative mr-[1vw] w-[324px] overflow-hidden rounded-card p-7 ${CARD_SHADOW} ${CARD_GLASS}`}
               >
                 <div aria-hidden className={`${CARD_SHEEN} rounded-card`} />
                 <p className="font-title text-[2.75rem] font-medium leading-none tracking-[-0.02em] text-white">
@@ -942,7 +993,7 @@ export default function CTAFinal() {
                 </p>
                 {/* `max-w` não é capricho de rag: sem ele a linha usa os 200px
                   internos do card e a ponta direita cai debaixo do cabelo. */}
-                <p className="mt-3 max-w-[150px] font-body text-[13px] leading-relaxed text-white/55">
+                <p className="mt-3 max-w-[220px] font-body text-[13px] leading-relaxed text-white/55">
                   Todos com histórico completo.
                 </p>
               </div>
@@ -956,7 +1007,7 @@ export default function CTAFinal() {
                 É o card mais baixo e o mais coberto: nada aqui passa dos ~150px
                 da esquerda, então o braço dela leva só moldura. */}
               <div
-                className={`relative w-[248px] overflow-hidden rounded-card p-6 ${CARD_SHADOW} ${CARD_GLASS}`}
+                className={`relative w-[324px] overflow-hidden rounded-card p-7 ${CARD_SHADOW} ${CARD_GLASS}`}
               >
                 <div aria-hidden className={`${CARD_SHEEN} rounded-card`} />
                 <p className="font-body text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
@@ -1017,6 +1068,8 @@ export default function CTAFinal() {
                   aria-hidden
                   decoding="async"
                   className={MEDIA}
+                  // devolve o verde que o webp perdeu (ver filtro cta-cutout-tint)
+                  style={{ filter: "url(#cta-cutout-tint)" }}
                 />
               </div>
             </div>

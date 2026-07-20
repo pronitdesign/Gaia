@@ -35,7 +35,8 @@ function reveal(
    causou colisão card×título quando o conteúdo passava de 78vh.
    ────────────────────────────────────────────────────────────── */
 
-type PanelProps = { active: boolean; reduced: boolean };
+type StepInfo = { n: string; tab: string; index: number; total: number };
+type PanelProps = { active: boolean; reduced: boolean; step?: StepInfo };
 
 /**
  * Camadas separadas: A) posição estática (className, pode ter translate
@@ -90,11 +91,15 @@ function Overlay({
   headline,
   sub,
   active,
+  reduced = false,
+  step,
 }: {
   eyebrow: string;
   headline: string;
   sub: string;
   active: boolean;
+  reduced?: boolean;
+  step?: StepInfo;
 }) {
   return (
     <div
@@ -102,21 +107,40 @@ function Overlay({
          prop que mudasse, inclusive layout responsivo. duration-700 (era 500):
          o Float dos cards entra em 700 — texto e card são o mesmo evento
          (o passo ativou) e terminavam 200ms defasados. */
-      className="relative z-10 order-2 mt-auto flex w-full flex-col px-7 pb-10 pt-10 text-left transition-[opacity,transform] duration-700 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:mt-0 md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40"
+      className={`relative z-10 order-2 mt-auto flex w-full flex-col px-7 pt-10 text-left transition-[opacity,transform] duration-700 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:mt-0 md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40 ${
+        // pinned no mobile: precisa limpar a barra de abas colada embaixo.
+        // stacked (reduced): sem abas, o rótulo numerado é o rodapé.
+        reduced ? "pb-11" : "pb-32"
+      }`}
       style={{
         opacity: active ? 1 : 0,
         transform: active ? "translateY(0)" : "translateY(16px)",
       }}
     >
-      <p className="mb-4 font-body text-[13px] font-medium uppercase tracking-[0.14em] text-roxo-200 drop-shadow-[0_1px_12px_rgba(0,0,0,0.5)] md:text-[14px]">
-        {eyebrow}
-      </p>
+      {/* No mobile full-bleed o passo migra pro rótulo do rodapé (à la editorial):
+          o título fica solto no ar e a numeração ancora embaixo. No desktop o
+          eyebrow segue acima do título como antes. */}
+      {!reduced && (
+        <p className="mb-4 font-body text-[13px] font-medium uppercase tracking-[0.14em] text-roxo-200 drop-shadow-[0_1px_12px_rgba(0,0,0,0.5)] md:text-[14px]">
+          {eyebrow}
+        </p>
+      )}
       <h3 className="mb-4 text-balance font-title font-medium leading-[1.02] text-neutro-0 text-[2.4rem] md:text-[3.75rem] drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)]">
         {headline}
       </h3>
       <p className="max-w-[42ch] font-body text-body-l text-neutro-0/90 drop-shadow-[0_1px_14px_rgba(0,0,0,0.5)]">
         {sub}
       </p>
+      {reduced && step && (
+        <div className="mt-7 flex items-center justify-between border-t border-white/25 pt-4">
+          <span className="font-body text-[13px] font-semibold uppercase tracking-[0.12em] text-neutro-0 drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
+            {step.n} · {step.tab}
+          </span>
+          <span className="font-body text-[12px] font-medium tabular-nums text-neutro-0/55 drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
+            {step.n} / {String(step.total).padStart(2, "0")}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -250,14 +274,16 @@ const WAVE = [
 ];
 
 /* ── Passo 01 · Grave ────────────────────────────────────────── */
-export function Panel1({ active }: PanelProps) {
+export function Panel1({ active, reduced, step }: PanelProps) {
   return (
-    <div className="relative flex h-full min-h-[78vh] w-full flex-col overflow-hidden bg-afluente">
+    <div className={`relative flex h-full w-full flex-col overflow-hidden bg-afluente ${reduced ? "min-h-[100svh]" : "min-h-[78vh]"}`}>
       {/* foto lifestyle — nutricionista em consulta */}
       <PhotoBg src="/passo1-migracao.png" />
       <Glow />
       <Overlay
         active={active}
+        reduced={reduced}
+        step={step}
         eyebrow="Passo 01 · Grave"
         headline="Aperte para gravar."
         sub="A consulta é transcrita ao vivo, em português, com termos clínicos."
@@ -324,14 +350,16 @@ const TOPICS: Array<[string, boolean]> = [
   ["Medicações em uso", false],
 ];
 
-export function Panel2({ active }: PanelProps) {
+export function Panel2({ active, reduced, step }: PanelProps) {
   return (
-    <div className="relative flex h-full min-h-[78vh] w-full flex-col overflow-hidden bg-lavanda">
+    <div className={`relative flex h-full w-full flex-col overflow-hidden bg-lavanda ${reduced ? "min-h-[100svh]" : "min-h-[78vh]"}`}>
       {/* foto lifestyle — nutricionista conduzindo a consulta */}
       <PhotoBg src="/passo2-envio.png" />
       <Glow />
       <Overlay
         active={active}
+        reduced={reduced}
+        step={step}
         eyebrow="Passo 02 · Acompanhe"
         headline="O que você cobriu, o que falta."
         sub="Um checklist clínico marca os 14 tópicos da anamnese ao vivo, enquanto você conversa."
@@ -407,7 +435,7 @@ export function Panel2({ active }: PanelProps) {
 }
 
 /* ── Passo 03 · Revise ───────────────────────────────────────── */
-export function Panel3({ active }: PanelProps) {
+export function Panel3({ active, reduced, step }: PanelProps) {
   const soap: Array<[string, string, string]> = [
     ["S", "Subjetivo", "Insônia há 3 meses, piora no turno noite."],
     ["O", "Objetivo", "PA 120/80 · IMC 24,1 · sem alterações."],
@@ -415,12 +443,14 @@ export function Panel3({ active }: PanelProps) {
     ["P", "Plano", "Higiene do sono + retorno em 30 dias."],
   ];
   return (
-    <div className="relative flex h-full min-h-[78vh] w-full flex-col overflow-hidden bg-bruma">
+    <div className={`relative flex h-full w-full flex-col overflow-hidden bg-bruma ${reduced ? "min-h-[100svh]" : "min-h-[78vh]"}`}>
       {/* foto lifestyle — nutricionista revisando o resumo pronto */}
       <PhotoBg src="/passo3-pronto.png" />
       <Glow />
       <Overlay
         active={active}
+        reduced={reduced}
+        step={step}
         eyebrow="Passo 03 · Revise"
         headline="A Gaia sugere, você decide."
         sub="No final, um resumo SOAP editável, pronto pra salvar no prontuário."

@@ -232,6 +232,24 @@ export default function Manifesto() {
           <filter id="blur-line-2" x="-20%" y="-40%" width="140%" height="180%">
             <feGaussianBlur id="fe-blur-2" in="SourceGraphic" stdDeviation="0" />
           </filter>
+          {/* Gradiente do "do resto." — luar: quase-branco no topo dos glyphs
+              resolvendo em lavanda na base. userSpaceOnUse (não bounding box):
+              o texto VIAJA no path e bbox de tspan em textPath é instável entre
+              engines; cravado no espaço do viewBox (curva 2 vive em y 52–154),
+              a luz fica fixa no céu e os glyphs atravessam ela — sobe a crista,
+              acende. O stop de baixo (#CDB9EC) é o piso de contraste: ~3.3:1
+              sobre o trecho mais claro do céu (p95 medido), AA pra 64px. */}
+          <linearGradient
+            id="resto-grad"
+            gradientUnits="userSpaceOnUse"
+            x1="0"
+            y1="40"
+            x2="0"
+            y2="165"
+          >
+            <stop offset="0" stopColor="#FAF9F5" />
+            <stop offset="1" stopColor="#CDB9EC" />
+          </linearGradient>
         </defs>
         <path id="curve-2" d={CURVE_2} fill="none" />
         <text
@@ -242,7 +260,12 @@ export default function Manifesto() {
         >
           <textPath data-flow="2" href="#curve-2" startOffset="50%">
             A Gaia cuida{" "}
-            <tspan fontStyle="italic" fill="#5F4590">
+            {/* O accent era roxo-600 (#5F4590), calibrado pra quando esta linha
+                era lida no CLARO. O céu desceu pra #574385→#332963 na altura
+                dela (SKY_STOPS 0.72+) e roxo-600 sumiu no fundo (~1:1). Claro
+                em vez de mais escuro: escuro competia com o ink de "A Gaia
+                cuida" e a palavra-payoff é a que deve acender. */}
+            <tspan fontStyle="italic" fill="url(#resto-grad)">
               do resto.
             </tspan>
           </textPath>

@@ -71,15 +71,14 @@ export default function ComoComecar() {
   const [highlight, setHighlight] = useState(0); // estado das abas
 
   useEffect(() => {
-    const wide = window.matchMedia("(min-width: 768px)");
+    // Pinned em TODA largura (pedido da Laura: mesmo efeito do desktop no mobile).
+    // Só cai pra stacked em prefers-reduced-motion — quem pediu menos movimento
+    // não recebe a tira horizontal presa ao scroll.
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const decide = () =>
-      setMode(wide.matches && !reduce.matches ? "pinned" : "stacked");
+    const decide = () => setMode(reduce.matches ? "stacked" : "pinned");
     decide();
-    wide.addEventListener("change", decide);
     reduce.addEventListener("change", decide);
     return () => {
-      wide.removeEventListener("change", decide);
       reduce.removeEventListener("change", decide);
     };
   }, []);
@@ -259,7 +258,7 @@ export default function ComoComecar() {
   );
 
   const Tabs = (
-    <div data-reveal className="mb-0 grid grid-cols-3 gap-x-6">
+    <div data-reveal className="mb-0 grid grid-cols-3 gap-x-2 md:gap-x-6">
       {STEPS.map((step, i) => {
         const isActive = i === highlight;
         const fill = i <= highlight ? 1 : 0;
@@ -274,15 +273,17 @@ export default function ComoComecar() {
             className="group pointer-events-auto relative rounded-md pb-3 text-left outline-none transition-transform duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-white/70"
             aria-current={isActive}
           >
-            <div className="flex items-baseline gap-3">
+            {/* No mobile a fonte fixa (text-h3 28px + text-body-l 20px) não cabia
+                em 3 colunas a 390px e as abas colidiam — escala menor abaixo de md. */}
+            <div className="flex items-baseline gap-1.5 md:gap-3">
               {/* duration-500 ease-gaia — casada com o underline logo abaixo:
                   cor e preenchimento são o MESMO evento (o passo ativou) e
                   descasados em 300/500 liam como dois. group-hover no estado
                   inativo: a aba é clicável e nada dizia isso ao cursor. */}
-              <span className={`font-title text-h3 font-semibold tabular-nums drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-500 ease-gaia ${isActive ? "text-brand" : "text-white/45 group-hover:text-white/70"}`}>
+              <span className={`font-title text-lg md:text-h3 font-semibold tabular-nums drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-500 ease-gaia ${isActive ? "text-brand" : "text-white/45 group-hover:text-white/70"}`}>
                 {step.n}
               </span>
-              <span className={`font-body text-body-l font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-500 ease-gaia ${isActive ? "text-white" : "text-white/55 group-hover:text-white/80"}`}>
+              <span className={`font-body text-[12px] md:text-body-l font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.5)] transition-colors duration-500 ease-gaia ${isActive ? "text-white" : "text-white/55 group-hover:text-white/80"}`}>
                 {step.tab}
               </span>
             </div>
@@ -306,10 +307,16 @@ export default function ComoComecar() {
         className={
           mode === "pinned"
             ? "relative h-full w-screen shrink-0 overflow-hidden bg-neutro-0"
-            : "relative w-full overflow-hidden rounded-card border border-neutro-200/70 bg-neutro-0 shadow-soft-lg"
+            : // stacked/mobile: full-bleed, sem chrome — cada passo é um painel de
+              // tela cheia (foto sangrando), à la editorial (ver Overlay reduced)
+              "relative w-full overflow-hidden bg-neutro-0"
         }
       >
-        <Panel active={mode === "pinned" ? isActive : true} reduced={mode === "stacked"} />
+        <Panel
+          active={mode === "pinned" ? isActive : true}
+          reduced={mode === "stacked"}
+          step={{ n: STEPS[i].n, tab: STEPS[i].tab, index: i, total: STEPS.length }}
+        />
       </div>
     );
   };
@@ -349,9 +356,13 @@ export default function ComoComecar() {
           </div>
         </>
       ) : (
-        <div className="mx-auto w-full max-w-6xl px-6 py-20 md:px-10">
-          {Header}
-          <div className="mt-8 flex flex-col gap-5">
+        <div>
+          {/* Título fica num bloco com respiro; os painéis abaixo sangram
+              full-bleed e se tocam (tira contínua, sem gap nem margem). */}
+          <div className="mx-auto w-full max-w-6xl px-6 pt-20 pb-8 md:px-10">
+            {Header}
+          </div>
+          <div className="flex flex-col">
             {STEPS.map((_, i) => Banner(i, true, STEPS[i].n))}
           </div>
         </div>

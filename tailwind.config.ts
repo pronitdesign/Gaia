@@ -75,10 +75,22 @@ const config: Config = {
         body: ["var(--font-body)", "sans-serif"],
       },
       fontSize: {
-        // Desktop scale — CONTEXT.md §5
-        display: ["4.5rem", { lineHeight: "1.05", letterSpacing: "-0.02em" }], // 72
-        h1: ["3.5rem", { lineHeight: "1.08", letterSpacing: "-0.02em" }], // 56
-        h2: ["2.5rem", { lineHeight: "1.12", letterSpacing: "-0.01em" }], // 40
+        // Escala FLUIDA (clamp): o máximo é o tamanho de desktop original — então
+        // ≥~960px fica idêntico ao que a Laura tunou, e abaixo disso o título
+        // encolhe sozinho em vez de estourar o mobile. Só os títulos grandes
+        // (display/h1/h2) ganham clamp; h3/body pra baixo já são tamanhos mobile-ok.
+        display: [
+          "clamp(2.75rem, 1.5rem + 5vw, 4.5rem)",
+          { lineHeight: "1.05", letterSpacing: "-0.02em" },
+        ], // 44 → 72
+        h1: [
+          "clamp(2.125rem, 1.25rem + 4vw, 3.5rem)",
+          { lineHeight: "1.08", letterSpacing: "-0.02em" },
+        ], // 34 → 56
+        h2: [
+          "clamp(1.75rem, 1.125rem + 3vw, 2.5rem)",
+          { lineHeight: "1.12", letterSpacing: "-0.01em" },
+        ], // 28 → 40
         h3: ["1.75rem", { lineHeight: "1.2" }], // 28
         "body-l": ["1.25rem", { lineHeight: "1.6" }], // 20
         body: ["1.0625rem", { lineHeight: "1.6" }], // 17

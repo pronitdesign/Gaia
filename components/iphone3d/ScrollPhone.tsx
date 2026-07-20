@@ -51,7 +51,14 @@ const START_YAW = Math.PI; // reto de frente, dentro do Features
 const END_YAW = Math.PI; // reto de frente, no Pricing
 const START_TILT: [number, number] = [0, 0]; // reto, sem inclinação
 const END_TILT: [number, number] = [0, 0]; // reto, sem inclinação — de frente no Pricing
-const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário
+const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário. O tamanho PARADO é o certo (print da Laura); a queixa de "muito grande" era o EFEITO DE ENTRADA, não a pose parada — tratado à parte (ENTER_G/grow-in), não encolhendo esta constante.
+/* GROW-IN NA ENTRADA — o phone entra menor e cresce até START_G quando o card
+   assenta. A queixa da Laura era o phone dominando o card ENQUANTO ele ainda
+   sobe pra dentro do quadro (roçando a emenda com a Agenda), não a pose parada.
+   0.90 é o tamanho de entrada escolhido por ela; vira START_G quando a âncora
+   centraliza (ver `settle` em place()). Só afeta a subida — satura em 1 no
+   centro, então a viagem pro Pricing parte de START_G sem tocar nisto. */
+const ENTER_G = 0.9;
 // END_G morreu como constante — virou lerp(START_G, endG, eP) em place(), com
 // endG derivado do rect AO VIVO de [data-phone-end] a cada frame (ver
 // PHONE_FILL abaixo pra fórmula exata). Era 820/900 fixo, calibrado à mão
@@ -103,8 +110,12 @@ const CLIP_GATE: [number, number] = [0.62, 0.95];
    MAX segura pra não virar deslize grande. "mesmo no clip": a base do phone já
    encosta na aresta da fita, então afundar empurra ela pra baixo do clip — o phone
    mergulha de volta pra dentro da fita ao sair. */
-const EXIT_PARALLAX_RATE = 0.2;
-const EXIT_PARALLAX_MAX = 72; // px
+/* 2026-07-18 — DESLIGADO a pedido da Laura ("não quero que o phone desça para a
+   saída"). RATE=0 zera o termo somado a cy na linha ~1399 (Math.min(MAX,0)=0),
+   então o phone sai de quadro junto com a seção, na mesma taxa do scroll, sem
+   afundar de volta na fita. MAX fica documentado como o teto que valia. */
+const EXIT_PARALLAX_RATE = 0;
+const EXIT_PARALLAX_MAX = 72; // px (inerte enquanto RATE=0)
 
 /* CÂMERA — conhecida aqui fora porque place() roda no gsap.ticker, fora do
    React. Se mudar no <PerspectiveCamera>, mude aqui. */
@@ -691,6 +702,22 @@ const REF_H = 900;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/* ÂNCORA VISÍVEL — o phone agora liga também no mobile (ver o gate), e cada
+   âncora passa a existir em DUAS versões no DOM: a de desktop (lg:block) e a de
+   mobile (lg:hidden). querySelector pegava sempre a PRIMEIRA do documento, que no
+   mobile é a de desktop escondida (getClientRects vazio, rect 0,0) — e o phone
+   miraria a origem. Este helper devolve a que está de fato renderizada; cai pra
+   primeira se nenhuma tem caixa (estado de boot). No desktop só a lg:block tem
+   caixa, então devolve exatamente a âncora de sempre — retrocompatível. */
+const anchor = (sel: string): HTMLElement | null => {
+  const els = document.querySelectorAll<HTMLElement>(sel);
+  for (const el of els) if (el.getClientRects().length) return el;
+  // Nenhuma renderizada → null (place() sai cedo). NÃO cai pra els[0]: no mobile
+  // isso seria a âncora de desktop escondida (rect 0,0) e o phone miraria a
+  // origem — um aparelho quebrado no canto em vez de nenhum.
+  return null;
+};
+
 /* O PHONE FICA PARADO ENQUANTO O CARD DO PRONTUÁRIO ESTÁ EM QUADRO.
 
    p é fração de DOCUMENTO (âncora do Features → slot do Pricing, ~3025px
@@ -909,11 +936,12 @@ export default function ScrollPhone() {
   const bodyHalf = useRef(0);
 
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const sync = () => setEnabled(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    // Ligado em TODA largura (pedido da Laura: "cadê o phone" no mobile). Era
+    // gated em ≥1024px; agora o phone viaja também no mobile, mirando as âncoras
+    // mobile (lg:hidden) que Features/Pricing passam a expor. O posicionamento é
+    // rect-vivo (responsivo por construção), então a mesma viagem serve as duas
+    // larguras — o tuning fino do mobile é iterado sobre o render.
+    setEnabled(true);
   }, []);
 
   useEffect(() => {
@@ -1151,8 +1179,8 @@ export default function ScrollPhone() {
     };
 
     const place = (p: number) => {
-      const start = document.querySelector<HTMLElement>("[data-phone-start]");
-      const end = document.querySelector<HTMLElement>("[data-phone-end]");
+      const start = anchor("[data-phone-start]");
+      const end = anchor("[data-phone-end]");
       if (!start || !end) return;
       measureBody();
       const a = start.getBoundingClientRect();
@@ -1178,7 +1206,7 @@ export default function ScrollPhone() {
          wp sai dos rects VIVOS, não de constante: se alguém mudar a altura do
          Mergulho, do Manifesto ou das seções acima, o ponto de passagem
          acompanha sozinho. É o mesmo motivo de tudo aqui ler rect vivo. */
-      const waterEl = document.querySelector<HTMLElement>("[data-phone-water]");
+      const waterEl = anchor("[data-phone-water]");
       const aC = a.top + a.height / 2;
       // bC não é o centro geométrico do slot — é o ALVO de pouso, deslocado
       // pra baixo por PHONE_PIVOT_BIAS pra compensar o pivot do glb (ver
@@ -1399,7 +1427,22 @@ export default function ScrollPhone() {
       cy += Math.min(EXIT_PARALLAX_MAX, slotRise * EXIT_PARALLAX_RATE);
 
       const endG = b.height / PHONE_FILL / REF_H;
-      placeWorld(cx, cy, lerp(START_G, endG, eP));
+      /* Grow-in da ENTRADA — ver ENTER_G. settle=0 com a âncora no pé da tela
+         (card subindo), =1 quando ela cruza o centro (card assentado). A escala
+         de partida vai de ENTER_G a START_G nessa janela; saturada em 1 ela É
+         START_G, então lerp(startG, endG, eP) da viagem fica idêntico ao de
+         antes. aC é o centro vertical vivo da âncora, já medido acima. */
+      const settle = Math.min(1, Math.max(0, (window.innerHeight - aC) / (window.innerHeight * 0.5)));
+      /* startG: no desktop é o START_G calibrado (grande, dominante no card do
+         Prontuário ~1280px) com grow-in (ENTER_G). No mobile esse mesmo tamanho
+         de mundo transborda os 390px de largura — então deriva do rect da âncora
+         start mobile, exatamente como endG faz do slot do Pricing. Rect-vivo =
+         responsivo. Desktop fica byte-idêntico (isMobile false). */
+      const isMobile = window.innerWidth < 1024;
+      const startG = isMobile
+        ? a.height / PHONE_FILL / REF_H
+        : lerp(ENTER_G, START_G, settle);
+      placeWorld(cx, cy, lerp(startG, endG, eP));
 
       /* A TELA MOLHA POR PROFUNDIDADE, não por dive nem por tint — e a diferença
          é o frame do TOQUE.
@@ -1558,7 +1601,7 @@ export default function ScrollPhone() {
     const clipPhone = (landing: number) => {
       const el = overlay.current;
       if (!el) return;
-      const clipEl = document.querySelector<HTMLElement>("[data-phone-clip]");
+      const clipEl = anchor("[data-phone-clip]");
       const g = smoothstep(CLIP_GATE[0], CLIP_GATE[1], landing);
       if (!clipEl || g <= 0.001) {
         el.style.clipPath = "none";
@@ -1865,7 +1908,7 @@ export default function ScrollPhone() {
        trajeto até o pouso — a mesma conta de scroll que update() já usa pra
        decidir p=1, não um segundo dono da posição de pouso. */
     const deliver = () => {
-      const end = document.querySelector<HTMLElement>("[data-phone-end]");
+      const end = anchor("[data-phone-end]");
       if (!end) return;
       const b = end.getBoundingClientRect();
       // endC é o CENTRO cru do slot — o mesmo que update() usa pra achar
@@ -1978,8 +2021,8 @@ export default function ScrollPhone() {
     }
 
     const update = () => {
-      const start = document.querySelector<HTMLElement>("[data-phone-start]");
-      const end = document.querySelector<HTMLElement>("[data-phone-end]");
+      const start = anchor("[data-phone-start]");
+      const end = anchor("[data-phone-end]");
       if (!start || !end) return;
       const a = start.getBoundingClientRect();
       const b = end.getBoundingClientRect();
@@ -2039,7 +2082,7 @@ export default function ScrollPhone() {
         className="pointer-events-none fixed inset-x-0 bottom-0 z-[59] hidden lg:block"
         style={{ top: "50%" }}
       />
-      <div ref={overlay} aria-hidden className="pointer-events-none fixed inset-0 z-[60] hidden lg:block">
+      <div ref={overlay} aria-hidden className="pointer-events-none fixed inset-0 z-[60]">
       {/* pointerEvents:none NÃO é redundante com o pointer-events-none do
           wrapper: o R3F escreve pointerEvents:'auto' no style inline do seu
           container, e pointer-events é herdado — mas um descendente pode
