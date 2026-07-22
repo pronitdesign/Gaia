@@ -447,6 +447,32 @@ const LENS_SATURATE = 1.18; // água rasa satura o que se vê através dela
 const SCREEN_WET_BLUR = 6; // px no espaço LOCAL da tela (~metade disso em quadro)
 const SCREEN_WET_SAT = 0.78;
 const SCREEN_WET_BRIGHT = 0.94;
+
+/* QUANTIZAÇÃO DO BLUR — corta re-rasterização de filter/backdrop-filter.
+
+   Medido em A/B (scroll de página inteira, display 120Hz, alvo 8,3ms/frame, 2
+   runs por variante): `filter: blur()` animado é o maior custo de frame da
+   página — baseline p95 58,6ms/11 frames >100ms, `* { filter: none }` cai pra
+   16,7ms/4 frames. `backdrop-filter` sozinho NÃO custa nada (62,1ms/17 frames,
+   pior que baseline dentro do ruído) — só o `filter` da tela do phone entra
+   nessa conta, mas as duas linhas escrevem a MESMA classe de string por frame
+   (lensPaint em backdropFilter, wetPaint em filter) e pagam pelo mesmo
+   mecanismo: raio novo → raster novo, mesmo com toFixed() arredondando a
+   STRING (o valor por baixo continua variando a cada frame).
+
+   Os degraus abaixo prendem raio/saturate/brightness numa grade grossa o
+   bastante pra cortar a maioria dos rasters e fina o bastante pra ficar
+   invisível. 0,5px pra lente (backdrop-filter, tela inteira em quadro) e
+   0,25px pra tela do phone (filter LOCAL — ver SCREEN_WET_BLUR: renderiza a
+   ~metade do tamanho, então 0,25 local já é ~0,125 em quadro, mais fino que o
+   degrau da lente). saturate/brightness quantizam junto: a string final é uma
+   coisa só, e deixar essas duas variando cru mantém a string diferente todo
+   frame mesmo com o blur travado na grade. */
+const LENS_BLUR_STEP = 0.5; // px
+const LENS_SATURATE_STEP = 0.01; // intervalo útil é 1→1.18 (0.18): 1% é imperceptível
+const SCREEN_BLUR_STEP = 0.25; // px, espaço local — ver SCREEN_WET_BLUR
+const SCREEN_SATURATE_STEP = 0.01; // intervalo útil é 1→0.78 (0.22)
+const SCREEN_BRIGHTNESS_STEP = 0.005; // intervalo útil é 1→0.94 (0.06): mais estreito, degrau mais fino
 /* Quanto o phone precisa afundar (unidades de mundo, abaixo de WATER_Y) pra tela
    ler 100% molhada. O phone tem ~1.40 de altura, então 0.45 é ~um terço dele
    dentro d'água — cheio o bastante pra não haver dúvida, curto o bastante pra a
@@ -702,6 +728,11 @@ const REF_H = 900;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/* Arredonda pra grade de `step` — ver LENS_BLUR_STEP pro porquê: prende
+   valores de filter/backdrop-filter escritos por frame numa grade grossa o
+   bastante pra cortar re-rasterização e fina o bastante pra ficar invisível. */
+const quantize = (value: number, step: number) => Math.round(value / step) * step;
+
 /* ÂNCORA VISÍVEL — o phone agora liga também no mobile (ver o gate), e cada
    âncora passa a existir em DUAS versões no DOM: a de desktop (lg:block) e a de
    mobile (lg:hidden). querySelector pegava sempre a PRIMEIRA do documento, que no
@@ -847,6 +878,79 @@ function CameraBridge({
   return null;
 }
 
+/* AQUECIMENTO DA GPU — compila os shaders e o envmap enquanto o usuário ainda
+   está no topo da página, pra não pagar o custo no meio do scroll dele.
+
+   MEDIDO COM O CDP PROFILER (y=6000→9600, os 6342ms em que o phone entra em
+   quadro pela primeira vez): 45.7% da CPU (2898ms) em
+   `WebGLProgram.getUniforms → onFirstUse` — o WebGL só linka+introspecta um
+   programa de shader na PRIMEIRA vez que o material dono dele é desenhado, e
+   contando linkProgram no contexto: são 19 programas, todos de uma vez, no
+   primeiro frame em que o <IPhoneModel> cai dentro do frustum. Mais 4.4%
+   (279ms) em PMREMGenerator (fromCubemap/_applyPMREM/_blur) — a conversão do
+   cubemap que o <Environment> do Lights.tsx captura (EnvironmentPortal, via
+   CubeCamera, já no mount do Canvas) pro formato filtrado que
+   MeshStandardMaterial precisa. Essa conversão É LAZY TAMBÉM, e pela MESMA
+   razão: WebGLPrograms.getParameters só chama cubeuvmaps.get(environment) —
+   que é quem de fato dispara o fromCubemap — na hora de montar os
+   parâmetros do programa, ou seja, junto com o link do shader. Resultado: os
+   dois custos caem no mesmo frame, e esse frame vira 446ms.
+
+   gl.compileAsync(scene, camera) paga as DUAS coisas de uma vez, porque
+   getProgram() é o dono comum: ele percorre a cena com scene.traverse (não
+   traverseVisible — alcança materiais mesmo em objetos com visible=false,
+   então não depende do phone estar em quadro) e monta os parâmetros de cada
+   material, o que já resolve o cubeuvmaps.get() e detona o PMREM junto. Não
+   precisa acionar as duas coisas em separado.
+
+   POR QUE ESTE COMPONENTE MORA DENTRO DO <Suspense>, JUNTO DO <group> DO
+   PHONE: sem o <IPhoneModel> montado e com materiais atribuídos,
+   scene.traverse não encontra nada do phone pra compilar — só aqueceria o
+   que já existia antes dele (ambientLight, o Lightformer). Sendo sibling do
+   <group> dentro do MESMO Suspense, ele só monta quando o fallback já foi
+   trocado pelo conteúdo real — ou seja, com o glb carregado e os materiais
+   no lugar. O <Environment> (Lights, fora do Suspense) já capturou o
+   cubemap bem antes disso, no mount do Canvas — então quando este
+   componente dispara, os dois lados (materiais do phone + envmap) já
+   existem pra serem compilados juntos.
+
+   requestIdleCallback: não competir com o first paint da página — o
+   warm-up é trabalho de fundo, não bloqueia nada visível. Guard por ref:
+   roda uma vez só (chamar de novo não quebraria nada — o three cacheia por
+   material/textura — só não há motivo pra pagar de novo).
+
+   compileAsync existe desde o three r152 (KHR_parallel_shader_compile); o
+   package.json deste projeto trava three em ^0.162.0, então ele sempre
+   existe aqui — o fallback pra compile() síncrono fica só como rede de
+   segurança caso a dependência seja rebaixada um dia. */
+function GpuWarmup() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  const warmed = useRef(false);
+
+  useEffect(() => {
+    if (warmed.current) return;
+    warmed.current = true;
+
+    const run = () => {
+      if (typeof gl.compileAsync === "function") {
+        gl.compileAsync(scene, camera).catch(() => {});
+      } else {
+        gl.compile(scene, camera);
+      }
+    };
+
+    const idle: (cb: () => void) => void =
+      typeof window.requestIdleCallback === "function"
+        ? (cb) => window.requestIdleCallback(cb)
+        : (cb) => window.setTimeout(cb, 1);
+    idle(run);
+  }, [gl, scene, camera]);
+
+  return null;
+}
+
 export default function ScrollPhone() {
   const group = useRef<THREE.Group>(null);
   const cam = useRef<THREE.PerspectiveCamera>(null);
@@ -894,6 +998,13 @@ export default function ScrollPhone() {
      sobrou (mora depois). A ordem no DOM é o que separa os dois trabalhos. */
   const lensEl = useRef<HTMLDivElement>(null);
   const submergedEl = useRef<HTMLDivElement>(null);
+  /* Cache da última string ESCRITA em backdropFilter/background — ver
+     LENS_BLUR_STEP. Early-return: sem isso lensPaint escreve todo frame
+     mesmo com o valor quantizado idêntico ao anterior, e o browser não
+     deduplica escrita de filter/backdrop-filter sozinho — cada set já força
+     o recálculo de camada mesmo quando a string final é igual à anterior. */
+  const lensFilterStr = useRef("");
+  const submergedBgStr = useRef("");
   /* A TELA do phone — DOM real da camada CSS3D, entregue pelo forwardRef do
      <Html> do drei (em transform mode ele passa o ref pro div de CONTEÚDO, ver
      node_modules/@react-three/drei/web/Html.js). Ref e escrita por frame no
@@ -907,6 +1018,9 @@ export default function ScrollPhone() {
      wetPaint reescreve TODO frame, o pior caso é 1 frame sem filtro. Medido no
      render dos 3 frames-chave: não aparece. */
   const screenEl = useRef<HTMLDivElement>(null);
+  /* Cache da última string ESCRITA em filter — ver lensFilterStr acima, mesmo
+     motivo, aqui pro `filter` da tela (o culpado medido em wetPaint). */
+  const screenFilterStr = useRef("");
   /** Quanto do dentro-d'água pintar. Curva própria, não o bump — ver TINT. */
   const tint = useRef(0);
   /** Quanta ÁGUA há em quadro — o gate da aresta, não o bump do phone. Ver
@@ -1532,27 +1646,44 @@ export default function ScrollPhone() {
       // cross-fade que o TINT_OUT existe pra fazer.
       const top = (frac * 100).toFixed(2);
       el.style.opacity = String(tintAmt);
-      el.style.background =
-        `linear-gradient(to bottom, ${SUBMERGED_TOP} ${top}%, ${SUBMERGED_DEEP} 100%)`;
+      // Early-return na STRING, não no valor: `top` (de `frac`) muda quase
+      // todo frame que a água está em quadro, então isto raramente barra a
+      // escrita — mas quando barra (fim/início de rampa, hold) evita reatribuir
+      // o mesmo gradiente. NÃO quantiza `frac`: mudaria a aresta visível da
+      // água, e a ordem aqui é não mudar a aparência, só cortar redundância.
+      const bg = `linear-gradient(to bottom, ${SUBMERGED_TOP} ${top}%, ${SUBMERGED_DEEP} 100%)`;
+      if (bg !== submergedBgStr.current) {
+        submergedBgStr.current = bg;
+        el.style.background = bg;
+      }
 
       // 'none', não opacity/alpha: backdrop-filter é caro (lê o backdrop e
       // borra o viewport inteiro por frame) e não pode ficar de pé fora do
       // mergulho, onde não há água nenhuma pra justificar. Também é o que
       // garante que o Pricing pouse NÍTIDO.
       if (lensAmt <= 0.001) {
-        lens.style.backdropFilter = "none";
-        // setProperty, não .webkitBackdropFilter: o prefixo não existe no
-        // CSSStyleDeclaration do TS, e o Safari ainda só entende o prefixado.
-        lens.style.setProperty("-webkit-backdrop-filter", "none");
+        if (lensFilterStr.current !== "none") {
+          lensFilterStr.current = "none";
+          lens.style.backdropFilter = "none";
+          // setProperty, não .webkitBackdropFilter: o prefixo não existe no
+          // CSSStyleDeclaration do TS, e o Safari ainda só entende o prefixado.
+          lens.style.setProperty("-webkit-backdrop-filter", "none");
+        }
         return;
       }
 
       lens.style.top = `${top}%`;
-      const f =
-        `blur(${(LENS_BLUR * lensAmt).toFixed(1)}px)` +
-        ` saturate(${(1 + (LENS_SATURATE - 1) * lensAmt).toFixed(3)})`;
-      lens.style.backdropFilter = f;
-      lens.style.setProperty("-webkit-backdrop-filter", f);
+      // Raio e saturação QUANTIZADOS antes de virar string — ver
+      // LENS_BLUR_STEP. Sem isso o valor por baixo varia todo frame mesmo com
+      // toFixed(), e a string (logo o raster de backdrop-filter) muda junto.
+      const blurPx = quantize(LENS_BLUR * lensAmt, LENS_BLUR_STEP);
+      const satVal = quantize(1 + (LENS_SATURATE - 1) * lensAmt, LENS_SATURATE_STEP);
+      const f = `blur(${blurPx.toFixed(1)}px) saturate(${satVal.toFixed(3)})`;
+      if (f !== lensFilterStr.current) {
+        lensFilterStr.current = f;
+        lens.style.backdropFilter = f;
+        lens.style.setProperty("-webkit-backdrop-filter", f);
+      }
     };
 
     /* A TELA MOLHADA — ver SCREEN_WET_BLUR pro porquê de ser filter e não lente.
@@ -1582,14 +1713,28 @@ export default function ScrollPhone() {
       // de composição própria: fora do mergulho a tela não tem que pagar isso.
       // O clip sai junto: ele só existe pra conter o borrão.
       if (amt <= 0.001) {
-        el.style.filter = "none";
-        el.style.clipPath = "none";
+        if (screenFilterStr.current !== "none") {
+          screenFilterStr.current = "none";
+          el.style.filter = "none";
+          el.style.clipPath = "none";
+        }
         return;
       }
-      el.style.filter =
-        `blur(${(SCREEN_WET_BLUR * amt).toFixed(2)}px)` +
-        ` saturate(${(1 + (SCREEN_WET_SAT - 1) * amt).toFixed(3)})` +
-        ` brightness(${(1 + (SCREEN_WET_BRIGHT - 1) * amt).toFixed(3)})`;
+      // Raio, saturação e brilho QUANTIZADOS antes de virar string — mesmo
+      // motivo do lensPaint (ver LENS_BLUR_STEP): quantizar só o blur não
+      // resolve, porque saturate/brightness continuariam variando cru e a
+      // STRING inteira — não só o blur — é o que invalida o raster.
+      const blurPx = quantize(SCREEN_WET_BLUR * amt, SCREEN_BLUR_STEP);
+      const satVal = quantize(1 + (SCREEN_WET_SAT - 1) * amt, SCREEN_SATURATE_STEP);
+      const brightVal = quantize(1 + (SCREEN_WET_BRIGHT - 1) * amt, SCREEN_BRIGHTNESS_STEP);
+      const f =
+        `blur(${blurPx.toFixed(2)}px)` +
+        ` saturate(${satVal.toFixed(3)})` +
+        ` brightness(${brightVal.toFixed(3)})`;
+      if (f !== screenFilterStr.current) {
+        screenFilterStr.current = f;
+        el.style.filter = f;
+      }
       el.style.clipPath = `inset(0 round ${SCREEN_RADIUS}px)`;
     };
 
@@ -2123,6 +2268,11 @@ export default function ScrollPhone() {
               scale={[16.5, 16.5, 16.5]}
             />
           </group>
+          {/* Sibling do <group>, dentro do MESMO Suspense — só monta (e só
+              então compila) depois que o glb resolveu e os materiais do
+              phone existem. Ver o comentário de GpuWarmup pro racional
+              completo. */}
+          <GpuWarmup />
         </Suspense>
       </Canvas>
       {/* A TINTA DO SUBMERSO — e ela é DOM, não WebGL.

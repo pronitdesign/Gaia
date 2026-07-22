@@ -22,10 +22,24 @@ const CURVE_1 = "M 0 118 Q 250 60 500 108 Q 750 150 1000 96";
 const CURVE_2 = "M 0 96 Q 250 154 500 100 Q 750 52 1000 116";
 
 /* Curso de cada frase ao longo do path, em % do comprimento. Contra-movimento:
-   a de cima corre pra direita, a de baixo pra esquerda. 36→64 é o máximo que
-   cabe sem a frase transbordar a ponta do path (a frase mede ~60% dele e o
-   textAnchor é middle, então o centro não pode passar de ~36%/~64%). */
-const TRAVEL = { from: 36, to: 64 };
+   a de cima corre pra direita, a de baixo pra esquerda.
+
+   O curso NÃO é o mesmo nos dois breakpoints porque a FONTE não é (ver os
+   text-[..px] nos <text>). A regra é geométrica: textAnchor é middle, então a
+   frase ocupa [centro − metade, centro + metade] do path e nenhuma das pontas
+   pode sair de [0,100], senão a frase é CORTADA na curva — o que a Laura vetou
+   ("desde que passem na animação curva por completo"). Logo o curso máximo é
+   `centro ∈ [frac/2, 100−frac/2]`, com `frac` = quanto do path a frase mede.
+
+     desktop: fonte 64 → medido ~65% do path → cabe 36→64 (δ=14) com folga.
+     mobile:  fonte 80 → medido ~81% do path → só cabe ~43→57 (δ=7); mais curso
+              que isso e "A Gaia cuida do resto." transborda a ponta do path.
+
+   Fonte maior come curso: é o trade que o pedido "maiores" impõe. Se subir mais
+   a fonte mobile, APERTE o TRAVEL_MOBILE na mesma conta (e confira no render — a
+   medida do textLen tem ruído de kerning). */
+const TRAVEL_DESKTOP = { from: 36, to: 64 };
+const TRAVEL_MOBILE = { from: 43, to: 57 };
 
 /* Range de scroll em que cada frase resolve o blur. A de cima já está em tela
    quando a seção abre, então pode resolver no percurso até o centro. A de baixo
@@ -62,8 +76,13 @@ const SKY_MASK = "linear-gradient(to bottom, #000 76%, transparent 100%)";
 const NOISE =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
+/* fontSize saiu daqui pra virar RESPONSIVO — mobile pede a frase maior (pedido
+   da Laura 2026-07-22), e o tamanho vai por classe (text-[80px] lg:text-[64px])
+   nos <text>, não inline, senão o style ganharia da classe. Em SVG o "px" da
+   font-size cai em UNIDADES DO viewBox (1000×200), então 80 unidades ≈ 34px
+   renderizado no phone (430px de largura) contra os 27,5px que 64 dava. O curso
+   na curva (TRAVEL_MOBILE) já foi apertado pra essa fonte maior caber. */
 const TEXT_STYLE: CSSProperties = {
-  fontSize: 64,
   letterSpacing: "-0.015em",
   fontWeight: 500,
 };
@@ -73,62 +92,83 @@ export default function Manifesto() {
 
   useGSAP(
     () => {
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      /* matchMedia (não um matchMedia().matches lido uma vez) porque o TRAVEL
+         agora DEPENDE do breakpoint — a fonte mobile é maior e o curso na curva
+         é mais curto pra ela não transbordar (ver TRAVEL_MOBILE). Lido uma vez
+         só, um resize desktop→mobile deixaria o curso largo sobre a fonte
+         grande e cortaria a frase; matchMedia re-roda no cruzamento do 1024 e o
+         useGSAP reverte o contexto antigo. O `reduce` entra aqui como condição
+         irmã: quando bate, os dois ramos (mobile/desktop) caem no set estático. */
+      gsap.matchMedia().add(
+        {
+          reduce: "(prefers-reduced-motion: reduce)",
+          mobile: "(max-width: 1023px)",
+          desktop: "(min-width: 1024px)",
+        },
+        (ctx) => {
+          const { reduce, mobile } = ctx.conditions as {
+            reduce: boolean;
+            mobile: boolean;
+            desktop: boolean;
+          };
+          const travel = mobile ? TRAVEL_MOBILE : TRAVEL_DESKTOP;
 
-      // cada linha: blur alto → 0 conforme cruza o centro do viewport
-      ([1, 2] as const).forEach((n) => {
-        const fe = `#fe-blur-${n}`;
-        const svg = `[data-line="${n}"]`;
-        const flow = `[data-flow="${n}"]`; // o <textPath> que corre na curva
+          // cada linha: blur alto → 0 conforme cruza o centro do viewport
+          ([1, 2] as const).forEach((n) => {
+            const fe = `#fe-blur-${n}`;
+            const svg = `[data-line="${n}"]`;
+            const flow = `[data-flow="${n}"]`; // o <textPath> que corre na curva
 
-        if (reduce) {
-          gsap.set(fe, { attr: { stdDeviation: 0 } });
-          gsap.set(flow, { attr: { startOffset: "50%" } });
-          return;
-        }
+            if (reduce) {
+              gsap.set(fe, { attr: { stdDeviation: 0 } });
+              gsap.set(flow, { attr: { startOffset: "50%" } });
+              return;
+            }
 
-        const [a, b] =
-          n === 1
-            ? [TRAVEL.from, TRAVEL.to] // frase de cima corre →
-            : [TRAVEL.to, TRAVEL.from]; // frase de baixo corre ←
+            const [a, b] =
+              n === 1
+                ? [travel.from, travel.to] // frase de cima corre →
+                : [travel.to, travel.from]; // frase de baixo corre ←
 
-        gsap.set(fe, { attr: { stdDeviation: 15 } });
-        gsap.to(fe, {
-          attr: { stdDeviation: 0 },
-          ease: "none",
-          scrollTrigger: {
-            trigger: svg,
-            start: BLUR_RANGE[n].start,
-            end: BLUR_RANGE[n].end,
-            // scrub numérico (era true): feGaussianBlur re-rasteriza o texto a
-            // cada valor novo — cru, cada delta de roda vira um recompute e o
-            // "resolve" treme. 0.5 suaviza e rate-limita; o irmão de
-            // startOffset abaixo já usava scrub numérico.
-            scrub: 0.5,
-          },
-        });
+            gsap.set(fe, { attr: { stdDeviation: 15 } });
+            gsap.to(fe, {
+              attr: { stdDeviation: 0 },
+              ease: "none",
+              scrollTrigger: {
+                trigger: svg,
+                start: BLUR_RANGE[n].start,
+                end: BLUR_RANGE[n].end,
+                // scrub numérico (era true): feGaussianBlur re-rasteriza o texto a
+                // cada valor novo — cru, cada delta de roda vira um recompute e o
+                // "resolve" treme. 0.5 suaviza e rate-limita; o irmão de
+                // startOffset abaixo já usava scrub numérico.
+                scrub: 0.5,
+              },
+            });
 
-        // a frase VIAJA ao longo do próprio <path>: acompanha as cristas e
-        // vales da onda enquanto o scroll a empurra. direções opostas.
-        // NOTA: isto depende do refreshPriority dos pins de ComoComecar/ARoberta
-        // — sem ele o ScrollTrigger mede esta seção 3960px acima do real (o
-        // pinSpacing dos dois pins) e a frase chega no fim do curso antes da
-        // seção entrar em tela, parecendo travada.
-        gsap.fromTo(
-          flow,
-          { attr: { startOffset: `${a}%` } },
-          {
-            attr: { startOffset: `${b}%` },
-            ease: "none",
-            scrollTrigger: {
-              trigger: root.current,
-              start: "top bottom",
-              end: "bottom top",
-              scrub: 1,
-            },
-          },
-        );
-      });
+            // a frase VIAJA ao longo do próprio <path>: acompanha as cristas e
+            // vales da onda enquanto o scroll a empurra. direções opostas.
+            // NOTA: isto depende do refreshPriority dos pins de ComoComecar/ARoberta
+            // — sem ele o ScrollTrigger mede esta seção 3960px acima do real (o
+            // pinSpacing dos dois pins) e a frase chega no fim do curso antes da
+            // seção entrar em tela, parecendo travada.
+            gsap.fromTo(
+              flow,
+              { attr: { startOffset: `${a}%` } },
+              {
+                attr: { startOffset: `${b}%` },
+                ease: "none",
+                scrollTrigger: {
+                  trigger: root.current,
+                  start: "top bottom",
+                  end: "bottom top",
+                  scrub: 1,
+                },
+              },
+            );
+          });
+        },
+      );
     },
     { scope: root },
   );
@@ -158,10 +198,28 @@ export default function Manifesto() {
          essa entrada não mudou. A caixa deixou de ser simétrica porque as duas
          pontas deixaram de fazer a mesma coisa — a de cima abre um capítulo, a
          de baixo agora encosta noutro. */
-      /* Mobile: pb menor que o pt pelo mesmo motivo do md: — a frase de baixo
-         encosta no capítulo seguinte; 32vh de cada lado deixava "A Gaia cuida
-         do resto." a ~2 telas do mar (ver Mergulho.tsx). */
-      className="relative flex min-h-[90vh] flex-col justify-between overflow-hidden pt-[32vh] pb-[30vh] md:min-h-[130vh] md:pb-[24vh] md:pt-[42vh]"
+      /* COMPACTAÇÃO MOBILE/TABLET (<lg, 2026-07-22) — a Laura mandou tirar "esse
+         espaço" entre "A Gaia cuida do resto." e o campo do Pricing (Image #4: o
+         phone boiando num vão navy vazio). O vão era pb-30vh(280px) + Mergulho
+         42vh(391px) ≈ 670px de navy morto.
+
+         POR QUE min-h CAI JUNTO COM O pb, e não só o pb. O gradiente do céu
+         (background: SKY) é mapeado sobre a ALTURA da section, e "A Gaia cuida"
+         (text-ink, escuro) só se lê sobre o pico lavanda do gradiente — os stops
+         até 0.72 (ver sky.ts). Com justify-between, cortar SÓ o pb empurra a
+         frase pra baixo, pro navy escuro do fim do gradiente (medido: fraction
+         0.56→0.78), e o ink some. Cortando min-h JUNTO (90→74vh) o content-box
+         fica igual ao original (~261px), então: (1) as duas frases NÃO se afastam
+         e (2) a frase de baixo cai no MESMO pixel de antes (~473px do topo),
+         agora em fraction ~0.69 — ainda dentro da faixa ≤0.72 calibrada. Contraste
+         conferido no render, não na conta.
+
+         lg: devolve os 130/42/24vh do desktop intactos (lá o pb é a distância da
+         frase à água, calibração do Mergulho). Antes esses valores moravam em
+         md:; migraram pra lg: pra o TABLET (768–1024, que usa o Pricing mobile)
+         compactar junto. pt base intacto: a entrada da 1ª frase do escuro do
+         Features não mudou. */
+      className="relative flex min-h-[74vh] flex-col justify-between overflow-hidden pt-[32vh] pb-[14vh] lg:min-h-[130vh] lg:pt-[42vh] lg:pb-[24vh]"
       /* Fundo SÓLIDO = o navy exato em que o vídeo do campo abre. O céu (gradiente)
          vem numa camada por cima com mask bottom, e ao desmanchar entrega este
          navy — a section acaba no mesmo tom em que o vídeo começa. */
@@ -212,6 +270,7 @@ export default function Manifesto() {
           filter="url(#blur-line-1)"
           fill="currentColor"
           textAnchor="middle"
+          className="text-[80px] lg:text-[64px]"
           style={TEXT_STYLE}
         >
           <textPath data-flow="1" href="#curve-1" startOffset="50%">
@@ -256,6 +315,7 @@ export default function Manifesto() {
           filter="url(#blur-line-2)"
           fill="currentColor"
           textAnchor="middle"
+          className="text-[80px] lg:text-[64px]"
           style={TEXT_STYLE}
         >
           <textPath data-flow="2" href="#curve-2" startOffset="50%">

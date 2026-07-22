@@ -34,9 +34,12 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
    overlay na aresta de BAIXO dele (r.bottom), então o phone lê como mergulhando
    pra dentro do tab.
 
-   Mobile (<lg): comportamento antigo preservado — aparelho estático em fluxo,
-   conteúdo empilhado num único card de vidro escuro abaixo (agora com o mesmo
-   toggle/preço do desktop, via o mesmo estado React).
+   Mobile (<lg), mock da Laura 2026-07-20: o campo também é o HERO — mas em
+   vez de full-bleed cortado, a imagem encolhe pro recorte retrato caber com
+   TODO o contexto (céu, o "A", as duas colinas, flores) e o pé dela dissolve
+   numa BANDA ESCURA (ink) que hospeda o pouso do phone e o card de preço,
+   fechando em rounded-b sobre o creme. Topo da imagem derrete na descida
+   lavanda via mask, como no desktop.
 
    STACKING: o ScrollPhone é um overlay `fixed z-[60]` na raiz que lê o rect
    vivo de [data-phone-end] a cada frame. O slot agora é ABSOLUTO dentro do
@@ -83,12 +86,27 @@ const GLASS_DESKTOP =
 const CARD_SHEEN =
   "pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)]";
 
-/* TAB atrás do phone — trapézio do entalhe do Figma (topo 348 → base 247 numa
-   altura de 36): ~14% de recuo por lado, slant na altura inteira. O topo dele
-   fica ENTERRADO no campo (24px acima da aresta), preto sobre grama escura —
-   é o que faz ele ler como emergindo do campo, não como colado por cima. */
-const TAB_CLIP = "polygon(0 0, 100% 0, 86% 100%, 14% 100%)";
-const TAB_FILL = "linear-gradient(180deg, #161616 0%, #000 100%)";
+/* TAB atrás do phone — iteração 2026-07-20 (2ª volta): a Laura vetou o flare
+   côncavo na saída ("não quero que aumente na saída") e mandou a referência —
+   o TRAPÉZIO do Figma de volta, AFUNILANDO na descida, só que de cantos
+   arredondados e mais raso. Shape em clip-path:path() com coordenadas
+   absolutas, então é um path POR BREAKPOINT (o mesmo path esticado distorceria
+   os raios). Geometria: retângulo cheio até a linha do campo (y 124/152 do
+   topo do container — invisível, preto sobre grama), e daí o funil desce
+   48/56px com inset de 26/42 por lado (slant ~28/37°). As pontas da base
+   MAIOR são RETAS — sem raio (veto de 2026-07-21); só as quinas de baixo
+   arredondam, ~12/14 — raio PEQUENO de propósito ("o trapézio não pode ser
+   muito arredondado", 3ª volta de 2026-07-20): é quebra de canto, não curva.
+   O que dimensiona o inset é a base RETA (o vão entre os dois cantos de
+   baixo): 284/388, ~26px de sobra por lado sobre a largura VISUAL do phone
+   (~232/334, medida no render) — é na base que o ScrollPhone corta (r.bottom)
+   e o corte do phone não pode vazar do preto; a largura canto-a-canto nominal
+   engana porque o raio come a reta. */
+const TAB_FILL = "linear-gradient(180deg, #161616 0%, #000 55%)";
+const TAB_PATH_LG =
+  "path('M0,0 H360 V124 L339.7,161.5 Q334,172 322,172 L38,172 Q26,172 20.3,161.5 L0,124 Z')";
+const TAB_PATH_XL =
+  "path('M0,0 H500 V152 L466.4,196.8 Q458,208 444,208 L56,208 Q42,208 33.6,196.8 L0,152 Z')";
 
 /* vidro fumê — versão MOBILE: card alto e estreito, single column. Tint
    uniforme e denso (sem gradiente) pro texto branco não lavar. */
@@ -266,7 +284,11 @@ export default function Pricing() {
          creme de respiro antes do CTAFinal. */
       /* -mt-px: fresta de subpixel da boundary Mergulho→Pricing (alturas em vh
          → px fracionário). Invisível porque as duas encostam no #C0B0D7. */
-      className="relative -mt-px overflow-x-clip py-20 md:py-24 lg:pt-[22vh] lg:pb-72"
+      /* pt-0 no mobile (2026-07-20): o campo-hero começa NA aresta da section
+         — o Mergulho mobile morre no índigo chapado (#151948, DIVE_STOPS) e é
+         o céu do campo que emenda nele (ver o slab navy no bloco mobile). Um
+         pt aqui reabria a fresta de lavanda entre os dois navies. */
+      className="relative -mt-px overflow-x-clip pb-20 md:pb-24 lg:pt-[22vh] lg:pb-72"
       /* FUNDO = a descida lavanda→creme, curva-S de ~480px (stops por
          smoothstep, slope→0 nas pontas pra não criar banda de Mach na chegada
          do creme). O campo NÃO mora aqui: é camada própria (ver [data-campo]).
@@ -284,9 +306,12 @@ export default function Pricing() {
       <div className="relative z-10 mx-auto mt-12 hidden w-full max-w-[1280px] px-6 md:px-10 lg:mt-[18vh] lg:block">
         {/* CAMPO FLORIDO — full-bleed (left-1/2 -ml-[50vw] w-screen), aresta de
             baixo RETA a 64px abaixo do rodapé dos cards (-bottom-16): é a linha
-            campo→creme do mockup, sem melt. O aspect nativo (775/624) sobe a
-            partir daí pra mostrar grama + o "A" + céu; o topo derrete na
-            descida lavanda via mask (16% de fade), como antes. */}
+            campo→creme do mockup, sem melt. Cantos de BAIXO em rounded-b-card
+            (40px, 2026-07-20): o mockup trata o campo como bloco arredondado,
+            então a aresta curva pro creme nas duas pontas — só embaixo, porque
+            o topo derrete na descida lavanda via mask (16% de fade) e um raio
+            lá recortaria o fade ainda semi-visível. O aspect nativo (775/624)
+            sobe a partir da aresta pra mostrar grama + o "A" + céu. */}
         <div
           aria-hidden
           className="pointer-events-none absolute -bottom-16 left-1/2 z-0 -ml-[50vw] w-screen"
@@ -304,31 +329,37 @@ export default function Pricing() {
             muted
             playsInline
             preload="metadata"
-            className="aspect-[775/624] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
+            className="aspect-[775/624] w-full rounded-b-card object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
           />
         </div>
 
-        {/* TAB do phone ([data-phone-clip]) — o trapézio preto que o phone
-            atravessa. SUTIL de propósito (pedido 2026-07-20): o grosso do
-            trapézio fica ENFIADO atrás do card do trial (top: 100% − 60/88px,
-            card z-[2] > tab z-[1]) e a BASE cai EXATA na aresta campo→creme
-            (card bottom + 64 = o -bottom-16 do campo) — as asas pretas só
-            existem sobre a grama escura e morrem na linha, nunca pingam no
-            creme. É essa base que o ScrollPhone usa como linha de corte
-            (r.bottom), então o phone também mergulha mais cedo. Horizontal:
-            aresta direita alinhada à aresta direita do card do TRIAL, que é o
-            da ESQUERDA — o offset soma o px do container (40) + coluna do
-            preço (340/420) + gap (24/36) = 404/496; com o slot em right-14 do
-            card o centro do tab segue a ~1px do centro do phone no xl. */}
+        {/* TAB do phone ([data-phone-clip]) — o funil que o phone atravessa.
+            O grosso continua ENFIADO atrás do card do trial (top: 100% −
+            60/88px, card z-[2] > tab z-[1]); a base desce 48/56px além da
+            aresta campo→creme (que fica a card bottom + 64 = o -bottom-16 do
+            campo) — é essa sobra que faz o phone SAIR do frame, e o
+            ScrollPhone corta em r.bottom, então a linha de corte anda junto.
+            Dois filhos e não um porque o path é por breakpoint (ver
+            TAB_PATH_*). Horizontal: o centro segue o centro do phone — aresta
+            direita do card do trial (404/496 do container) + right do slot
+            (20/20) + meia largura do slot (140/196) = centro a 564/712;
+            right = centro − w/2 → 384/462. */}
         <div
           data-phone-clip
           aria-hidden
-          className="absolute right-[404px] top-[calc(100%-60px)] z-[1] h-[124px] w-[330px] xl:right-[496px] xl:top-[calc(100%-88px)] xl:h-[152px] xl:w-[460px]"
-          style={{
-            clipPath: TAB_CLIP,
-            background: TAB_FILL,
-          }}
-        />
+          className="absolute right-[384px] top-[calc(100%-60px)] z-[1] h-[172px] w-[360px] xl:right-[462px] xl:top-[calc(100%-88px)] xl:h-[208px] xl:w-[500px]"
+        >
+          <div
+            aria-hidden
+            className="absolute inset-0 xl:hidden"
+            style={{ background: TAB_FILL, clipPath: TAB_PATH_LG }}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 hidden xl:block"
+            style={{ background: TAB_FILL, clipPath: TAB_PATH_XL }}
+          />
+        </div>
 
         {/* grade dos DOIS CARDS DE VIDRO — a proporção ~62/38 (o espelho da
             ~38/62 do mockup, invertida em 2026-07-19). Alturas iguais por
@@ -391,10 +422,19 @@ export default function Pricing() {
                 centro do slot (PHONE_PIVOT_BIAS, ver ScrollPhone) — o slot sobe
                 esses ~50/75px pra o topo VISUAL do phone cair onde o mockup
                 pede. */}
+            {/* +12% em 2026-07-20 ("o phone deve ser um pouco maior"):
+                250×444→280×498, 350×622→392×697 — razão 0,5625 preservada.
+                right-5 nos dois breakpoints ("phone um pouco mais para a
+                direita", 2ª volta do mesmo dia): além do gosto, os 42px que o
+                slot cresceu pra esquerda no xl comiam a folga da coluna de
+                texto (max-w-270 + p-14 termina em 326 do card) — em right-5 a
+                lateral visual do phone volta a ~34px disso. O right/384 e
+                xl:right/462 do tab já somam a meia largura NOVA do slot
+                (140/196); mexeu aqui, recentra lá. */}
             <div
               data-phone-end
               aria-hidden
-              className="pointer-events-none absolute right-8 top-10 z-20 h-[444px] w-[250px] xl:right-14 xl:top-[25px] xl:h-[622px] xl:w-[350px]"
+              className="pointer-events-none absolute right-5 top-10 z-20 h-[498px] w-[280px] xl:right-5 xl:top-[25px] xl:h-[697px] xl:w-[392px]"
             />
           </div>
 
@@ -466,61 +506,161 @@ export default function Pricing() {
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
-        {/* ══ MOBILE (<lg) ════════════════════════════════════════════════
-            Comportamento preservado: aparelho estático em fluxo acima,
-            conteúdo empilhado num único card de vidro escuro abaixo — agora
-            com o mesmo toggle/preço do desktop (mesmo estado React). */}
-        <div className="mt-12 lg:hidden">
+      {/* ══ MOBILE (<lg) ══════════════════════════════════════════════════
+          O campo como HERO retrato (ver o bloco de comentário no topo): a
+          imagem NÃO é full-bleed cortado — o recorte h-[58svh] (era 70svh,
+          2026-07-21: medido @430×932 o hero ia de 12812 a 13464 e a Laura
+          pediu a seção mais baixa — 58svh fecha em ~13353, ~111px a menos)
+          mostra o contexto inteiro (céu estrelado, o "A", as duas colinas,
+          as flores) e o pé da grama fecha na banda escura via degradê. */}
+      <div className="relative z-10 lg:hidden">
+        <div className="relative mx-auto w-full max-w-3xl">
+          {/* slab navy ATRÁS do fade do topo da imagem: é ele que o mask revela
+              — o MESMO índigo em que o Mergulho mobile morre (DIVE_STOPS), então
+              a costura Mergulho→campo é navy→navy, sem faixa de lavanda. O img
+              é `relative` pra pintar por cima do slab. */}
+          {/* -top-[2px]: alturas em vh acima dão px fracionário e a 1ª linha do
+              gradiente lavanda da section vazava na fresta (medido: 1 row
+              #3c406f = lavanda⊕navy). O slab sobe 2px sobre o Mergulho — mesmo
+              navy, invisível. */}
+          <div aria-hidden className="absolute inset-x-0 -top-[2px] h-[45%] bg-[#151948]" />
+          <img
+            src="/pricing-campo-bg.webp"
+            alt=""
+            aria-hidden
+            decoding="async"
+            /* h-[58svh] (era 70svh, 2026-07-21 — a Laura pediu a seção mais
+               baixa e o phone pousando SOBRE a grama, não numa faixa preta
+               abaixo dela): a altura fixa o recorte e a largura da tela
+               decide o quanto sobra dos lados — no phone vira o retrato do
+               mock (~0.64), no md alarga sozinho. O cover por altura nunca
+               corta o eixo vertical, então o contexto topo→pé está sempre
+               inteiro nos dois valores — só encolhe junto. Mask no topo
+               (12%) = o mesmo derretimento na lavanda do desktop. */
+            className="relative h-[58svh] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_12%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_12%)]"
+          />
+          {/* costura imagem→banda: força os últimos px a fecharem EXATO no ink
+              da banda — a grama já é quase preta, o degradê é invisível. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-b from-transparent via-[rgba(5,7,14,0.55)] to-[#05070E]"
+          />
+        </div>
+
+        {/* BANDA ESCURA — o "bg mais escuro" que o mock marca em marrom:
+            continua a grama do campo, segura o pouso do phone e o card, e
+            fecha em rounded-b-card sobre o creme da section. */}
+        <div className="relative mx-auto -mt-px w-full max-w-3xl rounded-b-card bg-[#05070E] px-6 pt-[188px] pb-14 md:px-10">
           {/* Pouso mobile do ScrollPhone viajante: o aparelho estático saiu — é o
               MESMO phone que desceu do Features (ver [data-phone-start] mobile lá
               e o gate liberado no ScrollPhone). A âncora só reserva a caixa; o
               aparelho vive no overlay fixo. */}
-          <div className="relative mx-auto -mb-24 h-[440px] w-[300px]">
-            <div data-phone-end aria-hidden className="pointer-events-none absolute inset-0" />
+          {/* O PHONE SAIU DO FLUXO (2026-07-21) — armadilha de margin collapse.
+
+              Tentativa anterior subia o pouso do phone pro campo com um
+              `-mt-[210px]` num filho EM FLUXO desta banda. Não funcionou: a
+              banda (`bg-[#05070E]`) não tinha padding-top nem border-top, e
+              margin-top NEGATIVO do primeiro filho em fluxo COLAPSA através
+              do pai sem essas duas barreiras — arrasta o TOPO DA BANDA
+              junto com o phone, não só o phone. Confirmado no render
+              (@430×932): o preto #05070E passou a começar em doc y≈13142 em
+              vez de 13352, cortando os últimos 210px da imagem do campo com
+              uma ARESTA DURA no meio da grama viva — o degradê `h-44` da
+              costura morreu, e o phone continuava pousando no breu, porque a
+              própria banda tinha engolido a grama que ele deveria sobrepor.
+
+              Fix: tirar a âncora do fluxo. `absolute` não participa de
+              margin collapse — a posição dela não pode mais empurrar o pai.
+              A banda recupera o padding-top (`pt-[188px]` acima, era 236 —
+              2026-07-21, a Laura pediu o card mais alto) pra RESERVAR o
+              espaço do pouso — padding não colapsa, ao contrário de margin.
+
+              GEOMETRIA ALVO (doc, @430×932 — confira com
+              getBoundingClientRect, não com esta conta):
+                imagem do campo: 12812 → 13352 (h-[58svh])
+                topo da banda: de volta em 13352, degradê h-44 intacto
+                âncora do phone: 13112 → 13612 (-top-[240px] a partir do
+                  topo da banda — 240px dela sobrepõem a grama)
+                topo do card: 13352 + 188 (pt) = 13540 — o clip
+                  ([data-phone-clip] logo abaixo, intacto) corta ~142px da
+                  base da âncora ali: é o mergulho no card que o antigo
+                  -mb-16 tentava dar por margem, agora só geometria.
+              h-[500px] w-[340px] inalterado — é a FONTE ÚNICA da escala do
+              phone (endG = rect.height/PHONE_FILL/900, ver ScrollPhone) e já
+              mediu bem no render. left-1/2 -translate-x-1/2 centraliza (era
+              mx-auto, que só funciona em fluxo). */}
+          <div className="pointer-events-none absolute -top-[240px] left-1/2 h-[570px] w-[340px] -translate-x-1/2">
+            <div data-phone-end aria-hidden className="absolute inset-0" />
           </div>
 
-          <div
-            data-glass
-            className={`relative z-[70] overflow-hidden rounded-[2.25rem] border border-white/15 p-2.5 shadow-[0_40px_90px_-30px_rgba(0,10,26,0.55)] ${GLASS_MOBILE}`}
-          >
-            <div className="pointer-events-none absolute inset-0 rounded-[2.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(255,255,255,0.06)]" />
-            <span
+          {/* wrapper SÓ pra hospedar o [data-phone-clip] (2026-07-21) — o
+              card de preço em si não mudou. Precisa de caixa própria porque
+              o clip lê r.bottom do [data-phone-clip], e um filho absolute
+              não tem rect sem um ancestral relative que comece exatamente
+              onde o card começa (senão inset-x-0 top-0 mediria a partir do
+              wrapper errado). */}
+          <div className="relative">
+            {/* [data-phone-clip] mobile — mesma mecânica do TAB desktop
+                (~linha 335): h-px encostado no topo deste wrapper (= topo do
+                card, já que o card é o único filho abaixo dele), então
+                r.bottom do elemento é exatamente o topo do card. O
+                ScrollPhone recorta o overlay fixed z-[60] nessa aresta
+                (CLIP_GATE, clipPhone()) — é assim que "o phone deve terminar
+                atrás do card" vira geometria em vez de torcida de z-index: o
+                z-[70] do card nunca ganhava do overlay (ver o comentário
+                acima da âncora), e agora não precisa ganhar, porque o phone
+                deixa de ser desenhado abaixo desta linha. anchor() em
+                ScrollPhone devolve o PRIMEIRO [data-phone-clip] COM caixa;
+                este só existe aqui dentro do lg:hidden, então não compete
+                com o do desktop (dentro de hidden lg:block) — mesmo padrão
+                de [data-phone-end]/[data-phone-start] documentado lá. */}
+            <div
+              data-phone-clip
               aria-hidden
-              className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/12 to-transparent"
+              className="pointer-events-none absolute inset-x-0 top-0 h-px"
             />
+            <div
+              data-glass
+              className={`relative z-[70] overflow-hidden rounded-[2.25rem] border border-white/15 p-2.5 shadow-[0_40px_90px_-30px_rgba(0,10,26,0.55)] ${GLASS_MOBILE}`}
+            >
+              <div className="pointer-events-none absolute inset-0 rounded-[2.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(255,255,255,0.06)]" />
+              <span
+                aria-hidden
+                className="gaia-card-sheen pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-white/12 to-transparent"
+              />
 
-            <div className="relative z-[1] flex flex-col gap-7 p-7">
-              <div>
-                {toggle(true)}
-                <div className="mt-6 flex items-baseline gap-1.5">
-                  <span className="font-body text-h3 font-medium text-white/45">R$</span>
-                  <span className="font-body text-[3.25rem] font-semibold leading-[0.9] tracking-[-0.02em] text-white tabular-nums">
-                    {PRICES[period].monthly}
-                  </span>
-                  <span className="font-body text-body-l text-white/40">/mês</span>
-                </div>
-                <p className="mt-4 font-body text-small leading-[1.55] text-white/60">
-                  {PRICES[period].note}
-                </p>
-              </div>
-
-              <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-                {INCLUDES.map((item) => (
-                  <li key={item} className="flex items-center gap-3">
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-inset ring-white/15">
-                      <IconCheck className="h-3 w-3" strokeWidth={2.25} />
+              <div className="relative z-[1] flex flex-col gap-7 p-7">
+                <div>
+                  {toggle(true)}
+                  <div className="mt-6 flex items-baseline gap-1.5">
+                    <span className="font-body text-h3 font-medium text-white/45">R$</span>
+                    <span className="font-body text-[3.25rem] font-semibold leading-[0.9] tracking-[-0.02em] text-white tabular-nums">
+                      {PRICES[period].monthly}
                     </span>
-                    <span className="font-body text-small text-white/70">{item}</span>
-                  </li>
-                ))}
-              </ul>
+                    <span className="font-body text-body-l text-white/40">/mês</span>
+                  </div>
+                  <p className="mt-4 font-body text-small leading-[1.55] text-white/60">
+                    {PRICES[period].note}
+                  </p>
+                </div>
 
-              <div className="flex flex-col gap-5 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                <p className="text-balance font-body text-small text-white/60">
-                  Teste grátis por 2 meses. Cancele quando quiser.
-                </p>
-                {ctaDark}
+                <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {INCLUDES.map((item) => (
+                    <li key={item} className="flex items-center gap-3">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-inset ring-white/15">
+                        <IconCheck className="h-3 w-3" strokeWidth={2.25} />
+                      </span>
+                      <span className="font-body text-small text-white/70">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="flex flex-col gap-5 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                  <p className="text-balance font-body text-small text-white/60">
+                    Teste grátis por 2 meses. Cancele quando quiser.
+                  </p>
+                  {ctaDark}
+                </div>
               </div>
             </div>
           </div>

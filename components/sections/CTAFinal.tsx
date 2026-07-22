@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Ref,
+  type SyntheticEvent,
+} from "react";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -87,6 +93,15 @@ const CTA_POSTER = "/video/cta-tablet-poster.webp";
 // Frame 0 do vídeo 2 (a mulher na mesma pose do recorte) — cobre o vídeo 2
 // enquanto ele carrega, então mesmo antes de decodar o crossfade já casa a pose.
 const CTA_FIELD_POSTER = "/video/cta-field-poster.webp";
+// O DESTINO DA CÂMERA, em arte — não o frame final extraído do mp4. É ela que
+// SEGURA a cena depois que o pull-out acaba, e ela existe por QUALIDADE: o
+// último frame do vídeo chega comprimido (H.264 gasta bitrate no movimento e
+// entrega o repouso em papa — flor do primeiro plano vira mancha), e é
+// justamente esse frame que fica parado na tela enquanto a pessoa lê o footer
+// inteiro. O webp entra por cima no fim do scrub e devolve a pétala.
+// Serve TAMBÉM de fundo do footer (ver o bloco do footer lá embaixo): a mesma
+// arte nas duas pontas é o que faz a cena continuar por trás do rodapé.
+const CTA_FIELD_END = "/video/cta-field-bg.webp";
 // Último frame (cena aberta) — o que reduced-motion recebe: sem vídeo baixado,
 // o usuário vê direto o destino da câmera em vez do ponto de partida.
 const CTA_STILL = "/video/cta-tablet-still.webp";
@@ -117,6 +132,80 @@ const SCENE_BOX = "absolute inset-0";
 // translate que isso e o pé direito do vídeo descola da borda.
 const MEDIA =
   "h-full w-full object-cover object-[100%_50%] scale-110 -translate-x-[5%]";
+
+// ── RETRATO: full-height + panorâmica que segue o sujeito ────────────────────
+// Tudo acima foi calibrado em 1440, onde a sobra horizontal do cover é 172px e
+// a tela mostra 89% do frame. Em retrato a conta vira outra: o frame é 1.79:1
+// e a viewport 0.46:1, então o cover escala pela ALTURA e a sobra explode. A
+// PEDIDO DA LAURA a cena agora é FULL-HEIGHT no celular (não mais a caixa 4/5
+// que houve aqui): num box de 390×844 o cover escala o frame de 1280×714 pra
+// 1513×844, sobra 1123px, e a janela visível é **390 de 1513 = 26% do frame**.
+//
+// 26% não hospeda o cluster tablet+rosto de uma vez: no frame final do
+// pull-back o tablet e o rosto juntos ocupam ~36% da largura. Ancorar fixo
+// cortaria um dos dois — foi por isso que a caixa 4/5 existia. A saída que a
+// Laura pediu no lugar dela é PANORÂMICA: como o primeiro vídeo é um pull-back,
+// o sujeito ANDA dentro do quadro (frame 0 = tela do tablet fechada, centro
+// ~0.32; frame final = mulher segurando o iPad, cluster centrado ~0.46), então
+// a janela de 26% desliza junto — `object-position` X de ~30% (fechado no
+// tablet) a ~46% (mulher+tablet), preso ao scrub do vídeo. Assim os dois ficam
+// SEMPRE centrados e só a franja (cabelo, prado, borda do tablet) cai fora, que
+// é perda invisível. Quem escreve esse X é o `matchMedia` no useGSAP (portrait
+// only) — ver lá; aqui o `object-[40%_50%]` é só o VALOR ESTÁTICO: o que o SSR,
+// o reduced-motion (still) e o primeiro paint mostram antes de a panorâmica
+// assumir. 40% é o meio do trajeto, então o still nasce com os dois no quadro.
+//
+// `scale-110 -translate-x-[5%]` SAI aqui de propósito: os dois só existem pra
+// fabricar folga que o `object-[100%]` do desktop consome (ver o comentário
+// acima). Em retrato eles cortariam de novo o que a panorâmica recupera.
+//
+// Gate por ASPECTO, não por largura: é o COMPLEMENTO EXATO do
+// `[@media(min-aspect-ratio:4/3)]` que já governa o recorte da Roberta (ver o
+// JSX dele) — onde a panorâmica entra, o recorte não existe, e vice-versa. Um
+// gate por `max-width` divergiria dos dois em tablet retrato, que sofre o
+// mesmo esmagamento (medido: sobra de 1295px em 820×1180).
+const MEDIA_PORTRAIT =
+  "[@media(max-aspect-ratio:4/3)]:object-[40%_50%] [@media(max-aspect-ratio:4/3)]:scale-100 [@media(max-aspect-ratio:4/3)]:translate-x-0";
+
+// A CENA DA ROBERTA — vídeo 1, still, recorte E vídeo 2. Os quatro têm que
+// compartilhar a caixa: é o contrato de registro que evita duas Robertas na
+// tela, e ele NÃO para no vídeo 1. O crossfade pro vídeo 2 só é invisível
+// porque o frame 0 dele é a MESMA pose do frame final do vídeo 1 (ver o
+// comentário do `fieldLayer`) — se um estivesse numa caixa e o outro em outra,
+// a pose saltaria de geometria exatamente no ponto que existe pra não ter
+// emenda. Em retrato os dois compartilham o full-height E a panorâmica: no
+// instante do crossfade (0.80→0.86) o vídeo 1 está preso em ~46% e o vídeo 2
+// nasce em ~46%, então a silhueta casa; só depois o vídeo 2 abre pro campo (ver
+// a panorâmica do `field` no matchMedia).
+//
+// A ARTE DO CAMPO é a exceção da caixa (é o CHÃO em que o card do footer pousa,
+// full-bleed, não mascarada), mas o PREENCHIMENTO dela precisa concordar com o
+// vídeo 2 no ponto de troca. Em landscape isso é o `MEDIA` cheio (obj 100%
+// scale-110), o MESMO do vídeo 2 landscape — registra de graça. Em RETRATO a
+// conta é outra: a mulher mora em x≈0.60 do frame (MEDIDO na arte, blusa branca
+// contra o campo — não 0.44, que o olho chutava), e full-height só mostra ~26%
+// da largura. Pra CENTRALIZAR ela — pedido da Laura — a janela precisa cair em
+// 0.60, o que dá `object-position` X ≈ 63% (centro = 0.129 + p·0.742 = 0.60).
+// Em obj 50% ela ficava colada na borda direita da janela; em 63% ela senta no
+// meio. Esse 63% é o MESMO do fim da panorâmica do vídeo 2 (ver matchMedia) E
+// do fundo do footer (ver o JSX do footer): os três mostram a mulher no mesmo
+// lugar, então o snap em p=1.0 e a emenda palco→footer ficam invisíveis.
+const MEDIA_SCENE = `${MEDIA} ${MEDIA_PORTRAIT}`;
+const MEDIA_FIELD_END = `${MEDIA} [@media(max-aspect-ratio:4/3)]:object-[63%_50%] [@media(max-aspect-ratio:4/3)]:scale-100 [@media(max-aspect-ratio:4/3)]:translate-x-0`;
+
+/** Wrapper das camadas da cena. Full-height em TODOS os aspectos agora — a
+ *  cena toma a tela inteira no desktop E no retrato (`h-full` = 100vh do palco
+ *  sticky). A faixa 4/5 com máscara de dissolução na base saiu quando o retrato
+ *  virou full-height (pedido da Laura): sem banda, não há base pra dissolver, e
+ *  a legibilidade do texto que antes morava no chão escuro abaixo dela agora é
+ *  o `baseMask`/`copyScrim` subindo por cima do vídeo, junto com o CTA (mesma
+ *  máquina do desktop — ver os tweens em useGSAP).
+ *
+ *  `inset-0` seria idêntico a `SCENE_BOX` agora; mantido `inset-x-0 top-0
+ *  h-full` só pra deixar explícito que a caixa ancora no topo e desce a altura
+ *  cheia — e pra não reescrever as quatro referências (vídeo 1, still, recorte,
+ *  vídeo 2) que dependem de ler a MESMA string que o registro exige. */
+const SCENE_BOX_SCENE = "absolute inset-x-0 top-0 h-full";
 
 // Id do clipPath compartilhado — vídeo e recorte referenciam o MESMO, é o que
 // garante que o arco corte os dois exatamente igual.
@@ -227,6 +316,412 @@ function Wash() {
   );
 }
 
+/** Scrim NOVO, direcionado — cobre a coluna onde a copy (eyebrow/headline/
+ * sub) vive, escurecendo só o fundo ATRÁS do texto. Nenhum dos escurecimentos
+ * que já existiam cobria essa faixa: o Wash é tonalidade, não contraste (ver
+ * comentário dele) e o DIM (`sceneDim`) só existe na fase 0→0.45 da timeline
+ * — morre exatamente quando o CTA está subindo, então a faixa ALTA onde o
+ * texto mora nunca recebeu nada.
+ *
+ * NÃO É MAIS PERMANENTE EM `motion` — a primeira cena (câmera fechada na tela
+ * do tablet, antes do pull-back) já tem contraste PRÓPRIO: o DIM (`sceneDim`,
+ * 0.62, que só apaga — ver o tween dele) protege a FRASE que mora ali. Este
+ * scrim, escuro desde o mount, não protegia nenhuma copy nessa fase — não há
+ * eyebrow/headline/sub na primeira cena, só a tela do tablet — e por isso só
+ * pintava uma faixa escura na lateral esquerda sem função nenhuma. A Laura
+ * vetou exatamente essa faixa. A correção segue o PRECEDENTE do `baseMask`
+ * (mesmo defeito, já resolvido lá): nasce em `opacity:0` por CSS (classe, não
+ * `gsap.set` — num load já rolado ou deep-link ele não pode piscar aceso) e a
+ * timeline acende ele no MESMO offset e MESMA duração/ease do `baseMask`
+ * (0.48, 0.24, `power2.inOut`, ver o tween em useGSAP, logo ao lado do dele):
+ * os dois são o mesmo chão de legibilidade, subindo na respiração do CTA —
+ * não faz sentido a base acender e o scrim atrasar ou adiantar.
+ *
+ * Em `still` (reduced-motion) ele CONTINUA aceso e permanente, sem tween: o
+ * still JÁ É o destino da câmera, não existe primeira cena pra proteger, e a
+ * copy está visível e parada desde o primeiro frame — contraste ali é PISO,
+ * não coreografia; nasce escuro e nunca escurece nem menos nem mais. Em
+ * `motion === null` (matchMedia ainda não resolveu) ele não é renderizado:
+ * não pode pintar antes de saber qual dos dois casos é este — mesmo cuidado
+ * do bloco de indecisão do `ctaBlock`, ver useGSAP.
+ *
+ * Medido (still hidden, p95 da luminância no pior caso dentro da CAIXA DA
+ * TINTA de cada bloco — união dos line boxes via Range, não a caixa CSS do
+ * elemento, que agora estica pra dentro da área que ela ocupa — nos 4
+ * viewports exigidos, fase HOLD 0.72→0.80 da timeline — DEPOIS do scrim já ter
+ * subido em 0.48→0.72, medição continua válida, não remedi):
+ *                  antes(1440×900)  1280×800  1440×900  1512×982  1920×1080
+ *   eyebrow  1.65:1 →      8.5:1      8.1:1     8.5:1     9.4:1     6.8:1
+ *   headline 2.27:1 →      8.1:1      8.1:1     8.1:1     9.4:1     6.2:1
+ *   sub      1.89:1 →      6.5:1      5.9:1     6.5:1     7.6:1     5.4:1
+ * (headline sempre 100% branco — só o fundo mudou.) Os três abaixo de
+ * 4.5:1 antes (headline reprovava até o AA de texto grande, 3:1); os três
+ * acima de 4.5:1 depois, nos 4 viewports — ver `analyze_contrast.py` e
+ * `contrast.cjs` no scratchpad da sessão (2026-07-21) pro método completo.
+ *
+ * Horizontal, ancorado à ESQUERDA (onde o texto vive). NÃO morre antes da
+ * borda dela — precisou crescer até 58% pra cobrir o bloco inteiro, que
+ * agora (DEFEITO 1) morde a silhueta de propósito; um scrim mais curto
+ * (34%, a 1ª tentativa) deixava a metade direita de cada linha — e o `sub`
+ * inteiro — sem backing, reprovando de novo. Isso não vaza visualmente
+ * NELA: ela é opaca em z-30, por CIMA deste scrim em z-0, então onde ela
+ * cobre a tela o scrim simplesmente não aparece — só importa nas franjas
+ * (cabelo com alpha parcial), verificado a olho nos 4 renders, sem costura
+ * visível. Ela continua iluminada; é o AR atrás do texto que escurece.
+ *
+ * Cor: MESMA família do `baseMask` (`#17102A` / `rgba(36,26,56,…)`), não
+ * preto neutro — preto é linha vermelha nesta cena (ver comentário do
+ * baseMask: o chão tem que ficar no mundo lavanda, não virar buraco).
+ *
+ * Mora DENTRO do clip do arco (z-0), DEPOIS do Wash e ANTES do DIM: fora do
+ * clip vazaria no creme ao redor do arco enquanto ele ainda está fechado;
+ * do lado de dentro, o clip já faz esse corte de graça. Abaixo do CTA (z-20)
+ * e da Roberta (z-30) — os dois continuam por cima, iluminados. */
+function CopyScrim({
+  scrimRef,
+  bornHidden,
+}: {
+  scrimRef?: Ref<HTMLDivElement>;
+  bornHidden?: boolean;
+}) {
+  return (
+    <div
+      ref={scrimRef}
+      aria-hidden
+      className={
+        // FORA no retrato: no mobile o texto mora EMBAIXO (não numa coluna à
+        // esquerda como no desktop), então um gradiente da esquerda pinta uma
+        // faixa escura lateral sem função — a Laura vetou. Quem dá legibilidade
+        // ali é o `baseMask` (gradiente de baixo, ver o tween). Só landscape.
+        "pointer-events-none absolute inset-0 [@media(max-aspect-ratio:4/3)]:hidden bg-[linear-gradient(to_right,#17102A_0%,rgba(36,26,56,0.88)_22%,rgba(36,26,56,0.55)_40%,transparent_58%)]" +
+        (bornHidden ? " opacity-0" : "")
+      }
+    />
+  );
+}
+
+/* ── Micro-gráficos dos cards ─────────────────────────────────────────────
+   O vocabulário vem dos wearables de saúde (referências da Laura: heart-rate
+   em barras finas com acentos de cor, stress em linha com contas), reescrito
+   na paleta da Gaia. São DECORATIVOS — aria-hidden, quem argumenta é o texto
+   do card — mas o dado é dirigido: cada acento cai exatamente onde a copy
+   aponta (os três horários da rotina, o "hoje" do crescimento). Valores
+   hardcoded, nada de random: a entrada é animada pela MESMA timeline dos
+   cards (ver CARDS em useGSAP), então o desenho precisa ser determinístico
+   pra reverter limpo no onLeaveBack. */
+
+/* Pulso do chip — 9 barras centradas na LINHA MÉDIA (waveform, não
+   histograma: é sinal vital, não contagem). A mais alta em sage — a cor que
+   o check do chip já usa, o mesmo verde que diz "pronta". */
+const PULSE_H = [7, 12, 9, 16, 10, 19, 12, 15, 8];
+function PulseBars() {
+  return (
+    <svg
+      aria-hidden
+      width={55}
+      height={20}
+      viewBox="0 0 55 20"
+      className="pointer-events-none ml-auto shrink-0"
+    >
+      {PULSE_H.map((h, i) => (
+        <rect
+          key={i}
+          data-chart-pulse
+          x={i * 6.5}
+          y={(20 - h) / 2}
+          width={3}
+          height={h}
+          rx={1.5}
+          fill={i === 5 ? "#A6B58F" : "rgba(255,255,255,0.28)"}
+        />
+      ))}
+    </svg>
+  );
+}
+
+/* Crescimento — a linha que leva até o 300. Sobe com ruído de verdade (mês
+   fraco existe), cada mês é uma conta sobre a linha (a estética da referência
+   de stress) e o ÚLTIMO ponto acende em roxo-300 com um halo: o "hoje" é o
+   único pixel de marca do gráfico. Divisórias de trimestre em hairline. */
+const GROWTH_Y = [37, 34, 35, 30, 27, 29, 23, 18, 20, 14, 9, 3];
+const GROWTH_PTS = GROWTH_Y.map((y, i) => [3 + i * 18.2, y] as const);
+const GROWTH_LAST = GROWTH_PTS[GROWTH_PTS.length - 1];
+function GrowthLine() {
+  return (
+    <svg
+      aria-hidden
+      width={212}
+      height={58}
+      viewBox="0 0 212 58"
+      className="pointer-events-none mt-4 block overflow-visible"
+    >
+      {[53, 106, 159].map((x) => (
+        <line
+          key={x}
+          x1={x}
+          y1={2}
+          x2={x}
+          y2={44}
+          stroke="rgba(255,255,255,0.08)"
+        />
+      ))}
+      <polyline
+        data-chart-line
+        points={GROWTH_PTS.map(([x, y]) => `${x},${y}`).join(" ")}
+        fill="none"
+        stroke="rgba(255,255,255,0.65)"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {/* contas: fill claro + anel escuro, senão dot branco some na linha branca */}
+      {GROWTH_PTS.slice(0, -1).map(([x, y]) => (
+        <circle
+          key={x}
+          data-chart-dot
+          cx={x}
+          cy={y}
+          r={2}
+          fill="rgba(255,255,255,0.9)"
+          stroke="rgba(0,10,26,0.55)"
+          strokeWidth={1}
+        />
+      ))}
+      <g data-chart-dot>
+        <circle
+          cx={GROWTH_LAST[0]}
+          cy={GROWTH_LAST[1]}
+          r={7}
+          fill="rgba(193,169,211,0.22)"
+        />
+        <circle
+          cx={GROWTH_LAST[0]}
+          cy={GROWTH_LAST[1]}
+          r={2.8}
+          fill="#C1A9D3"
+          stroke="rgba(0,10,26,0.55)"
+          strokeWidth={1}
+        />
+      </g>
+      <text
+        x={3}
+        y={56}
+        className="font-body"
+        fontSize={9}
+        letterSpacing="0.14em"
+        fill="rgba(255,255,255,0.38)"
+      >
+        JAN
+      </text>
+      <text
+        x={209}
+        y={56}
+        textAnchor="end"
+        className="font-body"
+        fontSize={9}
+        letterSpacing="0.14em"
+        fill="rgba(255,255,255,0.38)"
+      >
+        HOJE
+      </text>
+    </svg>
+  );
+}
+
+/* O dia em barras — a referência de heart-rate É um eixo de dia (00→18), e o
+   card da rotina é exatamente isso. Eixo 06h→19h; as barras dos TRÊS
+   horários da lista acendem (azul→anamnese, roxo→consulta, sage→plano
+   enviado, o trio azul/rosa/amarelo da referência traduzido pra paleta) e
+   são mais altas que as vizinhas de propósito — o acento é pico, não pastilha
+   perdida. Ancoradas na base: eventos sobre a linha do dia, não waveform. */
+const DAY_H = [
+  6, 9, 7, 11, 8, 13, 10, 15, 24, 12, 14, 11, 16, 13, 18, 15, 20, 17, 14, 19,
+  30, 16, 26, 13, 17, 12, 15, 10, 13, 8, 11, 7, 9,
+];
+// índice = (hora − 6) / 13 · 33 → 09:12 ⇒ 8 · 14:00 ⇒ 20 · 14:40 ⇒ 22
+const DAY_ACCENT: Record<number, string> = {
+  8: "#A6BAD5",
+  20: "#C1A9D3",
+  22: "#A6B58F",
+};
+function DayBars() {
+  return (
+    <svg
+      aria-hidden
+      width={268}
+      height={46}
+      viewBox="0 0 268 46"
+      className="pointer-events-none mt-5 block"
+    >
+      {DAY_H.map((h, i) => (
+        <rect
+          key={i}
+          data-chart-bar
+          x={i * 8.15}
+          y={32 - h}
+          width={3}
+          height={h}
+          rx={1.5}
+          fill={DAY_ACCENT[i] ?? "rgba(255,255,255,0.22)"}
+        />
+      ))}
+      <line
+        x1={0}
+        y1={33.5}
+        x2={263.8}
+        y2={33.5}
+        stroke="rgba(255,255,255,0.10)"
+      />
+      {/* rótulos na posição REAL da hora no eixo (x = índice · 8.15 + 1.5) */}
+      <text
+        x={0}
+        y={45}
+        className="font-body"
+        fontSize={9}
+        letterSpacing="0.1em"
+        fill="rgba(255,255,255,0.38)"
+      >
+        06
+      </text>
+      <text
+        x={124}
+        y={45}
+        textAnchor="middle"
+        className="font-body"
+        fontSize={9}
+        letterSpacing="0.1em"
+        fill="rgba(255,255,255,0.38)"
+      >
+        12
+      </text>
+      <text
+        x={248}
+        y={45}
+        textAnchor="middle"
+        className="font-body"
+        fontSize={9}
+        letterSpacing="0.1em"
+        fill="rgba(255,255,255,0.38)"
+      >
+        18
+      </text>
+    </svg>
+  );
+}
+
+/** Posicionamento COMPARTILHADO das duas camadas do CTA — o bloco de texto
+ * (`ctaBlock`, z-20, abaixo da Roberta de propósito) e o botão sozinho
+ * (`ctaGhostBlock`, z-35, acima dela — ver o comentário do ref e o comentário
+ * grande no JSX). As duas usam ESTA MESMA string: se a conta abaixo mudar
+ * (viewport novo medido, gap diferente), muda aqui uma vez só — divergir
+ * entre as duas descolaria o botão do resto do bloco horizontalmente, o
+ * mesmo tipo de bug de registro que o `SCENE_BOX`/`MEDIA` compartilhados
+ * evitam entre vídeo e recorte.
+ *
+ * A CAIXA É O CONTRATO, NÃO A TINTA. Uma tentativa anterior nesta mesma
+ * sessão mirava a LARGURA DA TINTA (a borda direita do texto já renderizado)
+ * contra a silhueta dela, empurrando o bloco inteiro pra direita via `ml`
+ * até a tinta quase encostar. Não fechou: `text-balance` escolhe as quebras
+ * pelo PRÓPRIO critério de equilíbrio visual, então a linha mais comprida
+ * raramente usa a largura inteira da caixa — a tinta virou função DISCRETA
+ * da quebra escolhida (`min(largura_natural, W)`), não contínua da
+ * geometria, e o resíduo do ajuste linear chegou a ~17px (contra <2px do fit
+ * de L abaixo). Uma folga de 13px sobre um ruído de 17px é furada por
+ * construção: renderizado, a headline comia letra de verdade ("pod**e**", a
+ * haste debaixo do cabelo) em 3 dos 4 viewports testados.
+ *
+ * A CORREÇÃO: ancorar a CAIXA, não a tinta. Se o BLOCO não pode cruzar a
+ * borda dela, nenhuma LINHA cruza — o invariante vira estrutural (uma regra
+ * de layout que o CSS cumpre sempre) em vez de estatístico (uma medição que
+ * só vale nos pontos testados). Por isso `text-balance` saiu do `<h2>`: sem
+ * ele o browser preenche a medida inteira pelo algoritmo padrão (greedy) em
+ * vez de rebalancear pelo critério próprio dele — e com a caixa travada,
+ * preencher a medida é seguro. É o mesmo "quebra natural na coluna, não
+ * quebras escritas na mão" que o comentário do corpo do `<h2>` já defendia;
+ * `text-balance` trabalhava contra essa frase, não a favor.
+ *
+ * O container virou `justify-end` + `padding-right` calculado, dentro do
+ * MESMO gate de aspecto (`[@media(min-aspect-ratio:4/3)]`) que o resto da
+ * cena usa pra saber se ela está no quadro. A borda DIREITA do bloco cai
+ * numa distância fixa da silhueta; a ESQUERDA flutua com o conteúdo — o
+ * inverso do modelo anterior (`justify-start` + `ml` empurrando a esquerda,
+ * a direita solta e sem garantia nenhuma).
+ *
+ * A CONTA. L = coordenada X (da esquerda da tela) onde a silhueta dela
+ * (tablet incluso) começa, na faixa vertical da 1ª linha da headline —
+ * mesma definição herdada da tentativa anterior, REMEDIDA por conta própria
+ * (não reaproveitei o número: script novo, `measure_L2.cjs` +
+ * `analyze_L2.py`, scratchpad da sessão de 2026-07-21). Mesmo método de
+ * varredura (recorte forçado a `opacity:1` sobre sentinela #00FF00, primeiro
+ * pixel não-verde da esquerda pra direita, mediana de 7 linhas dentro da 1ª
+ * linha da headline), mas a fase HOLD (progress≈0.76 da pista) foi
+ * alcançada perseguindo o PROGRESSO real da pista
+ * (`-rect.top/(altura-innerHeight)`, o mesmo eixo que a ScrollTrigger usa),
+ * não `stickyTop≈0`: `stickyTop` fica em 0 a faixa PINADA INTEIRA (progress
+ * 0.25→1.0) e converge pra um ponto arbitrário dentro dela, dependendo de
+ * quanto a inércia do Lenis fez o scroll passar do alvo — foi assim que a
+ * 1ª tentativa de remedir mediu a headline ainda a ~500px do lugar dela,
+ * antes do CTA subir. Perseguir o progresso normalizado converge sempre no
+ * mesmo ponto, sessão a sessão.
+ *   · 1280×800   → L=496
+ *   · 1440×900   → L=559
+ *   · 1512×982   → L=552
+ *   · 1920×1080  → L=866
+ * Ajuste linear (mínimos quadrados):
+ *
+ *     L = 1.011 · vw − 0.996 · vh
+ *
+ * fecha com resíduo <1.5px nos quatro — mesma ordem de grandeza do fit
+ * herdado (1.012·vw−0.991·vh). Os valores brutos de L diferem em ~5px entre
+ * as duas medições (linhas de varredura amostradas em alturas ligeiramente
+ * diferentes dentro da 1ª linha), mas o COEFICIENTE — o que decide como a
+ * caixa se move entre viewports — bate: as duas sessões, independentes,
+ * chegaram na mesma geometria.
+ *
+ * GAP DE 8px, NÃO MORDIDA: `borda_direita_da_caixa = L − 8px`. A
+ * sobreposição visual continua existindo na cena — é o FIO do eyebrow (ver
+ * abaixo, `right-full`/`w-[7vw]`) que avança pra dentro dela, porque é a
+ * peça que custa zero legibilidade e por isso pode. Texto encosta na medida
+ * da caixa; fio atravessa. `L` já é a borda da SILHUETA (não da tinta) — 8px
+ * de ar antes dela é o vão mínimo pra nunca depender de anti-aliasing na
+ * emenda entre o recorte e o texto.
+ *
+ * CONVERSÃO DE UNIDADE, conferida com `getComputedStyle()` e não só no
+ * papel — foi exatamente aqui que a tentativa anterior escreveu um
+ * coeficiente direto como CSS e saiu 100× menor: 1vw em CSS já é 1% da
+ * viewport, então `1.011 · vw` de TELA INTEIRA vira `101.1vw` de CSS, e a
+ * subtração de vh pede o mesmo tratamento:
+ *
+ *     padding-right = 100vw − (L − 8px)
+ *                    = 100vw − (101.1vw − 99.6vh) + 8px
+ *                    = calc(99.6vh − 1.1vw + 8px)
+ *
+ * Verificado: `getComputedStyle(container).paddingRight` bateu com esta
+ * conta nos 4 viewports (diff 0.00px), script `check_pr.cjs` no mesmo
+ * scratchpad.
+ *
+ * TRAVA `min(…, calc(100vw - 480px))`: sem ela, abaixo de ~1.6 de aspecto (a
+ * faixa entre o gate em 4/3 e onde os 4 pontos testados começam — mesma
+ * faixa não coberta que a tentativa anterior já sinalizava) o
+ * `padding-right` cru cresce o bastante pra empurrar a borda ESQUERDA da
+ * caixa (até 480px de largura) pra FORA da tela — pior que a letra comida
+ * que este comentário inteiro existe pra evitar. A trava para a caixa
+ * exatamente encostada na borda esquerda da viewport (vão zero ali, nunca
+ * corte) quando isso aconteceria. Não perturba os 4 viewports testados: o
+ * `padding-right` cru fica sempre abaixo do teto da trava neles (confirmado
+ * no mesmo `check_pr.cjs`). Não testado fora deles — mesma filosofia do
+ * limite conhecido do ultrawide, no gate ao lado: "degrada pra vão, não pra
+ * letra comida". */
+// RETRATO ancora o bloco EMBAIXO (`items-end` + `pb`), não no topo. Em retrato a
+// cena vive na banda 4/5 do TOPO (ver SCENE_BOX_SCENE) que se dissolve na base
+// num chão escuro (#17102A) — a metade de baixo da tela é justamente o vazio que
+// o texto pede. No topo (o que havia: `items-start pt-[11vh]`) a copy caía POR
+// CIMA do rosto dela; embaixo ela assenta no escuro, com contraste próprio e sem
+// disputar a foto. Landscape (>=4/3) não muda: continua `items-start pt-[11vh]`
+// ao LADO do tablet, e os overrides abaixo restauram exatamente esse estado.
+const CTA_JUSTIFY =
+  "flex items-end justify-start px-[3vw] pb-[10vh] [@media(min-aspect-ratio:4/3)]:items-start [@media(min-aspect-ratio:4/3)]:pb-0 [@media(min-aspect-ratio:4/3)]:pt-[11vh] [@media(min-aspect-ratio:4/3)]:justify-end [@media(min-aspect-ratio:4/3)]:pr-[min(calc(99.6vh-1.1vw+8px),calc(100vw-480px))]";
+
 export default function CTAFinal() {
   const root = useRef<HTMLElement>(null);
   const arch = useRef<SVGPathElement>(null); // o `d` é reescrito a cada frame
@@ -239,6 +734,19 @@ export default function CTAFinal() {
   // recorte e leva a cena pro campo.
   const field = useRef<HTMLVideoElement>(null);
   const fieldLayer = useRef<HTMLDivElement>(null);
+  // A ARTE DO CAMPO (z-50) que assume a cena quando o pull-out termina — ver
+  // CTA_FIELD_END. Sobe de opacidade no FIM do scrub, com a câmera ainda
+  // andando: é isso que esconde a diferença de registro (ela não é o frame
+  // final do mp4, é outro render do mesmo destino).
+  const fieldEnd = useRef<HTMLDivElement>(null);
+  // O <img> da arte do campo, com ref PRÓPRIA — o wrapper acima (`fieldEnd`)
+  // só carrega a opacidade; a decodificação é do elemento. Existe pra
+  // PRÉ-DECODIFICAR o webp (ver o promote() do IntersectionObserver): sem isso
+  // o `loading="lazy"` + `decoding="async"` só decodam na hora do swap, e como
+  // a troca é um snap de duração 0 no último pixel de scroll, o frame
+  // comprimido do mp4 fica à mostra por um instante ("a imagem demora a
+  // trocar"). Com o decode adiantado, o paint em p=1.0 é instantâneo.
+  const fieldEndImg = useRef<HTMLImageElement>(null);
   // A FRASE da primeira cena — câmera ainda fechada na tela do tablet, antes
   // do pull-back. Vive e morre dentro do gesto do arco (ver timeline); depois
   // disso quem fala é a câmera se afastando, não mais texto sobre a tela.
@@ -247,10 +755,22 @@ export default function CTAFinal() {
   // que o Wash voltou a ser só marca (ver comentário do Wash). Ref de um <div>
   // que já nasce opaco via CSS (ver JSX): a timeline só tem o tween que apaga.
   const sceneDim = useRef<HTMLDivElement>(null);
-  // O BLOCO interno (headline + botão), não a camada full-screen: é o bloco que
+  // O BLOCO interno (eyebrow + headline + sub — o BOTÃO não mora mais aqui,
+  // ver `ctaGhostBlock` abaixo), não a camada full-screen: é o bloco que
   // viaja de cima do corpo dela até a faixa do topo. Animar a camada moveria a
   // caixa de layout inteira e o `y` não teria significado nenhum.
   const ctaBlock = useRef<HTMLDivElement>(null);
+  // O BOTÃO, sozinho, numa camada PRÓPRIA acima do recorte (z-35 > z-30 do
+  // recorte, ver o comentário grande no JSX, perto do lugar antigo do
+  // botão). `ctaBlock` (z-20) fica ABAIXO da Roberta de propósito — é o que
+  // faz o texto passar por trás dela — mas um filho não escapa o z-index do
+  // pai: nada dentro de `ctaBlock` sobe acima de z-30 só mudando seu próprio
+  // z-index, porque `ctaBlock`'s ancestor já fixa o teto. Por isso o alvo
+  // clicável vive numa camada IRMÃ, mais alta, com um clone INVISÍVEL de
+  // eyebrow+h2+p só pra herdar a mesma altura (e portanto a mesma posição
+  // vertical do botão) sem duplicar posição via JS. Sobe junto com
+  // `ctaBlock` no MESMO tween (ver CTA em useGSAP: array de dois alvos).
+  const ctaGhostBlock = useRef<HTMLDivElement>(null);
   // A PILHA de cards de vidro na cunha esquerda — contrapeso do CTA, que
   // sozinho na coluna direita deixa a cena torta. A ref é da COLUNA, mas quem
   // entra na timeline são os filhos dela, um a um (ver useGSAP): é o que
@@ -263,6 +783,12 @@ export default function CTAFinal() {
   // pousa. Nasce em 0 e só acende, junto com o CTA subindo — ver o tween em
   // useGSAP.
   const baseMask = useRef<HTMLDivElement>(null);
+  // O SCRIM da copy (ver `CopyScrim`, acima) — só existe (com ref e tween) em
+  // motion===true; em `still` ele é outro nó da MESMA função, sem ref,
+  // permanente. Nasce em opacity:0 por CSS (classe `bornHidden`, não
+  // `gsap.set`) e a timeline acende ele no mesmo offset/ease do `baseMask`,
+  // ao lado do tween dele — ver useGSAP.
+  const copyScrim = useRef<HTMLDivElement>(null);
 
   // null = indeciso: o matchMedia só resolve depois do primeiro paint, e nesse
   // vão não renderizamos nem vídeo nem still — a base cobre. Sem isso o still de
@@ -294,6 +820,59 @@ export default function CTAFinal() {
     );
   }, []);
 
+  // Os dois vídeos (17,2 MB somados) nascem com preload="none" — ver a prop
+  // abaixo — pra não competir por banda com o que está ACIMA da dobra, já que
+  // esta section é o PÉ da página. Aqui a gente adia o download até a pista
+  // estar a ~1 viewport de distância: rootMargin "100% 0px" expande a área de
+  // interseção em 100% da altura da viewport pra cima e pra baixo do que
+  // normalmente seria visível, então o disparo acontece bem antes do usuário
+  // chegar — sobra a pista inteira (até o progresso 0.31, onde o scrub do
+  // vídeo 1 começa) pra terminar o fetch. `wire()` (useGSAP, abaixo) já ouve
+  // `loadedmetadata` nos dois vídeos desde o layout effect anterior a este;
+  // subir o preload e chamar `.load()` é só o gatilho que faz esse listener
+  // disparar mais tarde em vez de no mount.
+  //
+  // CASO DE BORDA — refresh já rolado até o pé (deep link #comecar): o
+  // IntersectionObserver reporta o estado ATUAL assim que `.observe()` roda,
+  // não só mudanças futuras. Se a section já está dentro da margem expandida
+  // nesse instante, o callback dispara imediatamente e os vídeos começam a
+  // carregar sem esperar um scroll novo.
+  useEffect(() => {
+    if (motion !== true || !sources) return;
+    const targets = [video.current, field.current].filter(
+      (v): v is HTMLVideoElement => v !== null,
+    );
+    if (!targets.length || !root.current) return;
+
+    const promote = () => {
+      targets.forEach((v) => {
+        v.preload = "auto";
+        v.load();
+      });
+      // A ARTE DO CAMPO (z-50) assume a cena num snap de duração 0 em p=1.0 —
+      // o frame exato em que o vídeo 2 acaba (pedido da Laura, sem antecipar a
+      // troca). Se o webp só decodar NESSE instante, o browser mostra o frame
+      // comprimido do mp4 por um piscar antes da arte nítida entrar. Forçar o
+      // decode AQUI — a ~3 pistas de scroll do fim, no mesmo gatilho que
+      // promove os vídeos — deixa o bitmap pronto, então a troca é instantânea.
+      // `.decode()` dispara o fetch mesmo num `<img loading="lazy">`; o catch
+      // engole o AbortError caso o elemento saia do DOM antes de resolver.
+      fieldEndImg.current?.decode().catch(() => {});
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          promote();
+          io.disconnect();
+        }
+      },
+      { rootMargin: "100% 0px" },
+    );
+    io.observe(root.current);
+    return () => io.disconnect();
+  }, [motion, sources]);
+
   useGSAP(
     () => {
       // motion === null é o render de INDECISÃO (o matchMedia só resolve no
@@ -305,7 +884,10 @@ export default function CTAFinal() {
       // do useGSAP desfaz o set — o caminho reduced-motion volta ao estado
       // autoral (visível, parado) sem precisar de nada aqui.
       if (motion === null) {
-        gsap.set(ctaBlock.current, { autoAlpha: 0 });
+        gsap.set(
+          [ctaBlock.current, ctaGhostBlock.current].filter(Boolean),
+          { autoAlpha: 0 },
+        );
         // mesma exposição da pilha de cards (montada sempre que o aspect
         // permite; os filhos só ganham o fromTo quando motion resolve)
         if (cardStack.current) {
@@ -427,8 +1009,16 @@ export default function CTAFinal() {
       // por isso o from é autoAlpha 0 e não 0.6 — a 0.6 o bloco ficaria de
       // fantasma sobre o corpo dela durante TODO o scrub do vídeo, desde o
       // frame do tablet fechado. Ele acende enquanto sobe, por trás dela.
+      //
+      // DOIS ALVOS, um tween: `ctaBlock` (texto, z-20) e `ctaGhostBlock` (só o
+      // botão, z-35) são DOIS nós de DOM — o botão saiu do primeiro pra não
+      // ficar preso no teto de z-index do pai (ver o comentário de
+      // `ctaGhostBlock` lá em cima e o comentário grande no JSX). Sem os dois
+      // no MESMO tween o botão chegaria fora de sincronia com o texto — um
+      // subindo, o outro parado. GSAP aceita array de alvos e aplica os
+      // MESMOS valores em cada um, independentemente.
       tl.fromTo(
-        ctaBlock.current,
+        [ctaBlock.current, ctaGhostBlock.current].filter(Boolean),
         { y: 520, autoAlpha: 0 },
         { y: 0, autoAlpha: 1, duration: 0.24, ease: "power3.out" },
         0.48,
@@ -446,10 +1036,9 @@ export default function CTAFinal() {
       // Alvo são os FILHOS, não a coluna: animar a coluna moveria os três cards
       // como uma placa só. Um por um, o stagger deixa a leitura assentar em
       // cascata. Ordem do DOM = de cima pra baixo.
-      const cards = cardStack.current
-        ? (Array.from(cardStack.current.children) as HTMLElement[])
-        : [];
-      if (cards.length) {
+      const stack = cardStack.current;
+      const cards = stack ? (Array.from(stack.children) as HTMLElement[]) : [];
+      if (stack && cards.length) {
         // Timeline pausada e em TEMPO REAL (segundos, não progresso): o `fromTo`
         // com immediateRender nasce invisível desde o mount — mesmo motivo do
         // CTA, senão os cards ficam de fantasma sobre o corpo dela durante todo
@@ -466,6 +1055,66 @@ export default function CTAFinal() {
             stagger: 0.08,
           },
         );
+
+        // Os MICRO-GRÁFICOS entram na MESMA timeline, cavalgando a chegada do
+        // card que os hospeda: o pulso do chip abre do meio, a linha de
+        // crescimento se desenha e ganha as contas em cima, as barras do dia
+        // crescem da base em cascata. Tudo em `cardsIn` de propósito — o
+        // onLeaveBack reverte gráfico e card juntos, de graça.
+        const pulseBars = stack.querySelectorAll("[data-chart-pulse]");
+        if (pulseBars.length) {
+          cardsIn.fromTo(
+            pulseBars,
+            { scaleY: 0.15, transformOrigin: "50% 50%" },
+            {
+              scaleY: 1,
+              duration: 0.45,
+              ease: "power2.out",
+              stagger: 0.035,
+            },
+            0.18,
+          );
+        }
+        stack
+          .querySelectorAll<SVGPolylineElement>("[data-chart-line]")
+          .forEach((ln) => {
+            const len = ln.getTotalLength();
+            cardsIn.fromTo(
+              ln,
+              { strokeDasharray: len, strokeDashoffset: len },
+              { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" },
+              0.32,
+            );
+          });
+        const dots = stack.querySelectorAll("[data-chart-dot]");
+        if (dots.length) {
+          cardsIn.fromTo(
+            dots,
+            { autoAlpha: 0, scale: 0.4, transformOrigin: "50% 50%" },
+            {
+              autoAlpha: 1,
+              scale: 1,
+              duration: 0.25,
+              ease: "back.out(2)",
+              stagger: 0.045,
+            },
+            0.5,
+          );
+        }
+        const dayBars = stack.querySelectorAll("[data-chart-bar]");
+        if (dayBars.length) {
+          cardsIn.fromTo(
+            dayBars,
+            { scaleY: 0, transformOrigin: "50% 100%" },
+            {
+              scaleY: 1,
+              duration: 0.5,
+              ease: "power2.out",
+              stagger: 0.012,
+            },
+            0.34,
+          );
+        }
 
         // Dispara no MESMO instante em que o bloco entrava na timeline scrubada
         // (progresso 0.54 da pista) — depois do CTA (0.48) e do recorte da
@@ -510,6 +1159,21 @@ export default function CTAFinal() {
         0.48,
       );
 
+      // O SCRIM da copy sobe NA MESMA respiração do baseMask — mesmo offset
+      // (0.48), mesma duração e mesmo ease (0.24, power2.inOut): os dois
+      // nascem em opacity 0 por CSS e são o mesmo chão de legibilidade,
+      // acendendo junto com o CTA subindo. Antes de 0.48 não há copy nenhuma
+      // pra proteger — só a primeira cena, que tem contraste próprio (o DIM,
+      // `sceneDim`) — pintar o scrim ali seria escurecer a lateral esquerda
+      // sem função: foi exatamente esse defeito que a Laura reportou (faixa
+      // escura antes do CTA subir). Ver o comentário de `CopyScrim`, acima.
+      tl.fromTo(
+        copyScrim.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.24, ease: "power2.inOut" },
+        0.48,
+      );
+
       // ── HOLD 0.72 → 0.80 ──────────────────────────────────────────────────
       // Nada se move: o recorte segura a mulher, o CTA já assentou ao lado dela
       // e a pilha à esquerda. É o tempo de LER o botão antes de a cena sair —
@@ -530,14 +1194,57 @@ export default function CTAFinal() {
         0.8,
       );
 
+      // ── ARTE DO CAMPO — EXATAMENTE em 1.0 ─────────────────────────────────
+      // O vídeo 2 entrega a cena pra ARTE (ver CTA_FIELD_END). Motivo é
+      // qualidade, não coreografia: o frame final do mp4 fica parado na tela
+      // durante a leitura inteira do footer, e H.264 entrega repouso em papa —
+      // no primeiro plano a flor perde a pétala. O webp devolve o detalhe, e
+      // como é a MESMA arte do fundo do footer, a cena passa a continuar por
+      // trás do rodapé em vez de trocar de textura na emenda.
+      //
+      // POSIÇÃO 1.0, DURAÇÃO 0: a troca acontece NO FRAME em que o vídeo acaba,
+      // nem antes nem depois — pedido da Laura, e é a única posição que casa,
+      // porque o scrub do vídeo 2 chega em `currentTime = duration` exatamente
+      // em 1.0 (0.86 + 0.14, ver wire(v2) abaixo). Qualquer duração > 0 aqui
+      // faria o fade COMEÇAR antes do fim; qualquer posição < 1.0, idem.
+      //
+      // Custo conhecido, aceito: a arte não é o frame final extraído do mp4 — é
+      // outro render do mesmo destino, com ~15px de deslocamento na silhueta e
+      // um respiro a mais de campo. O fade antigo (0.92→1.0) escondia esse pulo
+      // sob a câmera ainda andando; travado no fim, a cena já parou e o pulo
+      // fica exposto. Se ele incomodar, o conserto é REGISTRAR a arte contra o
+      // último frame do vídeo, não voltar a antecipar a troca.
+      //
+      // Zero-duration em 1.0 continua segurando a régua da timeline (duração
+      // 1.0) mesmo se algum vídeo não wirear — ver o bloco dos scrubs abaixo.
+      //
+      // `immediateRender: false` é OBRIGATÓRIO neste fromTo, e é a exceção à
+      // regra dos outros (frase/CTA/cards, que PRECISAM do immediateRender pra
+      // nascer invisíveis): tween de duração ZERO renderiza o estado FINAL no
+      // immediateRender (t=0 já é o fim quando a duração é 0), então o default
+      // de fromTo pintava `opacity:1` inline NO MOUNT — e como o playhead só
+      // cruza 1.0 no último pixel de scroll, a arte (z-50) ficava opaca a
+      // pista INTEIRA, cobrindo os dois vídeos: "os vídeos travaram". Medido
+      // nesta sessão (screenshots em 8 paradas: o mesmo frame do campo de
+      // 0.29 a 0.97 da timeline, com currentTime avançando por baixo). Quem
+      // segura o mount invisível é a classe `opacity-0` do JSX, que já existe.
+      tl.fromTo(
+        fieldEnd.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0, immediateRender: false },
+        1.0,
+      );
+
       // ── VÍDEO 1 0.31 → 0.46  ·  VÍDEO 2 0.86 → 1.0 ────────────────────────
       // Os dois scrubs entram na MESMA timeline, cada um só quando SUA duração
       // é conhecida — sem ela não há alvo pro currentTime. Inserir depois é
       // seguro: as posições absolutas não esticam a timeline, e o refresh manda
       // renderizar de novo no progresso atual (deep link no meio da pista já
-      // nasce com o frame certo). O vídeo 2 é o único tween que chega a 1.0 —
-      // é ele que SEGURA A RÉGUA (o contrato "tempo do tween === progresso do
-      // scroll"); sem ele a timeline terminaria em 0.86 e tudo reescalaria.
+      // nasce com o frame certo). O vídeo 2 termina em 1.0 e a ARTE DO CAMPO
+      // está fixada NESSE mesmo ponto — os dois seguram a régua (o contrato
+      // "tempo do tween === progresso do scroll"). O zero-duration da arte é o
+      // que mantém a duração em 1.0 mesmo se o vídeo 2 não wirear; sem nenhum
+      // dos dois a timeline terminaria em 0.86 e tudo reescalaria.
       const v1 = video.current;
       const v2 = field.current;
 
@@ -570,6 +1277,45 @@ export default function CTAFinal() {
       // camada sobe de opacidade o vídeo SEGURA o frame 0 (a pose do recorte,
       // é isso que tranca a silhueta); o pull-out corre em 0.86→1.0, já opaco.
       wire(v2, 0.86, 0.14);
+
+      // ── PANORÂMICA DO RETRATO — só em (max-aspect-ratio: 4/3) ──────────────
+      // Full-height no celular mostra só ~26% da largura do frame 1.79:1 (ver
+      // MEDIA_PORTRAIT), e o cluster tablet+rosto ocupa ~36% — não cabe fixo.
+      // Mas o primeiro vídeo é um PULL-BACK: o sujeito anda no quadro, então a
+      // janela de 26% desliza junto (`object-position` X) e os dois ficam
+      // sempre centrados, só a franja sai. matchMedia porque este X é inline e
+      // venceria a classe do desktop; ao SAIR do retrato o cleanup zera o style
+      // e a classe (`object-[40%_50%]`) volta a mandar. Mesmo eixo/scrub do
+      // scrub do vídeo (top bottom → bottom bottom, 0.6), então o pan e o frame
+      // andam em lockstep.
+      gsap.matchMedia().add("(max-aspect-ratio: 4/3)", () => {
+        const { clamp, mapRange } = gsap.utils;
+        const st = ScrollTrigger.create({
+          trigger: root.current,
+          start: "top bottom",
+          end: "bottom bottom",
+          scrub: 0.6,
+          onUpdate: (self) => {
+            const p = self.progress;
+            // VÍDEO 1: fechado no tablet (30%) → mulher+tablet (46%) no scrub
+            // 0.31→0.46; preso nas pontas. Depois de 0.46 segura 46% — é o frame
+            // final que fica na tela até o vídeo 2 cobrir.
+            if (v1)
+              v1.style.objectPosition = `${mapRange(0.31, 0.46, 30, 46, clamp(0.31, 0.46, p))}% 50%`;
+            // VÍDEO 2: nasce na MESMA pose (46%, casa a silhueta no crossfade) e
+            // SEGUE a mulher até o campo (63%): no pull-out ela encolhe e assenta
+            // em x≈0.60 do frame, então a janela panora pra centrá-la — é o mesmo
+            // 63% da arte do campo e do fundo do footer (ver MEDIA_FIELD_END).
+            if (v2)
+              v2.style.objectPosition = `${mapRange(0.86, 1.0, 46, 63, clamp(0.86, 1.0, p))}% 50%`;
+          },
+        });
+        return () => {
+          st.kill();
+          if (v1) v1.style.objectPosition = "";
+          if (v2) v2.style.objectPosition = "";
+        };
+      });
 
       // motion/sources ainda indecisos (nenhum vídeo no DOM): o resto da
       // timeline já vale e este efeito reroda quando `sources` resolver.
@@ -644,12 +1390,32 @@ export default function CTAFinal() {
             className="absolute inset-0 z-0"
             style={{ clipPath: `url(#${ARCH_ID})` }}
           >
+            {/* CHÃO ESCURO — SÓ EM RETRATO. Em retrato a cena não é full-bleed:
+              vive numa banda 4/5 (ver SCENE_BOX_SCENE) que se dissolve numa
+              máscara na base. A máscara funde o vídeo pra TRANSPARENTE, e o que
+              aparece atrás é o que estiver por baixo — e o `<body>`/section é
+              creme (bg-neutro-50, ver a section), então a banda fundia num
+              CINZA CLARO esbranquiçado. A Laura vetou: o pé tem que ser escuro,
+              a máscara tem que dissolver no escuro. Esta chapa dá esse fundo —
+              cor #17102A, a MESMA família do baseMask (o chão da Roberta), pra
+              o pé ficar no mundo lavanda e não virar buraco preto neutro.
+              Primeiro filho do z-0 = atrás de tudo: onde o vídeo pinta opaco
+              (78% do topo da banda) ele cobre isto; onde a máscara abre (base
+              da banda e tudo abaixo dela) isto aparece. Gated a
+              `max-aspect-ratio:4/3` — o COMPLEMENTO do gate da banda: no
+              desktop a cena é full-bleed e cobre a tela inteira, então este
+              chão nunca apareceria (e por segurança nem é pintado lá). */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 [@media(max-aspect-ratio:4/3)]:bg-[#17102A]"
+            />
+
             {/* a cena. MESMA caixa do recorte lá embaixo — ver SCENE_BOX. */}
-            <div className={SCENE_BOX}>
+            <div className={SCENE_BOX_SCENE}>
               {still ? (
                 // reduced-motion: o último frame, e nenhum byte de vídeo na rede.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={CTA_STILL} alt="" aria-hidden className={MEDIA} />
+                <img src={CTA_STILL} alt="" aria-hidden className={MEDIA_SCENE} />
               ) : motion === true && sources ? (
                 <video
                   ref={video}
@@ -658,12 +1424,15 @@ export default function CTAFinal() {
                   onLoadedData={primeForSeek}
                   muted
                   playsInline
-                  preload="auto"
+                  // "none" no mount — o IntersectionObserver logo acima
+                  // promove pra "auto" + .load() perto da pista. Ver o
+                  // useEffect de lazy-load, antes do useGSAP.
+                  preload="none"
                   disablePictureInPicture
                   // decorativo e dirigido só pelo scroll: fora do foco e da a11y tree
                   tabIndex={-1}
                   aria-hidden
-                  className={MEDIA}
+                  className={MEDIA_SCENE}
                 />
               ) : null}
             </div>
@@ -671,6 +1440,21 @@ export default function CTAFinal() {
             {/* DENTRO do clip de propósito: fora dele os scrims pintariam o creme
               ao redor do arco. */}
             <Wash />
+
+            {/* Scrim direcionado da copy — ver o comentário de `CopyScrim`,
+              acima: contraste do eyebrow/headline/sub. Em motion, nasce em 0
+              por CSS e sobe JUNTO com o baseMask (mesmo offset/ease, ver
+              useGSAP) — antes do CTA subir não há copy pra proteger, só a
+              primeira cena (contraste próprio, o DIM). Em still é permanente:
+              contraste é piso, não coreografia. Não existe em motion===null —
+              não pode pintar antes de saber qual dos dois casos é este.
+              Espacialmente morre (fade horizontal) antes de chegar nela — ver
+              comentário acima. */}
+            {motion === true ? (
+              <CopyScrim scrimRef={copyScrim} bornHidden />
+            ) : still ? (
+              <CopyScrim />
+            ) : null}
 
             {/* BASE ESCURA — roxo profundo que sobe do pé quando o recorte
               assume o quadro, subindo ATÉ ATRÁS DO BOTÃO (h-72%). É o CHÃO da
@@ -736,63 +1520,25 @@ export default function CTAFinal() {
             palco — centrado de verdade, a microcopy assentava dentro da emenda.
             Subindo, o bloco fica na faixa alta da coluna roxa, que é onde ela
             é mais larga (o braço dela avança conforme desce). */}
-          <div
-            className={
-              still
-                ? "relative z-20 flex flex-1 items-start justify-start px-[3vw] pt-[11vh]"
-                : "absolute inset-0 z-20 flex items-start justify-start px-[3vw] pt-[11vh]"
-            }
-          >
+          {/* `CTA_JUSTIFY` (constante no topo do arquivo) faz `justify-end` +
+            `padding-right` calculado dentro do gate de aspecto (>=4/3) —
+            ancora a BORDA DIREITA do bloco numa distância fixa da silhueta
+            dela. A conta completa (o modelo de L, o porquê do gap de 8px, a
+            trava pro ultrawide) está no comentário da constante, lá em cima:
+            é a MESMA string usada pelo botão sozinho (z-35, mais abaixo no
+            JSX) — os dois têm que concordar em X, senão o botão descola do
+            resto do bloco. Abaixo de 4/3 nada muda: continua `justify-start
+            px-[3vw]`, o layout de largura cheia do mobile. */}
+          <div className={(still ? "relative z-20 flex-1 " : "absolute inset-0 z-20 ") + CTA_JUSTIFY}>
             {/* AO LADO DO TABLET, não acima dela. Com a cena full-bleed a cabeça
               dela fica em y≈72 e não sobra teto; o vazio real é a coluna roxa à
               direita do tablet (~350px em 1440, ~500px em 1920). Centrado na
               vertical = na altura do tablet. A borda direita do bloco encosta no
               tablet de propósito: o tablet vem no recorte (z-30), então ele
-              come a beirada do texto — profundidade, e é o "passa por trás". */}
-            {/* A LARGURA É O QUE FAZ A SOBREPOSIÇÃO, E ELA SE MEDE EM vh.
-              Contra-intuitivo, então vale a conta. A borda direita do bloco é
-              fixa (`px-[3vw]`); quem se move é a silhueta dela. A foto é 1.79:1
-              com `object-cover` ancorado à direita (ver MEDIA): enquanto o
-              aspecto da viewport for MENOR que 1.79, o cover é puxado pela
-              ALTURA — a largura desenhada vira vh×1.79 e a borda dela passa a
-              depender de vh, não de vw. Somando o `scale-110` e o
-              `-translate-x-[5%]` (que entram como `translate ∘ scale` em torno
-              do centro), a distância da borda dela até a direita da tela sai:
-
-                  R = 1.1 · 1.79 · (1−fx) · vh − 0.05 · vw
-
-              onde fx é onde ela está DENTRO do arquivo. Medindo R com o alpha
-              do recorte amostrado em canvas (mesma régua da pilha de cards) e
-              resolvendo pra constante em cinco viewports:
-                · 1920×1080 → R=559 → C=0.607
-                · 1600×940  → R=484 → C=0.600
-                · 1512×982  → R=505 → C=0.591
-                · 1440×900  → R=463 → C=0.594
-                · 1280×800  → R=412 → C=0.595
-              C fecha em ~0.597 em todos — o modelo vale, e a dispersão é só a
-              silhueta dela não ser vertical (R é lido na altura da 1ª linha,
-              que se move com vh). Note 1440 e 1280: aspecto idêntico, R
-              diferente em px e IGUAL em vw (32.2vw nos dois). É a prova de que
-              o par (vh,vw) manda e a largura sozinha não diz nada.
-
-              Daí a largura: pra ela morder `bite` px da tinta,
-                  W = R + bite − 0.03·vw  =  0.597·vh − 0.08·vw + bite
-              Com bite=22px a mordida sai entre 12 e 27px de 1280 a 1920 —
-              constante, que é o que nenhum valor fixo consegue. O `min(27vw,
-              390px)` que havia aqui é justo o contrário: a 1920 o cap de 390
-              travava e sobrava um VÃO de 45px (os planos nem se tocavam), e a
-              1600 ele mal pegava e mordia 20px. A sobreposição era acidente de
-              cap, não decisão.
-
-              O PREÇO: o texto é alinhado à esquerda, então TODA linha começa na
-              borda que ela morde. 22px é o naco que cabe antes da primeira
-              haste — subir isso começa a comer letra.
-
-              LIMITE CONHECIDO: acima de 1.79 de aspecto (ultrawide) o cover
-              vira puxado pela LARGURA e este modelo não vale mais — R passa a
-              ser 0.334·vw e o bloco fica sem sobreposição, só encostado. Não
-              trato: degrada pra vão, não pra letra comida. Remedir se a foto ou
-              o MEDIA mudarem — `scale-110`/`object-[100%_50%]` estão na conta. */}
+              come a beirada do texto — profundidade, e é o "passa por trás".
+              O BOTÃO é a exceção: ele NÃO pode passar por trás (ver o
+              comentário grande onde ele mora agora, lá embaixo, perto de
+              `ctaGhostBlock`) — só o texto ganha esse gesto. */}
             {/* O GATE É PROPORÇÃO, NÃO LARGURA — mesma regra da pilha de cards,
               pelo mesmo motivo. Abaixo de 4/3 ela simplesmente NÃO ESTÁ NO
               QUADRO: o cover ancorado à direita corta tudo menos o fundo, então
@@ -806,7 +1552,7 @@ export default function CTAFinal() {
               assunto, não mexi.) */}
             <div
               ref={ctaBlock}
-              className="w-full max-w-[32rem] text-left [@media(min-aspect-ratio:4/3)]:w-[clamp(320px,calc(59.7vh-8vw+22px),560px)] [@media(min-aspect-ratio:4/3)]:max-w-none"
+              className="w-full max-w-[20rem] text-left [@media(min-aspect-ratio:4/3)]:w-[30rem] [@media(min-aspect-ratio:4/3)]:max-w-none"
             >
               {/* EYEBROW — o fio é quem sobrepõe de verdade. Ele sai do bloco
                 pra esquerda (`right-full`) e vai morrer por baixo do tablet, em
@@ -818,7 +1564,11 @@ export default function CTAFinal() {
                   aria-hidden
                   className="absolute top-1/2 left-full ml-4 h-px w-[7vw] bg-[linear-gradient(to_right,rgba(255,255,255,0.45),transparent)]"
                 />
-                <span className="font-body text-[11px] font-medium uppercase tracking-[0.28em] text-white/55">
+                {/* 55%→80%: em 55% fechava 1.65:1 contra o fundo real (medido
+                  com o texto escondido, p95 do pior pixel — ver CopyScrim);
+                  80% fecha 6.8–9.4:1 conforme o viewport, folga confortável
+                  acima do piso AA de 4.5:1 nos 4 testados. */}
+                <span className="font-body text-[11px] font-medium uppercase tracking-[0.28em] text-white/80">
                   Pronta pra começar?
                 </span>
               </div>
@@ -833,8 +1583,14 @@ export default function CTAFinal() {
                 clamp cuidar do corpo e o tracking ficar no limite do aceitável
                 pro menor deles) e o itálico como única quebra de registro.
                 `pl-1` alinha a haste da caixa alta com o eyebrow: a serifa tem
-                sidebearing próprio e sem isso o "S" recua sozinho. */}
-              <h2 className="mt-6 text-balance pl-1 font-title text-[clamp(2rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
+                sidebearing próprio e sem isso o "S" recua sozinho.
+                SEM `text-balance` de propósito (ver o comentário grande do
+                container do CTA, acima): com a caixa agora travada pela
+                borda direita (DEFEITO 1), preencher a medida inteira pelo
+                algoritmo padrão (greedy) é seguro, e é ele — não o
+                rebalanceamento do `text-balance` — que faz a tinta chegar
+                perto da medida em vez de sobrar vão morto antes dela. */}
+              <h2 className="mt-6 [@media(max-aspect-ratio:4/3)]:mt-4 pl-1 font-title text-[clamp(2rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
                 Sua próxima consulta pode ser{" "}
                 <span className="font-normal italic text-roxo-300">
                   diferente.
@@ -842,48 +1598,50 @@ export default function CTAFinal() {
               </h2>
 
               {/* SUB — registro oposto ao da headline de propósito: sans, corpo
-                pequeno, leading larga, branco a 60%. É o vale entre o pico da
+                pequeno, leading larga, branco a 80%. É o vale entre o pico da
                 headline e o peso do botão; no mesmo registro dos dois viraria
                 mais uma linha da headline. `max-w` em `ch` porque quem manda
                 aqui é a medida de leitura, não a coluna. */}
-              <p className="mt-5 max-w-[36ch] pl-1 font-body text-[15px] leading-[1.6] text-white/60">
+              {/* 60%→80%: mesma correção do eyebrow — 60% fechava 1.89:1
+                contra o fundo real; 80% fecha 5.4–7.6:1 conforme o viewport
+                (ver CopyScrim). Precisou de mais opacidade que o eyebrow
+                porque o `sub` é a última linha do bloco, mais perto de onde
+                o scrim já está esmaecendo. */}
+              <p className="mt-5 [@media(max-aspect-ratio:4/3)]:mt-3 max-w-[36ch] [@media(max-aspect-ratio:4/3)]:max-w-[30ch] pl-1 font-body text-[15px] [@media(max-aspect-ratio:4/3)]:text-[13.5px] leading-[1.6] [@media(max-aspect-ratio:4/3)]:leading-[1.5] text-white/80">
                 Comece hoje e sinta a diferença já no próximo atendimento.
               </p>
-
-              {/* BOTÃO — pill que abraça o texto (`w-fit`), não uma barra na
-                medida da coluna. Com `w-full` ele virava a base do bloco e
-                competia com a headline pelo mesmo eixo: dois retângulos da mesma
-                largura empilhados. Solto, ele volta a ser um objeto — e o rag da
-                headline por cima dele passa a ser a composição, não um acidente.
-                O `w-fit` no wrapper é pré-requisito do glow: `-inset-4` resolve
-                contra ESTA caixa, e num wrapper de largura cheia o halo pintaria
-                a coluna inteira em vez do pill.
-
-                O TOM É O PONTO. `bg-brand` (#8A69D8) é lavanda sobre uma cena
-                que é lavanda — o wash de marca, a aurora e o backdrop todos
-                moram na mesma faixa, então o CTA se dissolvia no fundo justo na
-                hora de ser clicado. Branco sobre `ink` é o par de maior contraste
-                que a paleta já tem (~16:1, AAA), e é o único elemento branco
-                sólido da cena: ele não compete com nada. A marca não sai — ela
-                fica no GLOW, que segue lavanda e agora lê como luz da marca
-                batendo no pill em vez de mais um roxo sobre roxo.
-                É desvio consciente do botão do DS (Figma 17-38): o padrão
-                pressupõe fundo claro, e esta é a única section que o contradiz. */}
-              {/* `ml-1` casa com o `pl-1` do texto: sem ele o pill nasce 4px à
-                esquerda da tinta da headline e a coluna perde o prumo. */}
-              <div className="relative ml-1 mt-10 w-fit">
-                <span
-                  aria-hidden
-                  className="gaia-cta-breathe pointer-events-none absolute -inset-4 -z-10 rounded-full bg-[radial-gradient(circle,rgba(138,105,216,0.85),transparent_70%)] blur-2xl"
-                />
-                <a
-                  href="#comecar"
-                  className="group inline-flex h-14 items-center gap-3 rounded-full bg-neutro-0 pl-8 pr-6 font-body text-[15px] font-medium tracking-[-0.01em] text-ink shadow-[0_10px_34px_-8px_rgba(0,10,26,0.55)] outline-none transition-all duration-200 ease-gaia hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_18px_48px_-10px_rgba(0,10,26,0.75)] focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016] active:translate-y-0"
-                >
-                  Começar grátis
-                  <IconArrowUpRight className="h-[18px] w-[18px] transition-transform duration-200 ease-gaia group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </a>
-              </div>
+              {/* ESPAÇADOR INVISÍVEL DA ALTURA DO BOTÃO — o SIMÉTRICO do clone de
+                texto que o `ctaGhostBlock` já carrega. O botão real mora naquela
+                camada irmã (z-35), que bottom-ancora [clone de texto + botão]
+                como uma caixa só; este bloco (z-20) bottom-ancora só o texto. Em
+                RETRATO (`items-end`, ver CTA_JUSTIFY) bottom-ancorar duas caixas
+                de ALTURAS diferentes desalinha os TOPOS — e o botão pousava por
+                cima do `sub` (medido: ambos com bottom em y≈760 num iPhone). Dar
+                a este bloco a mesma altura de botão (`mt-10 h-14`, idêntico ao
+                wrapper do pill no ghost) iguala as caixas: bottom-ancoradas, os
+                topos voltam a coincidir e o registro texto↔botão se reata, o
+                MESMO mecanismo de "caixa é o contrato" do resto da cena. Em
+                landscape (`items-start`) é inerte: 96px invisíveis pendurados no
+                pé de um bloco top-ancorado não movem nada. */}
+              <div aria-hidden className="invisible mt-10 [@media(max-aspect-ratio:4/3)]:mt-8 h-14" />
+              {/* O BOTÃO NÃO MORA MAIS AQUI — ver `ctaGhostBlock`, mais abaixo
+                no JSX (depois do recorte, z-35). DEFEITO 2 do handoff: com o
+                botão como último filho deste bloco (z-20, DE PROPÓSITO abaixo
+                da Roberta, z-30 — é o que faz o TEXTO passar por trás dela),
+                ele herdava a mesma oclusão do texto. Mas um z-index num filho
+                não escapa o teto do pai: `ctaBlock` só pinta no nível "z-20"
+                não importa o que algum descendente peça, porque a `position`
+                + `z-index` do PRÓPRIO `ctaBlock`-wrapper (a `<div>` logo
+                acima, no JSX) já fecham um novo contexto de empilhamento —
+                então "subir o z-index só do botão" não tira ele de trás da
+                Roberta, ele preso do mesmo jeito. Confirmado ao vivo: depois
+                do DEFEITO 1 empurrar o bloco mais perto dela, o botão ficou
+                sob o tablet translúcido em 1280/1440/1512 (ver screenshots
+                `zoom-button-*.png` no scratchpad da sessão) — só em 1920 o
+                canto do tablet não alcançava mais o pill. Um CTA que o
+                usuário não CONSEGUE ler nem clicar é P0; a solução tinha que
+                ser estrutural, não um ajuste de posição que volta a quebrar
+                no próximo reflow do texto. */}
             </div>
 
             {/* A PILHA — contrapeso do CTA, que sozinho na coluna direita deixa
@@ -947,9 +1705,18 @@ export default function CTAFinal() {
               Marina truncava em "Marina A...". Com a largura no filho, o `ml`
               só desloca. (`translate-x` resolveria o layout também, mas a
               timeline escreve transform nesses mesmos nós — ver CARDS.) */}
+            {/* TOP EM CLAMP, não fixo — os micro-gráficos engordaram a pilha
+              (~630px com gap-10) e `top-[32vh]` cravado estourava o card de
+              rotina pra fora da viewport em 1366×768 (bottom 908 > 768,
+              medido). O clamp cede APENAS quando falta teto: em ≥1000px de
+              altura `32vh` vence e a composição fica a mesma de antes; abaixo
+              disso `100vh−660px` assume e a pilha sobe só o necessário pra
+              caber (660 = 630 medidos + 30 de respiro — remedir se os cards
+              mudarem de altura). O piso de 1.5rem é o cinto pra viewports
+              minúsculas: melhor chip alto que card cortado. */}
             <div
               ref={cardStack}
-              className="absolute right-[1vw] top-[32vh] hidden flex-col items-end gap-14 [@media(min-aspect-ratio:12/7)]:flex"
+              className="absolute right-[1vw] top-[clamp(1.5rem,100vh_-_660px,32vh)] hidden flex-col items-end gap-10 [@media(min-aspect-ratio:12/7)]:flex"
             >
               {/* MOMENTO — o produto agindo, não um número sobre ele. Mesmo
                 vocabulário da tela "início" do iPhone 3D (ver PhoneScreen:
@@ -974,6 +1741,9 @@ export default function CTAFinal() {
                     Anamnese pronta
                   </p>
                 </div>
+                {/* pulso — sinal vital ao lado do nome; o `ml-auto` do svg o
+                  leva pra vaga vazia da direita, onde só o cabelo passa */}
+                <PulseBars />
               </div>
 
               {/* ESCALA — o cenário onde o momento acontece. Sem o arco que
@@ -996,6 +1766,9 @@ export default function CTAFinal() {
                 <p className="mt-3 max-w-[220px] font-body text-[13px] leading-relaxed text-white/55">
                   Todos com histórico completo.
                 </p>
+                {/* a linha que LEVA até o 300 — 212px de largura, dentro dos
+                  ~220px seguros do cabelo (mesma régua do max-w acima) */}
+                <GrowthLine />
               </div>
 
               {/* ROTINA — o arco inteiro do produto num dia, e o fecho da
@@ -1039,6 +1812,11 @@ export default function CTAFinal() {
                     </li>
                   ))}
                 </ul>
+                {/* o MESMO dia da lista, em barras: os três acentos são os
+                  três horários de cima. Largura cheia de propósito — a ponta
+                  direita mergulha sob o braço dela, que é o gesto da pilha
+                  (oclusão = profundidade); o dado útil mora no trecho livre. */}
+                <DayBars />
               </div>
             </div>
           </div>
@@ -1060,20 +1838,135 @@ export default function CTAFinal() {
               className="pointer-events-none absolute inset-0 z-30 hidden opacity-0 [@media(min-aspect-ratio:4/3)]:block"
               style={{ clipPath: `url(#${ARCH_ID})` }}
             >
-              <div className={SCENE_BOX}>
+              <div className={SCENE_BOX_SCENE}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={sources.cutout}
                   alt=""
                   aria-hidden
                   decoding="async"
-                  className={MEDIA}
+                  className={MEDIA_SCENE}
                   // devolve o verde que o webp perdeu (ver filtro cta-cutout-tint)
                   style={{ filter: "url(#cta-cutout-tint)" }}
                 />
               </div>
             </div>
           ) : null}
+
+          {/* z-35 · BOTÃO DO CTA, SOZINHO — acima do recorte (z-30), abaixo do
+            vídeo 2 (z-40, que precisa continuar cobrindo tudo na transição
+            final). DEFEITO 2 do handoff: o pill "Começar grátis" vivia como
+            último filho de `ctaBlock` (z-20), a MESMA camada que fica DE
+            PROPÓSITO abaixo da Roberta — é o que faz o texto passar por trás
+            dela, o gesto de profundidade da cena. Mas o alvo CLICÁVEL não
+            pode ter o mesmo destino do texto: um CTA que ninguém enxerga nem
+            alcança é pior que qualquer problema de contraste. Confirmado com
+            `git stash` (screenshot 1440 antes/depois desta sessão): o botão
+            NÃO estava quebrado no commit — a versão comitada usa
+            `justify-start` sem empurrão nenhum, então o pill nascia fora do
+            alcance do tablet. A regressão é desta sessão: o DEFEITO 1
+            (empurrar o bloco pra perto da silhueta) arrasta o botão junto,
+            porque ele é filho do mesmo bloco que a headline. Corrigido o
+            DEFEITO 1, o botão ainda ficava sob a borda translúcida do tablet
+            em 1280/1440/1512 (só 1920 escapava) — subir `z-index` NÃO
+            resolve: `ctaBlock` mora dentro de uma `<div>` com `position` +
+            `z-index` próprios (a camada z-20), e isso fecha um contexto de
+            empilhamento — todo descendente pinta no TETO desse contexto
+            (z-20), não importa o z-index que peça pra si. Pra escapar de
+            verdade o nó tem que ser um IRMÃO em nível mais alto, não um
+            filho mais "z-index alto".
+
+            A SOLUÇÃO: o botão mudou de endereço, não de dono visual. Esta
+            camada usa o MESMO `CTA_JUSTIFY` do bloco de texto (topo do
+            arquivo) — garante que a coluna horizontal seja IDÊNTICA, sem
+            duplicar a fórmula — e por dentro reproduz a MESMA altura até o
+            botão com um clone INVISÍVEL (`invisible`, não `hidden`: mantém a
+            caixa no fluxo, só não pinta) do eyebrow+h2+p. `visibility:hidden`
+            tira o clone da pintura E do hit-test, então ele nunca captura
+            clique nem duplica anúncio de leitor de tela (`aria-hidden`
+            reforça isso). A vantagem de clonar TEXTO em vez de sincronizar
+            posição via JS (`getBoundingClientRect` + rAF): a altura do `<h2>`
+            varia com o número de linhas, que varia com a largura da coluna,
+            que varia com o viewport — o clone herda essa conta de graça, no
+            MESMO layout engine que decide a altura do original, sem
+            reimplementar nada em JS e sem depender de um listener rodando a
+            cada frame do scroll.
+
+            `pointer-events-none` na camada inteira, `pointer-events-auto` só
+            no wrapper do botão: a camada não pode roubar clique/hover de
+            nada que esteja embaixo dela (a cena, os cards) fora da área exata
+            do pill. O `y`/`autoAlpha` do CTA sobem os dois blocos JUNTOS —
+            ver o tween CTA em useGSAP, agora com dois alvos — senão o botão
+            chegaria fora de sincronia com o texto. */}
+          <div
+            className={
+              // `z-[35]` (arbitrary value): a escala padrão do Tailwind pula
+              // de 30 pra 40, não tem "z-35" pronto — e este projeto não
+              // estende `zIndex` no tailwind.config.ts (conferido).
+              "absolute inset-0 z-[35] pointer-events-none " + CTA_JUSTIFY
+            }
+          >
+            <div
+              ref={ctaGhostBlock}
+              className="w-full max-w-[20rem] text-left [@media(min-aspect-ratio:4/3)]:w-[30rem] [@media(min-aspect-ratio:4/3)]:max-w-none"
+            >
+              <div aria-hidden className="invisible">
+                <div className="relative pl-1">
+                  <span className="font-body text-[11px] font-medium uppercase tracking-[0.28em] text-white/80">
+                    Pronta pra começar?
+                  </span>
+                </div>
+                <h2 className="mt-6 [@media(max-aspect-ratio:4/3)]:mt-4 pl-1 font-title text-[clamp(2rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
+                  Sua próxima consulta pode ser{" "}
+                  <span className="font-normal italic text-roxo-300">
+                    diferente.
+                  </span>
+                </h2>
+                <p className="mt-5 [@media(max-aspect-ratio:4/3)]:mt-3 max-w-[36ch] [@media(max-aspect-ratio:4/3)]:max-w-[30ch] pl-1 font-body text-[15px] [@media(max-aspect-ratio:4/3)]:text-[13.5px] leading-[1.6] [@media(max-aspect-ratio:4/3)]:leading-[1.5] text-white/80">
+                  Comece hoje e sinta a diferença já no próximo atendimento.
+                </p>
+              </div>
+
+              {/* BOTÃO — pill que abraça o texto (`w-fit`), não uma barra na
+                medida da coluna. Com `w-full` ele virava a base do bloco e
+                competia com a headline pelo mesmo eixo: dois retângulos da mesma
+                largura empilhados. Solto, ele volta a ser um objeto — e o rag da
+                headline por cima dele passa a ser a composição, não um acidente.
+                O `w-fit` no wrapper é pré-requisito do glow: `-inset-4` resolve
+                contra ESTA caixa, e num wrapper de largura cheia o halo pintaria
+                a coluna inteira em vez do pill.
+
+                O TOM É O PONTO. `bg-brand` (#8A69D8) é lavanda sobre uma cena
+                que é lavanda — o wash de marca, a aurora e o backdrop todos
+                moram na mesma faixa, então o CTA se dissolvia no fundo justo na
+                hora de ser clicado. Branco sobre `ink` é o par de maior contraste
+                que a paleta já tem (~16:1, AAA), e é o único elemento branco
+                sólido da cena: ele não compete com nada. A marca não sai — ela
+                fica no GLOW, que segue lavanda e agora lê como luz da marca
+                batendo no pill em vez de mais um roxo sobre roxo.
+                É desvio consciente do botão do DS (Figma 17-38): o padrão
+                pressupõe fundo claro, e esta é a única section que o contradiz. */}
+              {/* `ml-1` casa com o `pl-1` do texto (do clone invisível acima,
+                mesma medida do bloco real): sem ele o pill nasce 4px à
+                esquerda da tinta da headline e a coluna perde o prumo.
+                `pointer-events-auto` reabre o clique só nesta caixa — a
+                camada inteira é `pointer-events-none` (ver comentário lá
+                em cima). */}
+              <div className="relative ml-1 mt-10 [@media(max-aspect-ratio:4/3)]:mt-8 w-fit pointer-events-auto">
+                <span
+                  aria-hidden
+                  className="gaia-cta-breathe pointer-events-none absolute -inset-4 -z-10 rounded-full bg-[radial-gradient(circle,rgba(138,105,216,0.85),transparent_70%)] blur-2xl"
+                />
+                <a
+                  href="#comecar"
+                  className="group inline-flex h-14 items-center gap-3 rounded-full bg-neutro-0 pl-8 pr-6 font-body text-[15px] font-medium tracking-[-0.01em] text-ink shadow-[0_10px_34px_-8px_rgba(0,10,26,0.55)] outline-none transition-all duration-200 ease-gaia hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_18px_48px_-10px_rgba(0,10,26,0.75)] focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016] active:translate-y-0"
+                >
+                  Começar grátis
+                  <IconArrowUpRight className="h-[18px] w-[18px] transition-transform duration-200 ease-gaia group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </a>
+              </div>
+            </div>
+          </div>
 
           {/* z-40 · VÍDEO 2 — o pull-out que apresenta o footer. Acima de TUDO
             (recorte z-30, CTA z-20, cena z-0): quando a opacidade sobe (0.80→
@@ -1092,7 +1985,7 @@ export default function CTAFinal() {
               className="pointer-events-none absolute inset-0 z-40 opacity-0"
               style={{ clipPath: `url(#${ARCH_ID})` }}
             >
-              <div className={SCENE_BOX}>
+              <div className={SCENE_BOX_SCENE}>
                 <video
                   ref={field}
                   src={sources.field}
@@ -1100,11 +1993,49 @@ export default function CTAFinal() {
                   onLoadedData={primeForSeek}
                   muted
                   playsInline
-                  preload="auto"
+                  // mesmo lazy-load do vídeo 1 — ver o useEffect do
+                  // IntersectionObserver, antes do useGSAP.
+                  preload="none"
                   disablePictureInPicture
                   tabIndex={-1}
                   aria-hidden
-                  className={MEDIA}
+                  className={MEDIA_SCENE}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* z-50 · ARTE DO CAMPO — a última camada da pilha, acima do próprio
+            vídeo 2 (z-40). É ela que SEGURA a cena parada enquanto a pessoa lê
+            o footer; o vídeo entrega e sai de cena. MESMA caixa (SCENE_BOX +
+            MEDIA) e MESMO clip do vídeo 2 — a geometria tem que ser idêntica,
+            senão a troca vira corte. Fade em 0.92→1.0, com a câmera ainda
+            andando (ver o tween ARTE DO CAMPO em useGSAP: é o movimento que
+            esconde o registro imperfeito). `opacity-0` desde o mount.
+            Sem gate de aspecto, igual ao vídeo 2: leva mobile e desktop.
+            Fora em reduced-motion — lá o CTA_STILL já é a cena montada. */}
+          {motion === true ? (
+            <div
+              ref={fieldEnd}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-50 opacity-0"
+              style={{ clipPath: `url(#${ARCH_ID})` }}
+            >
+              <div className={SCENE_BOX}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {/* `lazy` pelo mesmo motivo do preload="none" dos vídeos: esta
+                  é a última section, e 335 KB não podem disputar banda com o
+                  que está acima da dobra. Degradação segura se atrasar — o
+                  vídeo 2 segue opaco por baixo, então o pior caso é continuar
+                  vendo o frame do vídeo, nunca um buraco. */}
+                <img
+                  ref={fieldEndImg}
+                  src={CTA_FIELD_END}
+                  alt=""
+                  aria-hidden
+                  decoding="async"
+                  loading="lazy"
+                  className={MEDIA_FIELD_END}
                 />
               </div>
             </div>
@@ -1114,20 +2045,28 @@ export default function CTAFinal() {
 
       {/* FOOTER — fora do palco, em fluxo normal, mas SOBE sobre o pé do palco
         (`-mt`) porque a PRÓPRIA imagem do campo é o fundo dele: o conteúdo do
-        rodapé mora POR CIMA da foto, não num card escuro que a corta. O still
-        do campo (mesmo frame final do vídeo 2) entra como fundo, com fade no
-        topo pra emendar com a cena e um scrim sutil só pra legibilidade. O
+        rodapé mora POR CIMA da foto, não num card escuro que a corta. A arte do
+        campo (`cta-field-bg.webp` — o destino da câmera do vídeo 2, escolhida
+        pela Laura; não é o frame final extraído do mp4, então não conte com
+        registro pixel-perfect: quem esconde a emenda é a máscara abaixo) entra
+        como fundo, com fade no topo pra emendar com a cena e um scrim sutil só
+        pra legibilidade. O
         reveal próprio do Footer (`start: "top 88%", once: true`) volta a
         disparar sozinho aqui fora do sticky. Ver os dois filhos abaixo. */}
       <div className="relative isolate -mt-[30vh]">
-        {/* FUNDO = a imagem do campo. `bg-bottom` mostra o primeiro plano (as
-          flores escuras), que é o que continua o pé da cena. A máscara faz o
-          topo nascer transparente (a cena aparece através) e a foto entrar por
-          baixo — como é a MESMA imagem, a emenda some. Sobe sobre o palco via
-          `-mt`, então a foto é literalmente parte do fundo do footer. */}
+        {/* FUNDO = a imagem do campo. A máscara faz o topo nascer transparente
+          (a cena aparece através) e a foto entrar por baixo — como é a MESMA
+          imagem, a emenda some. Sobe sobre o palco via `-mt`, então a foto é
+          literalmente parte do fundo do footer.
+          RETRATO centra a mulher (`bg-[63%_50%]`): ela mora em x≈0.60 do frame
+          (MEDIDO, ver MEDIA_FIELD_END), então `bg-bottom` (50% horizontal) a
+          jogava pra direita e cortava — o oposto do frame final do vídeo, que
+          agora a centra no mesmo 63%. Pedido da Laura: no mobile a mulher no
+          footer tem que estar exatamente como o vídeo termina. DESKTOP segue
+          `bg-bottom` (lá a arte é obj 100%, primeiro plano de flores). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 -z-20 bg-[url('/video/cta-field-still.webp')] bg-cover bg-bottom [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)]"
+          className="pointer-events-none absolute inset-0 -z-20 bg-[url('/video/cta-field-bg.webp')] bg-cover bg-[63%_50%] [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)] [@media(min-aspect-ratio:4/3)]:bg-bottom"
         />
         {/* SCRIM sutil — quase nada no topo (a cena segue à vista), subindo só
           o necessário pro texto no pé. É o único escurecimento; nada de placa

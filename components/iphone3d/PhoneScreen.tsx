@@ -26,7 +26,7 @@ também é pointer-events-none).
 import { useLayoutEffect, useRef } from "react";
 import { useAutoCycle } from "@/lib/useAutoCycle";
 import { IconCheck } from "@/components/ui/icons";
-import { MARINA, JOAO, ANA, PEDRO, type Person } from "@/lib/people";
+import { MARINA, JOAO, ANA, PEDRO, CAIO, type Person } from "@/lib/people";
 
 export type PhoneScreenVariant = "prontuario" | "inicio";
 
@@ -117,11 +117,18 @@ function BottomNav({ activeIndex, dark }: { activeIndex: 0 | 1 | 2; dark?: boole
    Réplica de /phone-screen.png: fundo claro, card roxo de próxima consulta,
    lista de pacientes recentes. Estática — é a tela de pouso, sem ciclo. */
 function InicioScreen() {
+  /* 5 linhas e não 4 (2026-07-20): no pouso do Pricing em lg o corte do tab
+     pegava a tela DEPOIS do último paciente — ~90px de fundo vazio antes da
+     linha, lendo como app quebrado. A 5ª linha dá corpo até onde o corte
+     alcança em qualquer breakpoint. 6 não cabe: estoura os 844 do frame e
+     empurra o BottomNav pra fora da tela (visível no mobile, onde o phone
+     aparece inteiro). */
   const patients: { who: Person; sub: string }[] = [
     { who: MARINA, sub: "Anamnese hoje" },
     { who: JOAO, sub: "Ontem" },
     { who: ANA, sub: "3 dias atrás" },
     { who: PEDRO, sub: "5 dias atrás" },
+    { who: CAIO, sub: "1 semana atrás" },
   ];
   return (
     <div className="flex h-full w-full flex-col bg-neutro-50">

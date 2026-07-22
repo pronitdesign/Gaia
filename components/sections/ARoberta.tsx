@@ -37,6 +37,71 @@ CustomEase.create(
 // No modo STACKED (sem sequência, Armadilha 4 do brief) esta imagem é o fundo inteiro.
 const BACKDROP = "/quem-construiu-olhos.webp";
 
+// ── Recorte retrato do vídeo do olho (celular/tablet em pé) ──────────────────
+// A fonte é paisagem (SEQ_W×SEQ_H, dois olhos). Em viewport retrato o cover de
+// 100vh escala pela ALTURA (390×844: 0.63× contra 0.41× da caixa daqui) — o
+// olho estoura o quadro e a headline vaza. Mesmo idioma do CTAFinal: caixa
+// retrato ancorada no topo + máscara dissolvendo a base — o vídeo funde no
+// meshy rosa por baixo (EYE_MESHY_ROSA), nunca numa borda seca. Gate por
+// ASPECTO, não por width: tablet em pé sofre o mesmo crop (é a régua do resto
+// do site — mobile recebe a mesma cena, só a geometria adapta). Aplica em
+// backdrop + canvas + vinheta JUNTOS: os três precisam da mesma caixa, senão a
+// troca backdrop→canvas (pixel-idêntica por contrato) ganha costura.
+// 160vw (terceira rodada da Laura: "faça ocupar mais espaço da altura o olho" —
+// foi 125vw, depois 140vw) com TETO em 92vh: sem o teto, no tablet em pé
+// (820×1180) a caixa engoliria o palco inteiro e o meshy rosa sumiria; o min()
+// preserva um chão rosa em qualquer retrato. A máscara mora no PRÓPRIO
+// elemento de propósito: no mergulho o transform escala máscara junto com o
+// frame — a borda fade sai do quadro e o dive volta a ser full-bleed, como no
+// desktop. (O retrato da Roberta tem caixa PRÓPRIA — ROBERTA_CARD_BOX — com
+// proporção e fundo diferentes; não compartilhar.)
+const EYE_PORTRAIT_BOX =
+  "[@media(max-aspect-ratio:4/3)]:h-[min(160vw,92vh)] [@media(max-aspect-ratio:4/3)]:[-webkit-mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)] [@media(max-aspect-ratio:4/3)]:[mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)]";
+
+// object-position X do BACKDROP na caixa retrato — o equivalente ESTÁTICO do
+// dx dinâmico do drawSeq em f=0 (olho ancorado no centro, ver eyeCxAt): P =
+// (fx·dw − w/2)/(dw − w) com fx = EYE_CX_SRC_START/SEQ_W dá 72–74% em toda a
+// faixa de caixas que o min(140vw,88vh) produz. 73% é o meio; o backdrop só
+// aparece até o primeiro bitmap decodificar, ±1% é invisível.
+const EYE_BACKDROP_POS_PORTRAIT = "[@media(max-aspect-ratio:4/3)]:object-[73%_50%]";
+
+// ── Card do retrato da Roberta (receita .card-image da Laura, 3ª rodada) ─────
+// SÓ NO VIEWPORT RETRATO. O desktop/landscape segue FULL-BLEED — a régua dela
+// só mascara no mobile, e a rodada que vestiu o desktop com uma coluna 3:5
+// (w-[60vh] ancorada à esquerda) quebrou a composição: os cards de prova e o
+// editorial foram coreografados pro frame cheio (Figma 195-530) e o card do
+// Alcance ficava pendurado no vazio ("no desktop não era para quebrar").
+// Viewport retrato: 4:5 (h-[125vw], menos extremo que o do olho — amplia
+// menos, corta menos o rosto), teto 88vh, máscara dissolvendo a base. O fundo
+// em que a máscara/borda funde nesta fase é ESCURO (pedido explícito: "o bg da
+// mask será escuro nessa parte") — é o wrapper `portrait`, que carrega o campo
+// ink e entra JUNTO no dissolve (ver o JSX). O object-position dela ("center
+// 25%/15%") vira PORTRAIT_POS na prática: a foto-fonte é PAISAGEM (2560×1429),
+// nas duas caixas o cover escala pela altura e o Y é inerte — o botão que
+// mantém o rosto no enquadramento é o X, e 55% é o valor MEDIDO (ver o bloco
+// do PORTRAIT_POS). A intenção da regra dela (rosto sempre em quadro) é o que
+// se aplica, não o número literal.
+// Vestem a MESMA caixa o Portrait E o recorte (cutout): o recorte só assenta
+// sobre a foto se os dois cortarem idêntico.
+const ROBERTA_CARD_BOX =
+  "[@media(max-aspect-ratio:4/3)]:h-[min(125vw,88vh)] [@media(max-aspect-ratio:4/3)]:[-webkit-mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)] [@media(max-aspect-ratio:4/3)]:[mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)]";
+
+// Meshy rosa que recebe o fade do vídeo no retrato — manchas radiais no magenta
+// do glow da própria foto (amostrado da referência da Laura), núcleo quente
+// subindo do rodapé e topo desmanchando em transparente antes da metade do
+// palco. A headline pousa nele em texto branco puro (o scrim escuro sai no
+// retrato — sobre rosa chapado ele leria como mancha suja).
+const EYE_MESHY_ROSA = [
+  "radial-gradient(90% 70% at 16% 96%, rgba(244,140,225,0.5) 0%, transparent 60%)",
+  "radial-gradient(110% 85% at 84% 88%, rgba(236,93,214,0.55) 0%, transparent 62%)",
+  "radial-gradient(150% 110% at 50% 118%, #C013A6 8%, rgba(192,19,166,0.85) 45%, transparent 78%)",
+  // A base linear fica SÓLIDA até acima da borda inferior da caixa retrato do
+  // vídeo (y=160vw ≈ 42% desta camada em 390×844) — se ela ainda estiver rala
+  // ali, o creme do bg-neutro-50 vaza pela janela do fade e vira uma banda
+  // pálida (medido no render: era exatamente o defeito da primeira rodada).
+  "linear-gradient(to top, #B0109C 0%, #B0109C 58%, rgba(176,16,156,0.86) 72%, rgba(190,30,170,0.35) 86%, transparent 100%)",
+].join(", ");
+
 // Sequência de frames do push-in no olho — scrubbada pelo scroll (beat 0 do pin, ver
 // useGSAP); depois do último frame, o mergulho na pupila continua o movimento (beat 1).
 // ERA um <video> H.264 GOP=1 com currentTime escrito pelo scroll — e era isso que
@@ -78,6 +143,20 @@ const seqSrc = (i: number) => `/olho-seq/olho-${String(i + 1).padStart(3, "0")}.
 const DISC_CX_SRC = 1378.75;
 const DISC_CY_SRC = 673.75;
 
+// ── Centro do olho AO LONGO da sequência (pedido da Laura: "sempre deixe o
+// olho centralizado... talvez terá que ajustar conforme scroll") ─────────────
+// O dolly não é estático: a pupila DIREITA migra no raster durante o push-in.
+// MEDIDO nos frames (grade visual, raster 2400×1340): frame 1 ≈ (1520, 614),
+// frame 37 ≈ (1443, 645), frame 73 = DISC_CX_SRC (1378.75). O meio cai a ~7px
+// da reta entre as pontas — deriva LINEAR pra efeitos práticos (~3px no raster
+// da caixa retrato, invisível), então dois pontos + lerp bastam; nada de
+// tabela por frame. Só o X importa: na caixa retrato o cover escala pela
+// altura e a folga vertical é ZERO (object-position Y é inerte em retrato).
+const EYE_CX_SRC_START = 1520;
+/** X do centro do olho no raster-fonte para o frame (contínuo) `f` do scrub. */
+const eyeCxAt = (f: number) =>
+  EYE_CX_SRC_START + (DISC_CX_SRC - EYE_CX_SRC_START) * (f / (SEQ_FRAMES - 1));
+
 /** Centro da pupila (o disco DISC_*) em px de VIEWPORT, dado o tamanho atual da
  *  tela — replica a conta do cover: o frame (SEQ_W×SEQ_H) cobre vw×vh, e a pupila
  *  é um ponto fixo dentro dele que se desloca com o crop. Chamada a cada frame do
@@ -85,7 +164,7 @@ const DISC_CY_SRC = 673.75;
  *  (resize, rotate) e um valor velho desloca o ponto de fuga pra fora da pupila. O
  *  drawSeq (canvas) usa EXATAMENTE esta mesma conta de cover — se uma mudar, a
  *  outra tem que mudar junto, senão a pupila desenhada e o ponto de fuga divergem. */
-function computeIrisBox(vw: number, vh: number) {
+function computeIrisBox(vw: number, vh: number, eyeAnchored = false) {
   const frameAspect = SEQ_W / SEQ_H;
   const viewportAspect = vw / vh;
   let scale: number, offsetX: number, offsetY: number;
@@ -95,7 +174,12 @@ function computeIrisBox(vw: number, vh: number) {
     offsetY = (vh - SEQ_H * scale) / 2;
   } else {
     scale = vh / SEQ_H;
-    offsetX = (vw - SEQ_W * scale) / 2;
+    // eyeAnchored (caixa retrato): o crop centra a PUPILA, não o raster — o
+    // MESMO clamp do dx do drawSeq em f final (eyeCxAt(72) = DISC_CX_SRC), então
+    // pupila desenhada e ponto de fuga seguem coincidindo por construção.
+    offsetX = eyeAnchored
+      ? Math.min(0, Math.max(vw - SEQ_W * scale, vw / 2 - DISC_CX_SRC * scale))
+      : (vw - SEQ_W * scale) / 2;
     offsetY = 0;
   }
   return {
@@ -140,6 +224,25 @@ const PORTRAIT = "/roberta.webp";
 // retrato (260×320), então o object-cover corta ~55% da largura fora. Sem reposicionar,
 // o card pega ombro e abajur em vez do rosto. 55% centra a cabeça dela no recorte alto
 // e continua bem enquadrada quando o box abre pro full-bleed.
+//
+// OS DOIS EIXOS NÃO SÃO SIMÉTRICOS — medido no render (390/430/820/1440), não
+// deduzido do arquivo. Enquanto a viewport for MAIS ALTA que 1.79:1 (todo celular,
+// todo tablet em pé, e o desktop 1440×900), o cover escala pela ALTURA e ela casa
+// exata: a sobra vertical é ZERO e o `45%` não move um pixel. Só a sobra horizontal
+// existe — e ela é brutal no retrato: 1122px de folga contra um box de 390 (74% da
+// foto fora do quadro) versus 172px em 1440 (11%). Ou seja: no celular o único
+// botão que funciona é o X, e reduzir a ampliação em si não é possível por CSS —
+// pediria um asset recortado em retrato.
+//
+// O `45%` NÃO é código morto, apesar disso: numa janela mais LARGA que 1.79:1
+// (1920×900, por exemplo) o cover passa a escalar pela largura, a sobra vira
+// vertical e o 45% volta a mandar. Não remova por parecer inerte no celular.
+//
+// O X ficou em 55% depois de varrer 35/45/55/65/75 em 390px com captura em cada
+// parada: 35 e 75 jogam metade do rosto pra fora, 65 enquadra inteiro mas troca
+// intimidade por parede vazia, e 55 é o único que dá rosto completo E grande com a
+// headline pousando no paletó escuro (contraste de graça). Já é o ótimo da faixa —
+// não há ganho em diferenciar mobile aqui.
 const PORTRAIT_POS = "55% 45%";
 
 // Orquídea cymbidium vinho, exportada do Figma (node 152-472) na mesma moldura do
@@ -156,11 +259,29 @@ const CUTOUT = "/roberta-recorte.webp";
 const TICKER_NAME = "Roberta Carbonari";
 const TICKER_REPEAT = 4;
 
-// Cards de prova em vidro fosco que flutuam sobre a foto full-bleed. Vidro claro
-// translúcido (mesma família do GLASS_FROST do Features) — legível sobre a pétala
-// escura: tinta branca a 8%, aro de luz interno no topo e sombra funda.
+// Cards de prova em vidro fosco que flutuam sobre a foto full-bleed — MESMA
+// receita do GLASS_DARK do bento (Features): tinta preta translúcida 58→40%,
+// blur-2xl saturado, aro interno de luz e sombra funda. O vidro branco antigo
+// (white/8) clareava sobre o abajur da foto e obrigava o card 1 a carregar um
+// override de tinta escura inline; com a tinta preta do bento a receita é uma
+// só pros dois cards e o material bate com o resto do site.
 const PROOF_CARD =
-  "rounded-2xl border border-white/15 bg-white/[0.08] backdrop-blur-xl backdrop-saturate-150 shadow-[0_30px_70px_-24px_rgba(0,0,0,0.78),inset_0_1px_0_0_rgba(255,255,255,0.28),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+  "rounded-[22px] bg-gradient-to-b from-black/[0.58] to-black/40 backdrop-blur-2xl backdrop-saturate-150 transform-gpu shadow-[0_30px_80px_-28px_rgba(0,0,0,0.92),inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)]";
+
+// Card do Mestre (Credential) — MESMO material do PROOF_CARD, tinta mais funda.
+// O card 1 pousa sobre o abajur quente da foto (canto inferior-esquerdo do
+// retrato): com a tinta do PROOF_CARD (black/58→40) + saturate-150, a luz âmbar
+// vaza pelo vidro e o card lê como vidro quente/claro, não dark glass (medido no
+// render — a Laura pediu "volte a ser dark glass"). O Alcance segue no PROOF_CARD
+// porque cai sobre o paletó escuro e já lê dark. Tinta subida (black/82→66) +
+// saturate mais baixo (125) fecham a janela pro âmbar e devolvem o charcoal do
+// Alcance neste card, onde quer que a foto reposicione o abajur. Recipe própria
+// (não compõe PROOF_CARD) pra não ter duas classes from-black brigando na cascata.
+const CRED_CARD =
+  "rounded-[22px] bg-gradient-to-b from-black/[0.82] to-black/[0.66] backdrop-blur-2xl backdrop-saturate-125 transform-gpu shadow-[0_30px_80px_-28px_rgba(0,0,0,0.92),inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)]";
+
+// Hairline de ledger — divisória que desmaia nas pontas, mesma régua do Stats.
+const PROOF_RULE = "h-px bg-gradient-to-r from-transparent via-white/12 to-transparent";
 
 // Números da prova — ledger. `to` numérico dispara count-up; `static` fica fixo.
 const STATS = [
@@ -181,6 +302,9 @@ const BIO =
 // Pinned: escuro (ink) — a foto dissolve num fundo cinematográfico, texto claro por cima.
 const PORTRAIT_SCRIM_DARK =
   "linear-gradient(to top, #05080F 0%, rgba(5,8,15,0.94) 24%, rgba(7,11,22,0.55) 52%, transparent 100%)";
+// (Houve uma rodada com scrim magenta profundo no retrato — a Laura trocou na
+// 3ª rodada: "o bg da mask será escuro nessa parte". O campo ink mora no
+// wrapper `portrait`; este scrim segue reforçando a base pro editorial.)
 // Stacked (mobile): claro — a foto emenda no off-white do editorial embaixo.
 const PORTRAIT_SCRIM_LIGHT =
   "linear-gradient(to top, #FAF9F5 0%, rgba(250,249,245,0.94) 26%, rgba(250,249,245,0.58) 54%, transparent 100%)";
@@ -205,10 +329,18 @@ const EASE = "ease-[cubic-bezier(0.32,0.72,0,1)]";
 const NOISE_BG =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
-/** Retrato: placeholder (gradiente Bruma + monograma) com a foto real por cima quando existir. */
+/** Retrato: placeholder (gradiente Bruma + monograma) com a foto real por cima quando existir.
+ *  O root veste o ROBERTA_CARD_BOX: card 3:5 à esquerda no desktop, 4:5
+ *  mascarado no retrato — nas duas pontas fundindo/encostando no campo ink do
+ *  wrapper `portrait` (o "bg escuro da mask"). O rack focus (scale 1.12→1 em
+ *  data-portrait-inner) respira a borda do card ~6% durante o pouso —
+ *  acontece dentro do clarão do dissolve, invisível. */
 function Portrait() {
   return (
-    <div data-portrait-inner className="relative h-full w-full overflow-hidden bg-bruma">
+    <div
+      data-portrait-inner
+      className={`relative h-full w-full overflow-hidden bg-bruma ${ROBERTA_CARD_BOX}`}
+    >
       <div className="absolute inset-0 grid place-items-center">
         <span className="font-title text-[clamp(2.5rem,7vw,5rem)] font-medium text-azul-800/60">
           RC
@@ -239,9 +371,14 @@ function Portrait() {
 function Afluente({
   flowerRef,
   veil = true,
+  portraitCrop = false,
 }: {
   flowerRef?: RefObject<HTMLDivElement>;
   veil?: boolean;
+  /** Modo pinned: no viewport retrato o backdrop vira a mesma caixa 4:5 mascarada
+   *  do canvas da sequência (EYE_PORTRAIT_BOX) — os dois têm que coincidir pixel a
+   *  pixel pra troca backdrop→canvas seguir invisível. Stacked não usa. */
+  portraitCrop?: boolean;
 }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
@@ -249,7 +386,7 @@ function Afluente({
       <img
         src={BACKDROP}
         alt=""
-        className="absolute inset-0 h-full w-full object-cover"
+        className={`absolute inset-0 h-full w-full object-cover ${portraitCrop ? `${EYE_PORTRAIT_BOX} ${EYE_BACKDROP_POS_PORTRAIT}` : ""}`}
       />
 
       {/* Full-bleed com o mesmo object-cover do gradiente: no Figma a orquídea é uma
@@ -395,21 +532,24 @@ function ProofCard({
   );
 }
 
-/** Chip de vidro fosco — pílula pequena pra especialidades/tags dentro dos cards. */
+/** Chip de vidro fosco — pílula pequena pra especialidades/tags dentro dos cards.
+ *  Idioma das pílulas do bento: nada de border desenhada, o aro é luz interna
+ *  (inset ring + realce de topo). */
 function GlassChip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-body text-[11.5px] font-medium text-white/75">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-3 py-1 font-body text-[11.5px] font-medium text-white/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14),inset_0_0_0_1px_rgba(255,255,255,0.10)]">
       {children}
     </span>
   );
 }
 
 /** Ícone circular em vidro — casca comum do header dos dois cards (como o círculo do
- *  ref "Heart rate"). A cor do ícone vem do text-color passado. */
+ *  ref "Heart rate"). A cor do ícone vem do text-color passado. Mesmo idioma do chip:
+ *  aro de luz interno em vez de border. */
 function IconOrb({ children, tint }: { children: React.ReactNode; tint: string }) {
   return (
     <span
-      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)] ${tint}`}
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.12)] ${tint}`}
     >
       {children}
     </span>
@@ -422,24 +562,27 @@ function CredentialCard({ className = "" }: { className?: string }) {
   return (
     <div
       data-proof
-      className={`${PROOF_CARD} relative flex flex-col justify-between overflow-hidden px-7 py-6 md:px-8 md:py-7 ${className}`}
+      className={`${CRED_CARD} relative flex flex-col justify-between overflow-hidden px-7 py-6 md:px-8 md:py-7 ${className}`}
     >
       {/* assinatura de cor — luz roxa difusa no canto superior-direito */}
       <div
         aria-hidden
         className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-roxo-400/25 blur-3xl"
       />
-      {/* header */}
-      <div className="flex items-center gap-3">
-        <IconOrb tint="text-roxo-200">
-          <IconShield className="h-5 w-5" />
-        </IconOrb>
-        <div className="leading-tight">
-          <div className="font-body text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
-            Formação
+      {/* header + hairline de ledger colada nele (um grupo só pro justify-between) */}
+      <div>
+        <div className="flex items-center gap-3">
+          <IconOrb tint="text-roxo-200">
+            <IconShield className="h-5 w-5" />
+          </IconOrb>
+          <div className="leading-tight">
+            <div className="font-body text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
+              Formação
+            </div>
+            <div className="font-body text-[13px] text-roxo-200">titulação acadêmica</div>
           </div>
-          <div className="font-body text-[13px] text-roxo-200">titulação acadêmica</div>
         </div>
+        <div aria-hidden className={`mt-4 ${PROOF_RULE}`} />
       </div>
       {/* título */}
       <div>
@@ -481,7 +624,7 @@ function ImpactCard({ className = "" }: { className?: string }) {
   return (
     <div
       data-proof
-      className={`${PROOF_CARD} flex items-stretch gap-6 overflow-hidden px-6 py-5 ${className}`}
+      className={`${PROOF_CARD} flex items-stretch gap-5 overflow-hidden px-6 py-5 ${className}`}
     >
       {/* assinatura de cor — luz azul difusa no canto superior-esquerdo */}
       <div
@@ -512,9 +655,14 @@ function ImpactCard({ className = "" }: { className?: string }) {
           </span>
         </div>
       </div>
+      {/* hairline vertical de ledger entre as colunas — desmaia nas pontas */}
+      <div
+        aria-hidden
+        className="w-px shrink-0 self-stretch bg-gradient-to-b from-transparent via-white/12 to-transparent"
+      />
       {/* coluna direita — selo, gráfico e métricas de apoio */}
       <div className="flex min-w-0 flex-1 flex-col justify-between">
-        <span className="inline-flex w-fit items-center gap-1 self-end rounded-full bg-sage-400/20 px-2.5 py-1 font-body text-[10.5px] font-medium text-sage-300">
+        <span className="inline-flex w-fit items-center gap-1 self-end rounded-full bg-sage-400/20 px-2.5 py-1 font-body text-[10.5px] font-medium text-sage-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)]">
           <IconArrowUpRight className="h-3 w-3" />
           crescendo
         </span>
@@ -527,13 +675,17 @@ function ImpactCard({ className = "" }: { className?: string }) {
             />
           ))}
         </div>
-        <div className="flex items-center gap-4 border-t border-white/10 pt-2 font-body text-[11.5px] text-white/55">
-          <span className="whitespace-nowrap">
-            <b className="font-semibold text-white/85">3</b> clínicas
-          </span>
-          <span className="whitespace-nowrap">
-            <b className="font-semibold text-white/85">+1M</b> seguidores
-          </span>
+        {/* régua + métricas num grupo só — senão o justify-between abre vão entre elas */}
+        <div>
+          <div className={PROOF_RULE} aria-hidden />
+          <div className="flex items-center gap-4 pt-2 font-body text-[11.5px] text-white/55">
+            <span className="whitespace-nowrap">
+              <b className="font-semibold text-white/85">3</b> clínicas
+            </span>
+            <span className="whitespace-nowrap">
+              <b className="font-semibold text-white/85">+1M</b> seguidores
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -626,17 +778,24 @@ export default function ARoberta() {
 
   const [mode, setMode] = useState<"pinned" | "stacked">("stacked");
 
+  // A CENA NÃO DEPENDE DE LARGURA DE TELA. Aqui havia um gate de
+  // `min-width: 1024px`: abaixo dele o celular caía no `stacked` e não via nada
+  // do push-in nem do mergulho — recebia um retrato parado com a foto do olho
+  // esticada de fundo. Não era degradação planejada, era a cena inteira faltando
+  // justo onde está a maior parte do tráfego (e, de quebra, a foto deitada
+  // preenchendo uma caixa em pé virava um cílio ampliado 5,5× atrás do texto).
+  // O que muda no retrato é GEOMETRIA — enquadramento, âncora, altura de pista —
+  // e isso está adaptado no JSX/timeline, não trocado por outra cena.
+  //
+  // `stacked` continua existindo pra UM caso só: prefers-reduced-motion. Esse é
+  // contrato de acessibilidade, não tamanho de tela — quem pediu menos movimento
+  // recebe a mesma informação sem o scrub.
   useEffect(() => {
-    const wide = window.matchMedia("(min-width: 1024px)");
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const decide = () => setMode(wide.matches && !reduce.matches ? "pinned" : "stacked");
+    const decide = () => setMode(reduce.matches ? "stacked" : "pinned");
     decide();
-    wide.addEventListener("change", decide);
     reduce.addEventListener("change", decide);
-    return () => {
-      wide.removeEventListener("change", decide);
-      reduce.removeEventListener("change", decide);
-    };
+    return () => reduce.removeEventListener("change", decide);
   }, []);
 
   useGSAP(
@@ -747,6 +906,11 @@ export default function ARoberta() {
         })();
       }
 
+      // Fonte única do "estamos na caixa retrato?" — o MESMO gate de aspecto do
+      // EYE_PORTRAIT_BOX. Lido a cada draw/dive (`.matches` é barato e já reflete
+      // rotate/resize sem listener próprio; o onRefresh redesenha em seguida).
+      const portraitMQ = window.matchMedia("(max-aspect-ratio: 4/3)");
+
       const canvas = seqCanvas.current;
       const cctx = canvas?.getContext("2d");
       const resizeCanvas = () => {
@@ -783,7 +947,14 @@ export default function ARoberta() {
         const s = Math.max(canvas.width / SEQ_W, canvas.height / SEQ_H);
         const dw = SEQ_W * s;
         const dh = SEQ_H * s;
-        const dx = (canvas.width - dw) / 2;
+        // Caixa retrato: o crop ancora o CENTRO DO OLHO no centro do canvas, frame
+        // a frame (eyeCxAt segue a deriva do dolly — pan determinístico, mesma
+        // função de f na ida e na volta), clampado pra nunca abrir vão na borda.
+        // Landscape: centrado, como sempre foi. O `f` contínuo (já amortecido pelo
+        // damp) faz o pan andar na mesma rampa do frame — nada de degrau.
+        const dx = portraitMQ.matches
+          ? Math.min(0, Math.max(canvas.width - dw, canvas.width / 2 - eyeCxAt(f) * s))
+          : (canvas.width - dw) / 2;
         const dy = (canvas.height - dh) / 2;
         cctx.globalAlpha = 1;
         cctx.drawImage(bitmaps[a]!, dx, dy, dw, dh);
@@ -819,13 +990,23 @@ export default function ARoberta() {
       };
       gsap.ticker.add(tickSeq);
 
+      // Última string de filter ESCRITA no canvas (não a calculada) — guarda pra
+      // early-return quando o valor quantizado bate com o do frame anterior. Ver
+      // applyDive: sem isso a mesma string é reescrita todo frame e o Chrome trata
+      // como raster novo mesmo sendo idêntica.
+      let lastFilterStr = "";
+
       const applyDive = (d: number) => {
         const cv = seqCanvas.current;
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
+        // A caixa do CANVAS, não a viewport: no desktop são idênticas, mas no
+        // retrato o canvas vira a caixa 4:5 do EYE_PORTRAIT_BOX — o transform-origin
+        // é relativo ao elemento, então a conta da pupila tem que rodar no mesmo
+        // sistema de coordenadas em que a origem será escrita.
+        const vw = cv?.clientWidth || window.innerWidth;
+        const vh = cv?.clientHeight || window.innerHeight;
         // O ponto de fuga é o centro da pupila MEDIDO a cada frame (nunca cacheado —
         // resize/rotate desloca o crop do object-cover, ver computeIrisBox).
-        const iris = computeIrisBox(vw, vh);
+        const iris = computeIrisBox(vw, vh, portraitMQ.matches);
 
         // Micro-tremor de câmera — duas senoides dessincronizadas (nunca random:
         // o scrub reverso tem que refazer o MESMO caminho), amplitude ∝ sin(π·d):
@@ -872,7 +1053,36 @@ export default function ARoberta() {
           // riscando (blur linear lavava tudo cedo demais — medido no render); no
           // fim, 14px é motion blur E disfarce da pixelização de ampliar 9×.
           const brightness = 1 + 0.4 * Math.sin(Math.PI * d);
-          cv.style.filter = `blur(${d * d * 14}px) saturate(${1 + 0.6 * d}) brightness(${brightness})`;
+          // QUANTIZAÇÃO DO FILTER — medida em A/B (CSS injetado, scroll da página
+          // inteira, 120Hz, alvo 8,3ms/frame): este blur animado era o maior custo
+          // de frame do site inteiro (p95 58,6ms → 16,7ms e frames >100ms 11→4 só
+          // isolando `filter`; `backdrop-filter` não custou nada no mesmo teste).
+          // `d` varia contínuo, então o raio virava um valor NOVO por frame — e todo
+          // raio novo força o Chrome a re-rasterizar a camada inteira do zero, sem
+          // reaproveitar cache. Degrau de 0,5px num blur que vai a 14px (~28 degraus
+          // distintos, vindos de centenas) é invisível a olho nu. saturate/brightness
+          // quantizam pra 2 casas — bem mais grosso que o contínuo — porque moram na
+          // MESMA string: qualquer caractere diferente já invalida o raster, então os
+          // três têm que quantizar juntos ou o ganho do blur sozinho não vale nada.
+          const blurQ = Math.round(d * d * 14 * 2) / 2; // passo 0,5px
+          const satQ = Math.round((1 + 0.6 * d) * 100) / 100;
+          const brightQ = Math.round(brightness * 100) / 100;
+          // Em repouso (d≈0) os três quantizados colapsam pra identidade — usa
+          // 'none' e não 'blur(0px) saturate(1) brightness(1)': filter cria
+          // containing block e força camada de composição própria mesmo sendo
+          // um no-op visual (mesmo cuidado do ScrollPhone.tsx na tela molhada,
+          // ver wetPaint). A maior parte da jornada de scroll o mergulho ainda
+          // não começou — evitar a camada aqui é onde o guard mais compensa.
+          const filterStr =
+            blurQ === 0 && satQ === 1 && brightQ === 1
+              ? "none"
+              : `blur(${blurQ}px) saturate(${satQ}) brightness(${brightQ})`;
+          // Só escreve no DOM quando a string quantizada MUDA — antes ela era
+          // reescrita todo frame mesmo quando o resultado era idêntico ao anterior.
+          if (filterStr !== lastFilterStr) {
+            lastFilterStr = filterStr;
+            cv.style.filter = filterStr;
+          }
         }
 
         // ── Dissolve do mergulho ─────────────────────────────────────────────
@@ -1488,7 +1698,19 @@ export default function ARoberta() {
             filho mudou de posição visual (mesmo tamanho, sem offset), então
             a única diferença é ter um alvo seguro pro tween de recuo. */}
         <div ref={recede} className="relative h-full w-full will-change-transform">
-          <Afluente veil={false} />
+          <Afluente veil={false} portraitCrop />
+
+          {/* Meshy rosa — SÓ no retrato (o gate de aspecto do EYE_PORTRAIT_BOX).
+              Fica entre o backdrop (z-0, stacking context próprio) e o canvas
+              (z-[1]) na ordem de pintura: é nele que a base mascarada do vídeo
+              dissolve. Sobe até ~62% do palco com o topo já transparente — a
+              emenda vídeo→rosa acontece dentro da janela do fade (78→100% da
+              caixa 4:5), nunca numa linha. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-[62%] [@media(max-aspect-ratio:4/3)]:block"
+            style={{ background: EYE_MESHY_ROSA }}
+          />
 
           {/* Canvas da sequência — beat 0 do scrub (ver drawSeq/tickSeq no useGSAP).
               Fica ACIMA do BACKDROP estático (z-[1] > z-0 do Afluente): os dois têm
@@ -1502,14 +1724,18 @@ export default function ARoberta() {
           <canvas
             ref={seqCanvas}
             aria-hidden
-            className="pointer-events-none absolute inset-0 z-[1] h-full w-full"
+            className={`pointer-events-none absolute inset-0 z-[1] h-full w-full ${EYE_PORTRAIT_BOX}`}
           />
 
           {/* Grade cinematográfica sobre a foto (z-[21], acima do retrato z-20 e abaixo
-              do ticker/recorte/editorial): vinheta funda nas bordas + grão de filme. */}
+              do ticker/recorte/editorial): vinheta funda nas bordas + grão de filme.
+              A vinheta acompanha a caixa retrato do vídeo (EYE_PORTRAIT_BOX): sem
+              isso ela escureceria os cantos do meshy rosa, que na referência da
+              Laura é limpo até a borda. O grão segue full-bleed — grão sobre o
+              rosa é textura de filme, não sujeira. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 z-[21]"
+            className={`pointer-events-none absolute inset-0 z-[21] ${EYE_PORTRAIT_BOX}`}
             style={{
               background:
                 "radial-gradient(120% 100% at 50% 36%, transparent 44%, rgba(0,0,0,0.5) 100%)",
@@ -1539,11 +1765,14 @@ export default function ARoberta() {
               object-position do retrato, então a Roberta recortada assenta em cima
               do fundo e o ticker passa por trás da cabeça dela. */}
           <div ref={cutout} className="pointer-events-none absolute inset-0 z-[26]">
+            {/* A MESMA caixa do Portrait (ROBERTA_CARD_BOX): o recorte só assenta
+                sobre a foto se os dois cortarem idêntico — box, cover e
+                object-position casados, no desktop E no retrato. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={CUTOUT}
               alt="Roberta Carbonari"
-              className="absolute inset-0 h-full w-full select-none object-cover"
+              className={`absolute inset-0 h-full w-full select-none object-cover ${ROBERTA_CARD_BOX}`}
               style={{ objectPosition: PORTRAIT_POS }}
             />
           </div>
@@ -1563,16 +1792,19 @@ export default function ARoberta() {
               com as linhas (ver gsap.from no useGSAP) e sai com o bloco. */}
           <div
             ref={headline}
-            className="absolute z-30 whitespace-nowrap text-left"
-            style={{ left: "38.9%", bottom: "8.6%" }}
+            className="absolute bottom-[8.6%] left-[38.9%] z-30 whitespace-nowrap text-left [@media(max-aspect-ratio:4/3)]:left-auto [@media(max-aspect-ratio:4/3)]:right-[7%]"
           >
             {/* Scrim atrás do texto — cobre o bloco com folga, borda desmanchada.
                 -z-10 o mantém atrás das linhas; a mancha some antes das bordas (não
-                vira retângulo visível). */}
+                vira retângulo visível). FORA no retrato: lá a headline pousa no
+                meshy rosa chapado (nada de fundo imprevisível pra domar) e a mancha
+                escura leria como sujeira — branco puro sobre o magenta já passa de
+                3:1 em display size. No retrato o bloco ancora pela DIREITA
+                (left:auto): com left 38.9% + nowrap ele vazava ~17px em 390px. */}
             <div
               data-headline-scrim
               aria-hidden
-              className="pointer-events-none absolute -inset-x-[18%] -inset-y-[28%] -z-10"
+              className="pointer-events-none absolute -inset-x-[18%] -inset-y-[28%] -z-10 [@media(max-aspect-ratio:4/3)]:hidden"
               style={{
                 background:
                   "radial-gradient(60% 62% at 42% 54%, rgba(6,2,10,0.62) 0%, rgba(6,2,10,0.42) 42%, rgba(6,2,10,0.16) 68%, transparent 82%)",
@@ -1593,9 +1825,14 @@ export default function ARoberta() {
             </span>
           </div>
 
-          {/* retrato — full-bleed desde o nascimento; emerge do preto no beat 2 da
-              timeline (só autoAlpha anima, a geometria é estática) */}
-          <div ref={portrait} className="absolute z-20 overflow-hidden">
+          {/* retrato — o wrapper é o CAMPO INK da fase da Roberta ("o bg da mask
+              será escuro nessa parte"): full-bleed escuro com o card 3:5/4:5
+              (ROBERTA_CARD_BOX) dentro. O applyDive anima a opacidade DESTE
+              wrapper, então campo escuro e card dissolvem JUNTOS por cima do
+              mundo rosa do olho — a troca rosa→ink é o próprio dissolve, sem
+              beat novo. Emerge no beat 2 da timeline (só autoAlpha anima, a
+              geometria é estática). */}
+          <div ref={portrait} className="absolute z-20 overflow-hidden bg-[#05080F]">
             <Portrait />
           </div>
 
@@ -1611,8 +1848,31 @@ export default function ARoberta() {
 
           {/* Cards de prova — canto inferior-esquerdo, sobre a foto full-bleed.
               Nasce no beat final (foto já cheia). Wrapper z-[28]: acima do scrim (z-27)
-              e do recorte (z-26), abaixo do editorial (z-30, que fica na direita). */}
-          <div ref={proof} aria-hidden className="pointer-events-none absolute inset-0 z-[28]">
+              e do recorte (z-26), abaixo do editorial (z-30, que fica na direita).
+
+              FORA ABAIXO DE `md` — e o breakpoint é O MESMO do Editorial de
+              propósito, não um número escolhido a olho. O editorial é
+              `grid-cols-1 md:grid-cols-2` com o texto em `md:col-start-2`: só a
+              partir de 768px ele desocupa a metade ESQUERDA, que é onde estes
+              cards moram (left 5% / 13%). Abaixo disso os dois disputam o mesmo
+              espaço e o texto perde — medido em 390px, os cards viram 82px e
+              119px, picam em "Me / em Nutriça / Alimen" e caem por cima do
+              parágrafo da bio; em 640px ainda cortavam "FORMA…/Mestr…". Se o
+              Editorial mudar de breakpoint, este tem que mudar junto.
+
+              Nenhuma informação se perde saindo: os mesmos números estão na bio e
+              no ledger do Stats. Encolher os cards pra caber seria pior — vidro
+              fosco estreito sobre a foto compete com a headline sem dizer nada
+              que o texto já não diga.
+
+              `hidden` (display) e não autoAlpha: o GSAP escreve visibility/opacity
+              neste wrapper (ver o beat em gsap.set/`.to(proof.current)` acima) e
+              display:none vence os dois sem que a timeline precise saber de nada. */}
+          <div
+            ref={proof}
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[28] hidden md:block"
+          >
             {/* cards em glass nas coordenadas EXATAS do Figma (node 195-530, frame
                 885×516). Rectangle 1 = 68,230 / 214×122 → %; Rectangle 2 = 218,294 /
                 231×188 → %. Mapeados como fração do full-bleed (100vw × 100vh). */}

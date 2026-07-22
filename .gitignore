@@ -14,18 +14,12 @@ npm-debug.log*
 .playwright-mcp/
 
 # Screenshots de referência / debug (não são assets do app)
+# Assets reais vivem em public/ — qualquer imagem solta na raiz é print de debug.
 /undefined/
-/plano-*.png
-/pricing_whole.png
-/aroberta-floral.jpeg
-/debugphone.png
-/variante-*.png
-/pico-atual.png
-/final-pico.png
-/pouso-final.png
-/emenda-mergulho-pricing.png
-/pricing-novo.png
-/aroberta-p0*.png
+/*.png
+/*.jpeg
+/*.jpg
+/*.webp
 
 # brainstorm visual companion
 .superpowers/

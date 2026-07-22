@@ -107,7 +107,10 @@ function Overlay({
          prop que mudasse, inclusive layout responsivo. duration-700 (era 500):
          o Float dos cards entra em 700 — texto e card são o mesmo evento
          (o passo ativou) e terminavam 200ms defasados. */
-      className={`relative z-10 order-2 mt-auto flex w-full flex-col px-7 pt-10 text-left transition-[opacity,transform] duration-700 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:mt-0 md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40 ${
+      /* sem mt-auto (2026-07-20): quem empurra o bloco card+texto pro pé do
+         painel agora é o mt-auto do CARD (ver mainPos) — com os dois em auto
+         o espaço livre se dividia e o card voltava a flutuar sobre o rosto. */
+      className={`relative z-10 order-2 flex w-full flex-col px-7 pt-10 text-left transition-[opacity,transform] duration-700 ease-gaia md:absolute md:bottom-0 md:left-0 md:order-none md:w-[58%] md:px-16 md:pb-36 md:pt-0 lg:px-20 lg:pb-40 ${
         // pinned no mobile: precisa limpar a barra de abas colada embaixo.
         // stacked (reduced): sem abas, o rótulo numerado é o rodapé.
         reduced ? "pb-11" : "pb-32"
@@ -224,11 +227,14 @@ function GlassCard({
   );
 }
 
-/** posição do card principal: mobile topo-centro; desktop ancora na FAIXA
-    INFERIOR-direita, na mesma linha de visão do título (cluster de HUD) —
-    a foto respira na metade de cima, a informação se agrupa embaixo */
+/** posição do card principal: no mobile o card desce pra BASE, ancorado na
+    lateral OPOSTA ao rosto da foto (cada painel escolhe o lado), logo acima
+    do texto — topo-centro tampava o rosto (mock da Laura, 2026-07-20). O
+    mt-auto empurra card+texto pro pé do painel como um bloco só; mb-6 é o
+    respiro até o título. Desktop intocado: ancora na FAIXA INFERIOR-direita,
+    na mesma linha de visão do título (cluster de HUD). */
 const mainPos =
-  "relative order-1 mx-auto mt-7 md:absolute md:order-none md:mx-0 md:mt-0 md:right-[8%] md:bottom-[20%] lg:right-[9%] lg:bottom-[22%]";
+  "relative order-1 mt-auto mb-6 md:absolute md:order-none md:mx-0 md:my-0 md:right-[8%] md:bottom-[20%] lg:right-[9%] lg:bottom-[22%]";
 
 /** Foto lifestyle de fundo — mantida viva; scrim escuro só na base/esquerda
     (onde pousa o texto) garante legibilidade sem apagar a imagem.
@@ -236,21 +242,47 @@ const mainPos =
     Parallax de galeria (técnica Codrops horizontal-parallax-gallery): a imagem
     é mais larga que o frame (overflow hidden no banner) e contra-desliza no eixo
     X conforme o banner cruza o centro — o ComoComecar seta `--parallax` por frame
-    no scroll. Sem var (mobile/reduced) fica centrada e só preenche. */
-function PhotoBg({ src }: { src: string }) {
+    no scroll. Sem var (mobile/reduced) fica centrada e só preenche.
+
+    Sem `loading="lazy"`: no modo pinned o ComoComecar monta os três painéis
+    JUNTOS (RENDER.map) dentro da mesma track — passo 2 e 3 já existem no DOM
+    desde o load, só deslocados por transform. Scroll é contínuo (onUpdate a
+    cada frame, sem "once"), então lazy arriscaria a foto ainda não decodificada
+    quando o passo entra em quadro — pop-in no meio do scrub. Os três ficam
+    eager; o ganho de peso já vem do WebP (24 MB → 0,8 MB).
+
+    Phone (max-md): a foto vira card-image — w-full com aspect 4/5 em vez de
+    esticar 100svh (janela 0.46 ampliava demais e decapitava o rosto; 4/5
+    amplia menos → corta menos) e a base dissolve em máscara pro fundo do
+    painel. O parallax horizontal morre junto: sem os 150% de sobra não há o
+    que deslizar, então o transform é md+ (via classe — inline não tem
+    breakpoint). Fotos são paisagem 2752×1536: no cover 4/5 só existe folga no
+    X, o Y do object-position é inerte — o focal X por painel continua sendo
+    quem segura o rosto no quadro. */
+function PhotoBg({ src, focus = "object-center" }: { src: string; focus?: string }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
+      {/* base escura do phone: é ELA que a máscara da foto revela. Sem essa
+          camada o fade dissolvia pro pastel do painel e a metade de baixo
+          nascia clara (veto da Laura, 2026-07-21 — mask escura no bottom).
+          roxo-900 e não preto: a transição não passa por breu. */}
+      <div className="absolute inset-0 bg-roxo-900 md:hidden" />
       <img
         data-parallax
         src={src}
         alt=""
-        className="absolute left-1/2 top-0 h-full w-[150%] max-w-none object-cover object-center"
-        style={{
-          transform: "translate3d(calc(-50% + var(--parallax, 0%)), 0, 0)",
-          willChange: "transform",
-        }}
+        // decoding="async": tira o decode do WebP do caminho síncrono de render —
+        // o navegador decodifica fora da main thread e composita quando pronto,
+        // sem travar o primeiro paint no passo 1 (above-the-fold).
+        decoding="async"
+        // `focus` = object-position POR PAINEL no phone (com md: voltando ao
+        // center): no recorte estreito o centro da foto corta o rosto — cada
+        // painel aponta o ponto focal pro rosto cair dentro do quadro.
+        className={`absolute top-0 object-cover max-md:left-0 max-md:aspect-[4/5] max-md:w-full max-md:[-webkit-mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)] max-md:[mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)] md:left-1/2 md:h-full md:w-[150%] md:max-w-none md:will-change-transform md:[transform:translate3d(calc(-50%_+_var(--parallax,0%)),0,0)] ${focus}`}
       />
-      {/* base escura pro texto (mobile + desktop) */}
+      {/* base escura pro texto (mobile + desktop). O phone não precisa de
+          reforço próprio: o underlay roxo-900 acima já segura o contraste
+          (branco sobre roxo-900 puro = 16:1). */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
       {/* reforço à esquerda, onde fica o título no desktop */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent" />
@@ -262,7 +294,9 @@ function Glow() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute right-[6%] top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-neutro-0/40 blur-3xl"
+      /* hidden md:block — no phone os 420px cobrem a tela quase inteira e o
+         branco a 40% lava o rosto da foto (veto da Laura, 2026-07-20). */
+      className="pointer-events-none absolute right-[6%] top-1/2 hidden h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-neutro-0/40 blur-3xl md:block"
     />
   );
 }
@@ -277,8 +311,13 @@ const WAVE = [
 export function Panel1({ active, reduced, step }: PanelProps) {
   return (
     <div className={`relative flex h-full w-full flex-col overflow-hidden bg-afluente ${reduced ? "min-h-[100svh]" : "min-h-[78vh]"}`}>
-      {/* foto lifestyle — nutricionista em consulta */}
-      <PhotoBg src="/passo1-migracao.png" />
+      {/* foto lifestyle — nutricionista em consulta.
+          .webp (era .png, 8,04 MB → 0,16 MB): PSNR 42,0 dB, delta médio 1,54/255,
+          alpha idêntico — validado no pixel, zero mudança visual. */}
+      {/* focal phone: o rosto dela vive a ~52% do arquivo — 38% desloca o
+          recorte pra ele assentar à direita do centro, longe do card (que
+          ancora à esquerda). */}
+      <PhotoBg src="/passo1-migracao.webp" focus="object-[38%_15%] md:object-center" />
       <Glow />
       <Overlay
         active={active}
@@ -293,11 +332,14 @@ export function Panel1({ active, reduced, step }: PanelProps) {
         active={active}
         depth={16}
         delay={120}
-        className={`${mainPos} w-[270px] md:w-[340px]`}
+        className={`${mainPos} ml-5 mr-auto w-[232px] md:w-[340px]`}
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
-          <GlassCard active={active} delay={120} sheen className="p-6">
+          {/* p-4 no phone (md volta a p-6): o card de 232px com padding de
+              desktop virava torre — conteúdo também enxuga via max-md abaixo
+              (pedido da Laura, 2026-07-21: cards menores e adaptáveis). */}
+          <GlassCard active={active} delay={120} sheen className="p-4 md:p-6">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-body text-small font-semibold text-white">
                 Gravando consulta
@@ -326,10 +368,11 @@ export function Panel1({ active, reduced, step }: PanelProps) {
                 />
               ))}
             </div>
-            {/* transcrição ao vivo */}
+            {/* transcrição ao vivo — as barras-esqueleto são recheio: no phone
+                saem e sobra waveform + fala, o coração do card. */}
             <div className="space-y-2">
-              <div style={reveal(3, 6, { dist: 6 })} className="h-2 w-full rounded-full bg-white/15" />
-              <div style={reveal(4, 6, { dist: 6 })} className="h-2 w-4/5 rounded-full bg-white/15" />
+              <div style={reveal(3, 6, { dist: 6 })} className="h-2 w-full rounded-full bg-white/15 max-md:hidden" />
+              <div style={reveal(4, 6, { dist: 6 })} className="h-2 w-4/5 rounded-full bg-white/15 max-md:hidden" />
               <p style={reveal(5, 6, { dist: 6 })} className="font-body text-[11px] leading-snug text-white/70">
                 “…dorme mal desde que trocou o turno no trabalho.”
               </p>
@@ -342,19 +385,26 @@ export function Panel1({ active, reduced, step }: PanelProps) {
 }
 
 /* ── Passo 02 · Acompanhe ────────────────────────────────────── */
-const TOPICS: Array<[string, boolean]> = [
-  ["Queixa principal", true],
-  ["História da queixa", true],
-  ["Sono e rotina", true],
-  ["Alimentação", false],
-  ["Medicações em uso", false],
+/* 3º campo = aparece no phone. O corte mantém a narrativa do título:
+   dois cobertos + um faltando — só marcados perdia o "o que falta". */
+const TOPICS: Array<[string, boolean, boolean]> = [
+  ["Queixa principal", true, true],
+  ["História da queixa", true, false],
+  ["Sono e rotina", true, true],
+  ["Alimentação", false, true],
+  ["Medicações em uso", false, false],
 ];
 
 export function Panel2({ active, reduced, step }: PanelProps) {
   return (
     <div className={`relative flex h-full w-full flex-col overflow-hidden bg-lavanda ${reduced ? "min-h-[100svh]" : "min-h-[78vh]"}`}>
-      {/* foto lifestyle — nutricionista conduzindo a consulta */}
-      <PhotoBg src="/passo2-envio.png" />
+      {/* foto lifestyle — nutricionista conduzindo a consulta.
+          .webp (era .png, 6,73 MB → 0,12 MB): PSNR 42,9 dB, delta médio 1,37/255,
+          alpha idêntico — validado no pixel, zero mudança visual. */}
+      {/* focal phone: ela vive a ~32% do arquivo, o recorte central deixava o
+          rosto MEIO PRA FORA da borda esquerda — 28% traz ela pro quadro; o
+          card espelha pro lado direito (único painel com rosto à esquerda). */}
+      <PhotoBg src="/passo2-envio.webp" focus="object-[28%_15%] md:object-center" />
       <Glow />
       <Overlay
         active={active}
@@ -369,11 +419,11 @@ export function Panel2({ active, reduced, step }: PanelProps) {
         active={active}
         depth={16}
         delay={120}
-        className={`${mainPos} w-[280px] md:w-[344px]`}
+        className={`${mainPos} ml-auto mr-5 w-[232px] md:w-[344px]`}
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
-          <GlassCard active={active} delay={120} sheen className="p-6">
+          <GlassCard active={active} delay={120} sheen className="p-4 md:p-6">
             <div className="mb-4 flex items-center justify-between">
               <p className="flex items-center gap-2 font-body text-small font-semibold text-white">
                 {/* pulso "ao vivo" — anamnese em andamento */}
@@ -383,7 +433,9 @@ export function Panel2({ active, reduced, step }: PanelProps) {
                 </span>
                 Anamnese ao vivo
               </p>
-              <span className="rounded-full bg-white/10 px-2.5 py-0.5 font-body text-[11px] font-medium tabular-nums text-sage-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+              {/* shrink-0 + nowrap: no card estreito do phone o flex espremia o
+                  pill e o "8 / 14" quebrava em duas linhas. */}
+              <span className="shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-0.5 font-body text-[11px] font-medium tabular-nums text-sage-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
                 8 / 14
               </span>
             </div>
@@ -403,8 +455,8 @@ export function Panel2({ active, reduced, step }: PanelProps) {
                 aria-hidden
                 className="gaia-scan pointer-events-none absolute inset-x-0 z-10 h-6 opacity-0 bg-gradient-to-b from-transparent via-white/12 to-transparent"
               />
-              {TOPICS.map(([label, done], i) => (
-                <div key={label} style={reveal(i, TOPICS.length, { axis: "x", dist: 12, spread: 0.26 })} className="flex items-center gap-3">
+              {TOPICS.map(([label, done, phone], i) => (
+                <div key={label} style={reveal(i, TOPICS.length, { axis: "x", dist: 12, spread: 0.26 })} className={`flex items-center gap-3${phone ? "" : " max-md:hidden"}`}>
                   {done ? (
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]">
                       <svg
@@ -436,16 +488,24 @@ export function Panel2({ active, reduced, step }: PanelProps) {
 
 /* ── Passo 03 · Revise ───────────────────────────────────────── */
 export function Panel3({ active, reduced, step }: PanelProps) {
-  const soap: Array<[string, string, string]> = [
-    ["S", "Subjetivo", "Insônia há 3 meses, piora no turno noite."],
-    ["O", "Objetivo", "PA 120/80 · IMC 24,1 · sem alterações."],
-    ["A", "Avaliação", "Insônia associada a estresse ocupacional."],
-    ["P", "Plano", "Higiene do sono + retorno em 30 dias."],
+  /* 4º campo = aparece no phone. S + P contam o arco inteiro (a história da
+     paciente → o plano, onde o caret "digita") sem a torre de 4 blocos que
+     estourava a altura do card estreito. */
+  const soap: Array<[string, string, string, boolean]> = [
+    ["S", "Subjetivo", "Insônia há 3 meses, piora no turno noite.", true],
+    ["O", "Objetivo", "PA 120/80 · IMC 24,1 · sem alterações.", false],
+    ["A", "Avaliação", "Insônia associada a estresse ocupacional.", false],
+    ["P", "Plano", "Higiene do sono + retorno em 30 dias.", true],
   ];
   return (
     <div className={`relative flex h-full w-full flex-col overflow-hidden bg-bruma ${reduced ? "min-h-[100svh]" : "min-h-[78vh]"}`}>
-      {/* foto lifestyle — nutricionista revisando o resumo pronto */}
-      <PhotoBg src="/passo3-pronto.png" />
+      {/* foto lifestyle — nutricionista revisando o resumo pronto.
+          .webp (era .png, 9,31 MB → 0,52 MB): PSNR 39,5 dB, delta médio 2,08/255,
+          alpha idêntico — validado no pixel, zero mudança visual. */}
+      {/* focal phone: o rosto dele vive a ~56% do arquivo — 42% assenta ele à
+          direita do centro (a orelha sai naturalmente pelo quadro) e libera a
+          esquerda pro card SOAP, o mais alto dos três. */}
+      <PhotoBg src="/passo3-pronto.webp" focus="object-[42%_15%] md:object-center" />
       <Glow />
       <Overlay
         active={active}
@@ -460,11 +520,11 @@ export function Panel3({ active, reduced, step }: PanelProps) {
         active={active}
         depth={16}
         delay={120}
-        className="relative order-1 mx-auto mt-7 w-[300px] md:absolute md:order-none md:mx-0 md:mt-0 md:right-[8%] md:bottom-[20%] md:w-[360px] lg:right-[9%] lg:bottom-[22%]"
+        className={`${mainPos} ml-5 mr-auto w-[232px] md:w-[360px]`}
       >
         <div className="relative">
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
-          <GlassCard active={active} delay={120} sheen className="p-6">
+          <GlassCard active={active} delay={120} sheen className="p-4 md:p-6">
             <div className="mb-3.5 flex items-center gap-3">
               {/* avatar da Gaia com anel girando — "gerando o resumo" */}
               <div className="relative h-9 w-9 shrink-0">
@@ -477,21 +537,24 @@ export function Panel3({ active, reduced, step }: PanelProps) {
                 </span>
               </div>
               <div>
+                {/* no card de 232px o nome + pill espremiam o título em 4
+                    linhas — no phone fica só "Resumo SOAP" e o pill sai
+                    (o sub logo abaixo já diz "editável"). */}
                 <p className="font-body text-small font-semibold text-white">
-                  Resumo SOAP · Maria Silva
+                  Resumo SOAP<span className="max-md:hidden"> · Maria Silva</span>
                 </p>
                 <p className="font-body text-[11px] text-white/50">Gerado pela Gaia</p>
               </div>
-              <span className="ml-auto rounded-full bg-white/10 px-2.5 py-1 font-body text-[11px] font-medium text-roxo-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+              <span className="ml-auto rounded-full bg-white/10 px-2.5 py-1 font-body text-[11px] font-medium text-roxo-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)] max-md:hidden">
                 Editável
               </span>
             </div>
             <div className="space-y-2.5">
-              {soap.map(([letter, label, value], i) => (
+              {soap.map(([letter, label, value, phone], i) => (
                 <div
                   key={letter}
                   style={reveal(i, soap.length, { dist: 10, spread: 0.24 })}
-                  className="flex gap-3 border-t border-white/10 pt-2.5 first:border-t-0 first:pt-0"
+                  className={`flex gap-3 border-t border-white/10 pt-2.5 first:border-t-0 first:pt-0${phone ? "" : " max-md:hidden"}`}
                 >
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10 font-body text-[12px] font-semibold text-white/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]">
                     {letter}

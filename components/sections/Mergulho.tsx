@@ -88,17 +88,22 @@ export default function Mergulho() {
          O scroll do mergulho não mora mais aqui: ele vem dos 70vh do topo do
          Pricing (ver lá). É por isso que esta seção pode encolher sem espremer
          nada — ela não carrega mais tempo, só distância.
-         Mobile é 42vh e sem água nenhuma (o ScrollPhone é lg:): lá isto é só
-         respiro claro entre o Manifesto e o Pricing. Era 70vh — medido em
-         390×844, somado ao pb do Manifesto e ao pt do Pricing dava ~2 telas
-         de gradiente vazio entre "A Gaia cuida do resto." e "Sem surpresa";
-         num phone isso lê como página quebrada, não como respiro. */
+         Mobile é 10vh e sem água nenhuma: lá isto é só um respiro fino de navy
+         entre o Manifesto e o campo do Pricing. Foi 70vh, depois 42vh, e a Laura
+         ainda via "esse espaço" — o phone boiando num vão navy vazio antes do
+         campo entrar (Image #4, 2026-07-22). No mobile o Mergulho não carrega
+         água nenhuma (o phone viaja mas a cena da água é desktop), então o vão
+         era 100% vestigial: DIVE_STOPS é #151948 chapado e o topo do campo tem o
+         mesmo slab #151948, então encurtar de 42→10vh é só cortar navy contra
+         navy, sem emenda de cor. O phone lê [data-phone-end] vivo no Pricing, o
+         pouso segue pixel-exato — só a viagem comprime. O pb do Manifesto caiu
+         junto (30→10vh); os dois somados eram os ~670px do vão. */
       /* -mt-px: fecha a fresta de 1px em que o creme do <body> vazava entre o
          Manifesto e esta seção (alturas em vh dão px fracionário → gap de
          subpixel). Puxa o Mergulho 1px pra cima, sobre a borda do Manifesto —
          invisível porque as duas encostam no mesmo #C0B0D7. Medido: matava a
          linha #CEC2DD full-width em y≈684 @1440. */
-      className="relative -mt-px min-h-[42vh] overflow-hidden lg:min-h-[6vh]"
+      className="relative -mt-px min-h-[10vh] overflow-hidden lg:min-h-[6vh]"
       style={{ background: DIVE_SKY }}
     >
       <div

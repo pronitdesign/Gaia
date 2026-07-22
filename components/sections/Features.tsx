@@ -928,7 +928,10 @@ function MockPlano() {
             });
             return (
               <>
-                <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10">
+                {/* h-2.5 + calha: meio ponto a mais de altura é o que o relevo
+                    de tubo precisa pra existir — em h-2 o gradiente vertical
+                    não tem pixels pra contar luz em cima e sombra embaixo. */}
+                <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.45)]">
                   {macros.map((m, idx) => (
                     <span key={m.k} data-bar className={"relative overflow-hidden " + m.c} style={{ width: `${(m.g / totalG) * 100}%` }}>
                       {/* A cor do macro é a gramática da barra e não se toca —
@@ -950,6 +953,19 @@ function MockPlano() {
                           style={{ left: `${sliceGeom[idx].left}%`, width: `${sliceGeom[idx].width}%` }}
                         />
                       )}
+                      {/* Luz do tubo — ÚLTIMA camada do segmento, acima do véu
+                          e da fatia, pra iluminar apagado e aceso por igual.
+                          soft-light e não tinta branca: mantém o matiz de cada
+                          macro (a cor é a gramática da barra e não se toca —
+                          ver o comentário do véu acima). */}
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0"
+                        style={{
+                          background: "linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.1) 40%, rgba(0,0,0,0.4) 100%)",
+                          mixBlendMode: "soft-light",
+                        }}
+                      />
                     </span>
                   ))}
                 </div>
@@ -1083,10 +1099,18 @@ function MockQuestionarios() {
                     {/* tick 140ms atrás da linha: o quadro chega, o check marca.
                         Juntos viram um borrão só; o atraso é o que faz ler como
                         a Gaia pontuando o instrumento que acabou de ler. */}
+                    {/* O check da vez EMITE — glow brand no box-shadow, junto
+                        do aro interno (os dois moram na mesma propriedade,
+                        então vivem juntos nos dois ramos; separados, um
+                        shadow-[...] sobrescreveria o outro pela ordem do CSS
+                        gerado, não pela intenção). É a lanterna de leitura da
+                        Gaia: a luz está em quem ela está lendo agora. */}
                     <span
                       className={
-                        "grid h-5 w-5 place-items-center rounded-full shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] transition-colors duration-500 " +
-                        (on ? "bg-brand" : "bg-white/12") +
+                        "grid h-5 w-5 place-items-center rounded-full transition-[background-color,box-shadow] duration-500 " +
+                        (on
+                          ? "bg-brand shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_0_12px_rgba(138,105,216,0.5)]"
+                          : "bg-white/12 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]") +
                         (entered ? " gaia-tick" : " opacity-0")
                       }
                       style={{ animationDelay: `${260 + idx * 60}ms` }}
@@ -1095,7 +1119,9 @@ function MockQuestionarios() {
                     </span>
                     <span className="font-body text-[12.5px] font-medium text-white/90">{it.k}</span>
                     <span className="hidden truncate font-body text-[11.5px] text-white/45 sm:block">{it.full}</span>
-                    <span className="ml-auto font-body text-[11px] tabular-nums text-white/55">{it.s}</span>
+                    {/* a pontuação responde à leitura: é ELA que a Gaia acabou
+                        de computar na linha ativa */}
+                    <span className={"ml-auto font-body text-[11px] tabular-nums transition-colors duration-500 " + (on ? "text-white/90" : "text-white/55")}>{it.s}</span>
                   </div>
                 </div>
               );
@@ -1124,7 +1150,9 @@ function MockQuestionarios() {
           <Swap k={i} className={"rounded-[14px] p-2.5 " + GLASS_ON_LIGHT + " " + FLOAT}>
             <div className="flex items-center justify-between">
               <GaiaTag>Insight · {ins.k}</GaiaTag>
-              <span className={"grid h-4 w-4 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning" : "bg-brand/20 text-roxo-200")}>
+              {/* glow estático por estado (a Swap remonta o miolo a cada
+                  troca, não há o que transicionar): âmbar avisa, roxo informa */}
+              <span className={"grid h-4 w-4 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning shadow-[0_0_10px_rgba(214,160,78,0.35)]" : "bg-brand/20 text-roxo-200 shadow-[0_0_10px_rgba(138,105,216,0.3)]")}>
                 <IconArrowUpRight className="h-2.5 w-2.5" />
               </span>
             </div>
@@ -1216,8 +1244,10 @@ function MockAntropometria() {
   const [lastX, lastY] = coords[coords.length - 1];
 
   const polylineRef = useRef<SVGPolylineElement>(null);
+  // Cópia borrada da linha, por baixo dela — o halo que a faz emitir luz.
+  // Morfa junto (mesmo tween de attr), senão o brilho fica pra trás da linha.
+  const glowRef = useRef<SVGPolylineElement>(null);
   const polygonRef = useRef<SVGPolygonElement>(null);
-  const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
 
   // `points` (polyline/polygon) e cx/cy (circle) não são animáveis por CSS —
   // GSAP tween aqui funciona como "poor man's morph": como as 3 séries têm a
@@ -1231,11 +1261,11 @@ function MockAntropometria() {
   // mount, o GSAP é o único dono desses atributos.
   useEffect(() => {
     gsap.to(polylineRef.current, { attr: { points: ANTHRO_LINES[tab] }, duration: 0.8, ease: "power3.inOut" });
+    gsap.to(glowRef.current, { attr: { points: ANTHRO_LINES[tab] }, duration: 0.8, ease: "power3.inOut" });
     gsap.to(polygonRef.current, { attr: { points: ANTHRO_AREAS[tab] }, duration: 0.8, ease: "power3.inOut" });
-    ANTHRO_COORDS[tab].forEach(([x, y], i) => {
-      const el = circleRefs.current[i];
-      if (el) gsap.to(el, { attr: { cx: x, cy: y }, duration: 0.8, ease: "power3.inOut" });
-    });
+    // Os pontos NÃO tweenam aqui: saíram do SVG (viravam elipse sob o
+    // preserveAspectRatio="none") e agora são HTML lá embaixo, morfando de
+    // série por transition CSS em left/top — mesma gramática do "agora".
   }, [tab]);
 
   return (
@@ -1300,10 +1330,28 @@ function MockAntropometria() {
 
           <svg viewBox="0 0 100 40" preserveAspectRatio="none" className={"gaia-draw absolute inset-0 h-full w-full " + (entered ? "is-drawn" : "")}>
             <defs>
+              {/* Stop do meio: queda exponencial em vez de linear — o fill
+                  cola na linha e morre rápido, como luz de verdade cai. */}
               <linearGradient id="anthroFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#C1A9D3" stopOpacity="0.35" />
+                <stop offset="0%" stopColor="#C1A9D3" stopOpacity="0.42" />
+                <stop offset="48%" stopColor="#C1A9D3" stopOpacity="0.11" />
                 <stop offset="100%" stopColor="#C1A9D3" stopOpacity="0" />
               </linearGradient>
+              {/* O gradiente da linha É a direção do tempo: março apagado,
+                  agosto quase branco — a linha esquenta rumo ao "agora" e
+                  encontra o ponto que pulsa já na luz máxima. Mesma razão dos
+                  pontos com opacity por idade, logo abaixo. */}
+              <linearGradient id="anthroLine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#C1A9D3" stopOpacity="0.38" />
+                <stop offset="58%" stopColor="#C1A9D3" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#EFE6F7" />
+              </linearGradient>
+              {/* stdDeviation anisotrópico de propósito: o blur roda em user
+                  units e o preserveAspectRatio="none" estica X ~4,5× e Y
+                  ~3,2× — dois números pra sair um halo redondo na tela. */}
+              <filter id="anthroHalo" x="-30%" y="-140%" width="160%" height="380%">
+                <feGaussianBlur stdDeviation="1.3 1.9" />
+              </filter>
             </defs>
             <polygon ref={polygonRef} points={ANTHRO_AREAS[0]} fill="url(#anthroFill)" />
             {/* Colunas por consulta — dentro do SVG pra pintarem SOBRE o fill e
@@ -1312,23 +1360,45 @@ function MockAntropometria() {
               const x = ANTHRO_X0 + ((i + 0.5) / (ANTHRO_LABELS.length - 1)) * (ANTHRO_X1 - ANTHRO_X0);
               return <line key={label} x1={x} y1="0" x2={x} y2="40" stroke="rgba(255,255,255,0.07)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />;
             })}
-            <polyline ref={polylineRef} points={ANTHRO_LINES[0]} fill="none" stroke="#C1A9D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            {ANTHRO_COORDS[0].map(([x, y], i) => (
-              <circle
-                key={ANTHRO_LABELS[i]}
-                ref={(el: SVGCircleElement | null) => {
-                  circleRefs.current[i] = el;
-                }}
-                cx={x}
-                cy={y}
-                r="1.5"
-                fill="#0A0C11"
-                stroke="#C1A9D3"
-                strokeWidth="1.4"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
+            {/* halo por baixo da linha — a linha emitindo, não um segundo
+                traço. Herda o gradiente do tempo, então o brilho também
+                cresce rumo ao agora. */}
+            <polyline ref={glowRef} points={ANTHRO_LINES[0]} fill="none" stroke="url(#anthroLine)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" filter="url(#anthroHalo)" opacity="0.3" />
+            <polyline ref={polylineRef} points={ANTHRO_LINES[0]} fill="none" stroke="url(#anthroLine)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
+
+          {/* Pontos das consultas — HTML, não <circle> do SVG. Dentro do
+              preserveAspectRatio="none" o círculo esticava em elipse (o card é
+              mais largo que 2,5:1 no desktop) e o anel grosso lia como donut
+              borrado. Em HTML são círculos VERDADEIROS em qualquer largura, no
+              mesmo material do "agora": passado em anel vazado, presente
+              preenchido — cada nó é uma consulta (o índice 5 é o herói branco
+              logo abaixo). Morfam de série por transition em left/top (mesma
+              gramática do herói), então saiu o tween GSAP dos cx/cy.
+              Entram em cascata da esquerda pra direita acompanhando a cortina:
+              o atraso ≈ x·1080ms pousa cada nó quando a linha o alcança, e o
+              último cai logo antes do herói (que pulsa aos 1000ms). */}
+          {coords.slice(0, -1).map(([x, y], i) => (
+            <span
+              key={ANTHRO_LABELS[i]}
+              aria-hidden
+              className="pointer-events-none absolute transition-[left,top] duration-[800ms] ease-auto"
+              style={{ left: `${x}%`, top: `${(y / 40) * 100}%`, transform: "translate(-50%,-50%)" }}
+            >
+              <span
+                className={
+                  "block h-[7px] w-[7px] rounded-full bg-[#0A0C11] shadow-[inset_0_0_0_1.4px_#C1A9D3] transition-[opacity,transform] duration-500 ease-gaia motion-reduce:transition-none " +
+                  (entered ? "scale-100" : "scale-0")
+                }
+                style={{
+                  // consulta antiga apaga, recente acende — o mesmo relato do
+                  // gradiente da linha, contado pelos pontos
+                  opacity: entered ? 0.42 + (i / 4) * 0.48 : 0,
+                  transitionDelay: `${Math.round((x / 100) * 1080)}ms`,
+                }}
+              />
+            </span>
+          ))}
 
           {/* Última medição pulsa sem disputar o número principal — e
               acompanha a nova posição Y a cada troca de série via transition
@@ -1351,8 +1421,10 @@ function MockAntropometria() {
               }
               style={{ transitionDelay: "1000ms" }}
             >
+              {/* miolo no tom mais claro do gradiente da linha: o "agora" é o
+                  ponto mais aceso do gráfico, onde a linha termina de esquentar */}
               <span className="absolute h-2.5 w-2.5 rounded-full bg-[#C1A9D3]/60 motion-safe:animate-ping" />
-              <span className="h-2 w-2 rounded-full bg-[#C1A9D3] ring-2 ring-[#0A0C11]" />
+              <span className="h-2 w-2 rounded-full bg-[#EFE6F7] ring-2 ring-[#0A0C11]" />
             </span>
           </span>
 
@@ -1473,8 +1545,24 @@ function MockExames() {
                   </span>
                 </Swap>
               </div>
-              <div className="relative mt-2 h-1.5 rounded-full bg-white/[0.09]">
-                <span data-bar className="absolute inset-y-0 rounded-full bg-sage-400/35 transition-[left,width] duration-[900ms] ease-auto" style={{ left: `${r.band[0]}%`, width: `${r.band[1] - r.band[0]}%`, transformOrigin: "left center" }} />
+              {/* Calha, não linha: sombra interna no topo cava a régua no vidro
+                  e o marcador passa a ter ONDE correr. É o relevo que separa
+                  instrumento de barra de progresso. */}
+              <div className="relative mt-2 h-1.5 rounded-full bg-white/[0.07] shadow-[inset_0_1px_2px_rgba(0,0,0,0.55),inset_0_-1px_0_rgba(255,255,255,0.04)]">
+                {/* A faixa de referência é vidro assentado DENTRO da calha:
+                    gradiente vertical + fio de luz no topo + um sopro de verde
+                    escapando — zona segura como objeto, não como tinta. */}
+                <span
+                  data-bar
+                  className="absolute inset-y-0 rounded-full transition-[left,width] duration-[900ms] ease-auto"
+                  style={{
+                    left: `${r.band[0]}%`,
+                    width: `${r.band[1] - r.band[0]}%`,
+                    transformOrigin: "left center",
+                    background: "linear-gradient(180deg, rgba(139,158,111,0.52), rgba(139,158,111,0.28))",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16), 0 0 10px rgba(139,158,111,0.16)",
+                  }}
+                />
                 {/* O escalonamento (0/90/180ms) é PERMANENTE, não só da
                     entrada: um delay que só valesse na chegada teria que ser
                     limpo depois, senão atrasaria a troca de paciente do ciclo
@@ -1483,14 +1571,32 @@ function MockExames() {
                     entrada continua sendo o gesto grande sem precisar de
                     exceção nenhuma: aqui elas varrem a régua INTEIRA a partir
                     do zero, e no ciclo só andam de um valor pro vizinho. */}
+                {/* Marcador-esfera: cor chapada continua no elemento (é ela que
+                    transiciona nos 900ms — gradiente não interpola), e a
+                    iluminação mora num filho estático por cima: especular no
+                    alto-esquerda + sombra na base, indiferentes à cor que passa
+                    por baixo. O glow vai no box-shadow (interpola junto): âmbar
+                    denuncia fora-da-faixa, verde descansa na faixa. */}
                 <span
-                  className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black/60 transition-[left,background-color] duration-[900ms] ease-auto motion-reduce:transition-none"
+                  className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black/50 transition-[left,background-color,box-shadow] duration-[900ms] ease-auto motion-reduce:transition-none"
                   style={{
                     left: entered ? `${r.pos}%` : "0%",
                     background: r.flag ? "#D6A04E" : "#A6B58F",
+                    boxShadow: r.flag
+                      ? "0 2px 5px rgba(0,0,0,0.5), 0 0 12px rgba(214,160,78,0.45)"
+                      : "0 2px 5px rgba(0,0,0,0.5), 0 0 8px rgba(166,181,143,0.28)",
                     transitionDelay: `${idx * 90}ms`,
                   }}
-                />
+                >
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-full"
+                    style={{
+                      background:
+                        "radial-gradient(circle at 32% 28%, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.14) 36%, transparent 60%), radial-gradient(circle at 50% 115%, rgba(0,0,0,0.4), transparent 58%)",
+                    }}
+                  />
+                </span>
               </div>
               <div className="mt-1 text-right font-body text-[10px] tabular-nums text-white/30">ref. {r.ref}</div>
             </div>
@@ -1546,17 +1652,41 @@ function MockAgenda() {
               <div key={idx} className={entered ? "gaia-row-slide" : "opacity-0"} style={{ animationDelay: `${180 + idx * 80}ms` }}>
                 <div
                   className={
-                    "flex items-center gap-3 rounded-[10px] px-2 py-1 transition-colors duration-500 ease-auto " +
+                    "relative flex items-center gap-3 rounded-[10px] px-2 py-1 transition-[background-color,opacity] duration-500 ease-auto " +
                     (on ? "bg-white/[0.06] opacity-100" : "opacity-45")
                   }
                 >
+                  {/* Derrame da espinha — quem acende a linha ativa é a COR DO
+                      DADO (roxo = tele, sage = presencial) vazando da espinha
+                      pra dentro da linha, não um wash neutro sozinho. Camada
+                      própria porque gradiente não interpola: o fade fica na
+                      opacity dela. Alpha baixo de propósito — o white/[0.06]
+                      continua dando o lift; isto aqui só dá identidade. */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-[10px] transition-opacity duration-500 ease-auto"
+                    style={{
+                      opacity: on ? 1 : 0,
+                      background: ev.tele
+                        ? "linear-gradient(90deg, rgba(138,105,216,0.16) 0%, rgba(138,105,216,0.05) 42%, transparent 72%)"
+                        : "linear-gradient(90deg, rgba(139,158,111,0.15) 0%, rgba(139,158,111,0.05) 42%, transparent 72%)",
+                    }}
+                  />
                   {/* A espinha cresce 140ms depois da linha chegar. Ela é o
                       dado (roxo = tele, sage = presencial), e dado que aparece
-                      junto com o quadro que o contém não é lido como dado. */}
+                      junto com o quadro que o contém não é lido como dado.
+                      Na linha ativa ela EMITE (box-shadow na própria cor) — é
+                      a fonte do derrame acima, senão a luz não teria de onde
+                      vir. */}
                   <span
                     className={
-                      "h-6 w-[3px] shrink-0 rounded-full transition-colors duration-500 ease-auto " +
+                      "h-6 w-[3px] shrink-0 rounded-full transition-[background-color,box-shadow] duration-500 ease-auto " +
                       (ev.tele ? "bg-brand" : "bg-sage-400") +
+                      (on
+                        ? ev.tele
+                          ? " shadow-[0_0_10px_rgba(138,105,216,0.55)]"
+                          : " shadow-[0_0_10px_rgba(139,158,111,0.5)]"
+                        : "") +
                       (entered ? " gaia-spine" : " scale-y-0")
                     }
                     style={{ animationDelay: `${320 + idx * 80}ms` }}
@@ -1637,8 +1767,18 @@ function PlanoAtivoCard() {
         <span className="rounded-full bg-brand/15 px-2 py-0.5 font-body text-[10px] font-medium text-roxo-100">3ª semana</span>
       </div>
       <p className="mt-1.5 font-title text-[16px] font-medium text-white">1.510 kcal/dia</p>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/25">
-        <span data-bar className="block h-full w-[68%] origin-left rounded-full bg-brand" />
+      {/* mesma gramática de tubo da barra de macros do card Plano: calha
+          escavada + preenchimento com luz em cima — as barras do bento são
+          todas o mesmo objeto, aqui só menor */}
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/25 shadow-[inset_0_1px_1px_rgba(0,0,0,0.5)]">
+        <span
+          data-bar
+          className="block h-full w-[68%] origin-left rounded-full"
+          style={{
+            background: "linear-gradient(180deg, #9F82DF 0%, #8A69D8 55%, #7A57CE 100%)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)",
+          }}
+        />
       </div>
       <p className="mt-1.5 font-body text-[10.5px] text-white/65">adesão 68% nesta semana</p>
       {/* macros — o detalhe que faltava: a divisão do dia, não só o total */}
@@ -1647,8 +1787,16 @@ function PlanoAtivoCard() {
           <div key={nome}>
             <p className="font-body text-[9.5px] uppercase tracking-wide text-white/45">{nome}</p>
             <p className="mt-0.5 font-title text-[13px] font-medium text-white">{valor}</p>
-            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-black/25">
-              <span data-bar className="block h-full origin-left rounded-full bg-brand/70" style={{ width: pct }} />
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-black/25 shadow-[inset_0_1px_1px_rgba(0,0,0,0.5)]">
+              <span
+                data-bar
+                className="block h-full origin-left rounded-full"
+                style={{
+                  width: pct,
+                  background: "linear-gradient(180deg, rgba(159,130,223,0.9), rgba(122,87,206,0.75))",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2)",
+                }}
+              />
             </div>
           </div>
         ))}
@@ -1666,7 +1814,7 @@ function ExamesNovosCard() {
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-warning/15 text-warning"><TrendArrow dir="down" className="h-3.5 w-3.5" /></span>
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-warning/15 text-warning shadow-[0_0_14px_rgba(214,160,78,0.22)]"><TrendArrow dir="down" className="h-3.5 w-3.5" /></span>
         <div>
           <p className="font-body text-[12.5px] font-medium text-white">2 exames novos</p>
           <p className="font-body text-[10.5px] text-white/65">1 fora da faixa</p>
@@ -1721,7 +1869,12 @@ function CalibragemCard() {
             >
               {/* dot acende só na linha ativa — cor não transiciona bem em
                   opacity 0→1 com bg translúcido, então some via width/scale */}
-              <span className={"h-1.5 w-1.5 shrink-0 rounded-full bg-roxo-300 transition-transform duration-500 ease-auto " + (on ? "scale-100" : "scale-0")} />
+              <span
+                className={
+                  "h-1.5 w-1.5 shrink-0 rounded-full bg-roxo-300 transition-[transform,box-shadow] duration-500 ease-auto " +
+                  (on ? "scale-100 shadow-[0_0_8px_rgba(193,169,211,0.6)]" : "scale-0")
+                }
+              />
               {t}
             </p>
           );
@@ -1794,22 +1947,48 @@ function ProntuarioRight() {
   );
 }
 
-/* Empilhado — mobile/tablet, onde não há phone 3D. */
+/* Empilhado — mobile/tablet. Os três satélites ocupam o TOPO do card e o phone
+   nasce EMBAIXO deles, centrado, atravessando a borda de baixo do card (ver a
+   âncora no palco mobile). Antes a pilha vivia à esquerda com o phone por
+   cima, e o overlay (z-60, acima do conteúdo do card) tampava os três.
+   ARRANJO (pedido da Laura, 2026-07-21): dupla de largura IGUAL em cima
+   (Calibragem | Exames) e uma faixa cheia embaixo (Plano Ativo). A colagem
+   solta anterior — larguras divergentes (176/138/248), degrau vertical na
+   Exames e o Plano empurrado pra direita por ml-auto — saiu junto.
+   -mx-4: a colagem sangra sobre o padding do card — no mock os blocos quase
+   encostam na borda, e sem o bleed a dupla de cima não cabe lado a lado. */
 function ProntuarioStacked() {
   return (
-    <div className="mt-7 flex flex-col gap-3 lg:hidden">
-      {/* px(0): entram, mas não seguem o cursor nem tortas. Sem phone no meio
-          não há convergência pra encenar — o que sobra da assinatura é a
-          chegada pela esquerda, alinhada com a pilha. E dedo não tem hover:
-          depth aqui seria peso de will-change sem contrapartida. */}
-      <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left w-[248px] rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
+    <div className="-mx-4 mt-7 lg:hidden">
+      {/* px(0): entram, mas não seguem o cursor nem tortas — dedo não tem
+          hover; depth aqui seria peso de will-change sem contrapartida.
+          Pedido da Laura: duas colunas IGUAIS em cima (Calibragem | Exames,
+          grid-cols-2 — o minmax(0,1fr) que o Tailwind já embute nessa
+          utility impede o conteúdo de estourar a coluna, ao contrário de um
+          flex comum) e o Plano Ativo embaixo ocupando a largura TOTAL das
+          duas. Quem ainda dita o slot é o TEXTO: o Plano Ativo tem macros em
+          3 colunas e "PROTEÍNA" vazava pra dentro do "CARBO" quando
+          espremido numa coluna estreita (medido no render) — por isso ele
+          exige a faixa cheia de baixo, nunca uma metade. A Calibragem é
+          lista e quebra linha de graça, então ela e a Exames dividem o topo
+          sem drama, agora na mesma largura e sem o degrau vertical que
+          existia antes. */}
+      {/* items-start: o pedido foi mesma LARGURA, não mesma ALTURA. No stretch
+          default do grid a Exames (2 linhas de exame contra a lista + lastro
+          da Calibragem) era esticada pra altura da vizinha e abria ~120px de
+          vidro vazio embaixo do "Ferritina" — medido no render @430. Com
+          items-start cada card fecha na própria altura e as bases ficam
+          desencontradas de propósito: é a mesma coluna, não a mesma caixa. */}
+      <div className="grid grid-cols-2 items-start gap-2">
+        <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
+          <CalibragemCard />
+        </div>
+        <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-right rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
+          <ExamesNovosCard />
+        </div>
+      </div>
+      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-right w-full mt-3 rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
         <PlanoAtivoCard />
-      </div>
-      <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-left w-[256px] rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
-        <CalibragemCard />
-      </div>
-      <div data-enter-delay={180} style={px(0)} className={"gaia-parallax gaia-from-left w-[224px] rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
-        <ExamesNovosCard />
       </div>
     </div>
   );
@@ -2618,25 +2797,32 @@ export default function Features() {
           bordas/quinas, não no meio do vão, então a luz huga a silhueta em vez de
           boiar na fresta.
           Só md+ (o layout de coluna única no mobile não tem esses vãos).
-          Posições em % do 1440×2575 medido no DOM:
-          cruz central (50% 36,6%), seam baixo (50% 54,8%), borda do Exames
-          (84% 45,7%), abaixo da quina de baixo do Plano (14,5% 72,5%) e bem
-          acima da quina de cima do Prontuário (14,5% 70%). */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 hidden md:block"
-        style={{
-          filter: "blur(38px)",
-          background: [
-            "radial-gradient(280px 240px at 50% 36.6%, rgba(188,176,214,0.085) 0%, rgba(188,176,214,0.028) 42%, transparent 82%)",
-            "radial-gradient(280px 240px at 50% 54.8%, rgba(188,176,214,0.08) 0%, rgba(188,176,214,0.026) 42%, transparent 82%)",
-            "radial-gradient(240px 280px at 84% 45.7%, rgba(188,176,214,0.07) 0%, rgba(188,176,214,0.022) 44%, transparent 84%)",
-            "radial-gradient(260px 240px at 14.5% 72.5%, rgba(188,176,214,0.08) 0%, rgba(188,176,214,0.026) 42%, transparent 82%)",
-            "radial-gradient(260px 240px at 14.5% 70%, rgba(188,176,214,0.075) 0%, rgba(188,176,214,0.024) 42%, transparent 82%)",
-          ].join(","),
-        }}
-      />
+          A camada vive DENTRO do container max-w-6xl, não na section: as
+          posições eram % da viewport (medidas a 1440) e em janela mais larga
+          o container centralizado para de crescer, a % continua crescendo, e
+          a poça esquerda saía dos cards e boiava no vão escuro da margem —
+          exatamente o blur que a Laura mandou de volta pra trás dos cards.
+          Ancorada no container ela acompanha a grade em qualquer largura.
+          Coordenadas convertidas da medição 1440×2575 (container 1152px a
+          partir de x=144, py-32=128px por lado):
+          cruz central (50% 35,1%), seam baixo (50% 55,3%), borda do Exames
+          (92,5% 45,2%), abaixo da quina de baixo do Plano (5,6% 75%) e bem
+          acima da quina de cima do Prontuário (5,6% 72,2%). */}
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 hidden md:block"
+          style={{
+            filter: "blur(38px)",
+            background: [
+              "radial-gradient(280px 240px at 50% 35.1%, rgba(188,176,214,0.085) 0%, rgba(188,176,214,0.028) 42%, transparent 82%)",
+              "radial-gradient(280px 240px at 50% 55.3%, rgba(188,176,214,0.08) 0%, rgba(188,176,214,0.026) 42%, transparent 82%)",
+              "radial-gradient(240px 280px at 92.5% 45.2%, rgba(188,176,214,0.07) 0%, rgba(188,176,214,0.022) 44%, transparent 84%)",
+              "radial-gradient(260px 240px at 5.6% 75%, rgba(188,176,214,0.08) 0%, rgba(188,176,214,0.026) 42%, transparent 82%)",
+              "radial-gradient(260px 240px at 5.6% 72.2%, rgba(188,176,214,0.075) 0%, rgba(188,176,214,0.024) 42%, transparent 82%)",
+            ].join(","),
+          }}
+        />
         <header className="mb-14 max-w-2xl md:mb-16">
           <span data-reveal className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">
             <span className="h-1.5 w-1.5 rounded-full bg-brand" />
@@ -2954,15 +3140,18 @@ export default function Features() {
               </div>
 
               {/* mobile/tablet — o phone 3D AGORA viaja também no mobile (ver
-                  ScrollPhone, gate liberado). Âncora de início mobile centrada
-                  sobre a pilha de satélites; o aparelho nasce aqui e desce até o
-                  Pricing como no desktop. */}
+                  ScrollPhone, gate liberado). Âncora de início ABAIXO da
+                  colagem de satélites (mock 2026-07-20, bloco vermelho):
+                  centrada, em FLUXO — é ela que estica o card — e com -mb-28
+                  pra o aparelho atravessar a borda de baixo do card, o mesmo
+                  motivo do tab do Pricing. Centrada sobre a pilha ela punha o
+                  overlay (z-60) POR CIMA dos três cards, tampando tudo. */}
               <div className="relative lg:hidden">
                 <ProntuarioStacked />
                 <div
                   data-phone-start
                   aria-hidden
-                  className="pointer-events-none absolute left-1/2 top-1/2 h-[460px] w-[220px] -translate-x-1/2 -translate-y-1/2"
+                  className="pointer-events-none relative mx-auto -mb-28 mt-3 h-[525px] w-[220px]"
                 />
               </div>
 
