@@ -113,6 +113,23 @@ const noise = (freq: number, oct: number, tile: number) =>
 const GRAIN_COARSE = noise(0.012, 3, 700);
 const GRAIN_FINE = noise(0.85, 2, 140);
 
+/* Mesma turbulência do grão, DESSATURADA e em frequência baixíssima — em vez de
+   textura de filme (grão fino), isto vira NUVEM: manchas moles de dezenas de px
+   que não têm eixo nem repetição visível. Serve de máscara, não de tinta.
+   O `feColorMatrix saturate 0` é obrigatório: fractalNoise gera R, G e B
+   independentes, então sem ele a nuvem sai colorida e mancha o esmeralda de
+   magenta/ciano quando usada como veio de cor. Como máscara só o alpha/luma
+   importa, mas o navegador ainda precisa do canal uniforme pra `mask` de luma
+   se comportar igual nos três. */
+const cloud = (freq: number, oct: number, tile: number) =>
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${tile}' height='${tile}'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${freq}' numOctaves='${oct}' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E")`;
+
+/* Duas nuvens, frequências e ladrilhos PRIMOS entre si de propósito: usadas
+   juntas (uma clareando, outra escurecendo) elas não podem cair em fase, senão
+   o mottle vira listra e a irregularidade — que é o ponto todo — some. */
+const CLOUD_SOFT = cloud(0.007, 4, 900);
+const CLOUD_DEEP = cloud(0.011, 5, 640);
+
 function Grain({ at }: { at: string }) {
   const fade = `radial-gradient(78% 78% at ${at}, #000 0%, rgba(0,0,0,0.5) 52%, rgba(0,0,0,0.15) 100%)`;
   const base = "pointer-events-none absolute inset-0 z-10 mix-blend-overlay";
@@ -3009,12 +3026,159 @@ export default function Features() {
               Corpo segue em `dark` (white/55): esmeralda escura é fundo escuro,
               o contraste do texto passa — o gatilho é a luminância medida. */}
           <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
-            {/* superfície — esmeralda que ACENDE de baixo: o verde mais claro e
-                fresco nasce no chão do card (âncora radial abaixo do bottom) e
-                afunda subindo, até o topo em esmeralda-noite. Invertido do que
-                era (dark no bottom): a cor-identidade agora sobe do rodapé em
-                vez de morrer nele. */}
-            <div className="absolute inset-0 bg-[radial-gradient(125%_122%_at_50%_122%,#5FC397_0%,#2E8560_30%,#123726_64%,#0A1512_100%)]" />
+            {/* superfície — esmeralda em FUMAÇA, com o pico da luz ATRÁS DO
+                PAINEL e o chão fundo dos dois lados (topo em esmeralda-noite,
+                rodapé voltando a fechar). Isto inverte o que estava aqui antes,
+                que era "o verde mais fresco nasce no chão do card" — ver a nota
+                do CHÃO ESCURO abaixo pra por que aquilo não podia ficar.
+
+                Antes era UMA radial concêntrica em 50% 122%. O problema dela não
+                é a cor, é a geometria: elipse única, centrada no eixo, com
+                paradas regulares — o olho lê "gradiente CSS", que é o oposto de
+                premium. Referência de fundo caro (o mesh que a Laura trouxe) é
+                sempre foto DESFOCADA, e o que a define não é o blur: é a
+                IRREGULARIDADE. Vários campos de cor fora de eixo, de tamanhos
+                diferentes, se dissolvendo uns nos outros, sem centro comum.
+
+                Quatro camadas fazem isso:
+                  1. base em linear vertical — segura a direção da luz e garante
+                     que nenhum ponto do card fique sem tinta;
+                  2. campos de cor (abaixo) — seis elipses deslocadas, três delas
+                     ESCURAS. Campo escuro é o que vira mancha: sem ele o stack
+                     só clareia e volta a ler como gradiente;
+                  3. mottle claro — nuvem de turbulência mascarando véu esmeralda;
+                  4. mottle ESCURO — a mesma ideia com a tinta invertida, e a
+                     peça que faz o mottle finalmente aparecer sem custar
+                     contraste (a nota dela explica).
+
+                Polaridade continua ESCURA, e isso não é conservadorismo: a
+                referência é branca→verde porque não carrega texto. Aqui moram
+                título `neutro-0` e corpo `white/55` no terço de cima, e a nota
+                das linhas ~440 já mediu o que acontece quando essa superfície
+                sobe de luminância. O pico de verde segue no chão do card, no
+                mesmo teto do #5FC397 que estava aqui — o que ganhou alcance foi
+                a variação, não o brilho. */}
+            <div
+              aria-hidden
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to bottom, #06100D 0%, #0C201A 30%, #17422F 66%, #1B4A36 82%, #103026 100%)",
+              }}
+            />
+            {/* Campos de cor. Duas coisas explicam os números estranhos:
+
+                (a) A camada é OVERSIZED em -25% e depois borrada. Blur amostra
+                    transparência fora da caixa, então camada `inset-0` borrada
+                    nasce com anel escuro na borda — o oversize joga essa franja
+                    pra fora do `overflow-hidden` do card. O preço é que as
+                    porcentagens abaixo estão no espaço AMPLIADO (1,5×), não no
+                    do card: card 0% → 16,7% aqui, card 100% → 83,3%. Conversão:
+                    ampliado = (0,25 + p) / 1,5.
+                (b) A ordem importa e está invertida do que a leitura sugere: em
+                    CSS o PRIMEIRO gradiente pinta por CIMA. A tampa escura vem
+                    primeiro justamente pra proteger a zona do título dos campos
+                    claros que vêm depois dela na lista. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-[25%]"
+              style={{
+                filter: "blur(46px)",
+                background: [
+                  // CHÃO ESCURO — a peça que faltava, e a que a primeira versão
+                  // errou por inteiro. O painel de vidro escurece o que está sob
+                  // ele; abaixo da aresta de baixo dele sobram ~36px de
+                  // superfície CRUA. Com o pico da fumaça no chão do card, esses
+                  // 36px viravam a coisa mais clara da peça — uma tira brilhante
+                  // com a borda do vidro por cima, que lê como CORTE e não como
+                  // vidro pousado. Medido: a faixa nua era 1,22× mais clara que
+                  // o mesmo lugar sob o painel.
+                  // A referência já dizia isso e eu não li: no mesh que serve de
+                  // alvo o rodapé é o tom mais FUNDO, não o mais aceso. Então o
+                  // verde agora tem pico atrás do painel e MORRE no chão.
+                  "radial-gradient(100% 17% at 50% 88%, rgba(5,18,14,0.82) 0%, rgba(5,18,14,0) 100%)",
+                  // tampa escura sobre o título (card y ≈ -10%)
+                  "radial-gradient(72% 34% at 46% 10%, rgba(4,12,10,0.95) 0%, rgba(4,12,10,0) 100%)",
+                  // névoa escura no flanco esquerdo, meia altura — é ela que
+                  // quebra o stack em manchas em vez de degradê
+                  "radial-gradient(34% 30% at 32% 44%, rgba(14,68,50,0.6) 0%, rgba(14,68,50,0) 100%)",
+                  // Fiapo claro no flanco direito. Nasceu em `at 78% 50%` (card
+                  // x 92%, y 50%) e isso é exatamente onde mora o pill
+                  // "7 validados" — o único ponto do card onde eu de fato
+                  // regredi contraste (5,02 → 4,43, cruzando o piso de 4,5).
+                  // Desceu pra 58% e caiu de 0,36 pra 0,20: o flanco continua
+                  // tendo luz, só que abaixo da linha do pill.
+                  "radial-gradient(32% 26% at 80% 58%, rgba(96,200,152,0.2) 0%, rgba(96,200,152,0) 100%)",
+                  // poça à esquerda, agora com o centro ATRÁS do painel
+                  "radial-gradient(40% 26% at 28% 74%, rgba(62,172,126,0.85) 0%, rgba(62,172,126,0) 100%)",
+                  // subida principal — fora do eixo de propósito (card x 64%)
+                  "radial-gradient(52% 30% at 60% 78%, rgba(128,220,176,1) 0%, rgba(128,220,176,0) 100%)",
+                  // cama esmeralda por baixo de tudo: sem ela o miolo do card
+                  // fica sem tinta e a peça lê como preta com um brilho no
+                  // rodapé, não como superfície verde
+                  "radial-gradient(78% 34% at 50% 78%, rgba(30,108,80,0.6) 0%, rgba(30,108,80,0) 100%)",
+                ].join(","),
+              }}
+            />
+            {/* Mottle — o que separa "mesh gradient bonito" de "foto desfocada".
+                Um véu esmeralda mascarado por turbulência de frequência baixa:
+                a nuvem tem manchas de dezenas de px sem eixo nem repetição
+                visível, então o verde aparece em placas irregulares. Borrado por
+                cima disso pra virar fumaça, não textura.
+
+                Duas máscaras compostas em `intersect`: a nuvem dá a forma, o
+                linear vertical garante que o mottle só EXISTA da metade pra
+                baixo. Sem esse segundo passe as placas claras subiriam pro terço
+                do título e derrubariam o contraste do corpo — que é exatamente o
+                erro que a superfície escura existe pra evitar.
+                `-webkit-mask-composite: source-in` é o dialeto do WebKit pro
+                mesmo `intersect`; sem o par o Safari empilha as duas e o recorte
+                vertical some. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-[25%] opacity-[0.66]"
+              style={{
+                filter: "blur(30px)",
+                background:
+                  "radial-gradient(72% 44% at 54% 86%, rgba(140,230,184,0.95) 0%, rgba(52,158,116,0.5) 58%, rgba(52,158,116,0) 100%)",
+                maskImage: `${CLOUD_SOFT}, linear-gradient(to bottom, transparent 38%, #000 66%)`,
+                WebkitMaskImage: `${CLOUD_SOFT}, linear-gradient(to bottom, transparent 38%, #000 66%)`,
+                maskSize: "900px 900px, 100% 100%",
+                WebkitMaskSize: "900px 900px, 100% 100%",
+                maskRepeat: "repeat, no-repeat",
+                WebkitMaskRepeat: "repeat, no-repeat",
+                maskComposite: "intersect",
+                WebkitMaskComposite: "source-in",
+              }}
+            />
+            {/* Mottle ESCURO — a outra metade da fumaça, e a que quase não se
+                pensa em fazer. Fundo caro tem mancha nos DOIS sentidos: só
+                clarear dá brilho, não névoa. E esta camada é de graça no
+                orçamento de contraste — o que a norma mede é o pior caso CLARO
+                (p95) sob o texto, então placa escura só empurra o número pro
+                lado seguro. Foi ela que deixou o mottle finalmente aparecer:
+                a versão só-clara tinha que ser fraca pra não estourar o
+                white/55 do insight dentro do painel (medido: 4,29:1, reprova),
+                e fraca demais ela não lia como mancha.
+                Nuvem diferente da de cima (0,011/640 contra 0,007/900) — ver a
+                nota do CLOUD_DEEP. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-[25%] opacity-[0.72]"
+              style={{
+                filter: "blur(36px)",
+                background:
+                  "radial-gradient(84% 62% at 40% 66%, rgba(6,22,17,0.95) 0%, rgba(6,22,17,0.42) 56%, rgba(6,22,17,0) 100%)",
+                maskImage: `${CLOUD_DEEP}, linear-gradient(to bottom, transparent 28%, #000 54%)`,
+                WebkitMaskImage: `${CLOUD_DEEP}, linear-gradient(to bottom, transparent 28%, #000 54%)`,
+                maskSize: "640px 640px, 100% 100%",
+                WebkitMaskSize: "640px 640px, 100% 100%",
+                maskRepeat: "repeat, no-repeat",
+                WebkitMaskRepeat: "repeat, no-repeat",
+                maskComposite: "intersect",
+                WebkitMaskComposite: "source-in",
+              }}
+            />
             {/* NÚCLEO DE COR atrás do vidro — um bloom esmeralda mais aceso,
                 borrado, exatamente onde o painel do mock pousa. É o que o
                 backdrop-blur do vidro refrata: sem ele o painel ficaria cinza

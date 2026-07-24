@@ -3,12 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
+import { Logo } from "@/components/ui/Logo";
+
 const SESSION_KEY = "gaia-loading-done";
 const FALLBACK_TIMEOUT_MS = 6000;
 const END_EPSILON_S = 0.04; // considera a flor "fechada" quando falta isto pro fim
-const HOLD_AT_100_MS = 450; // segura no 100 pra ler o branding do fim do vídeo
-const WINDUP_S = 0.14; // recuo de antecipação antes do lift
-const REVEAL_S = 1.1; // duração do lift da cortina
+const HOLD_AT_100_MS = 650; // segura no 100 pro cartão de marca respirar antes da cortina
+const BRAND_AT = 70; // % em que o vídeo desfoca e a marca em DOM começa a entrar
+const WINDUP_S = 0.12; // antecipação antes do lift
+const REVEAL_S = 0.95; // duração do lift da cortina
+const PLAYBACK_RATE = 1.2; // o vídeo tem 5,04s; a 1,2× a intro inteira fecha em ~6s
 
 // ease "expo" — sobe rápido e assenta macio; é a assinatura do reveal
 const REVEAL_EASE = [0.76, 0, 0.24, 1] as const;
@@ -89,6 +93,7 @@ export default function LoadingScreen() {
 
     video.addEventListener("ended", startReveal);
     video.addEventListener("error", startReveal);
+    video.playbackRate = PLAYBACK_RATE;
     video.play().catch(startReveal);
 
     return () => {
@@ -110,6 +115,7 @@ export default function LoadingScreen() {
   if (skipped || !mounted) return null;
 
   const pct = String(count).padStart(2, "0");
+  const branded = count >= BRAND_AT; // dispara o desfoque e o cartão de marca
 
   // Ken Burns + emerge-do-escuro, derivados do %:
   const kb = reduce ? 1 : 1.08 - (count / 100) * 0.08; // zoom 1.08 → 1.0
@@ -132,19 +138,23 @@ export default function LoadingScreen() {
       aria-valuenow={count}
       aria-label="Carregando a Gaia"
     >
-      {/* Grupo de conteúdo — recua (antecipação), sobe um tiquinho mais rápido
-          que a cortina e esmaece: dá peso e profundidade ao lift. */}
+      {/* Grupo de conteúdo — avança um tiquinho (antecipação) e fica ATRÁS da cortina
+          na subida, esmaecendo: dá peso e profundidade ao lift.
+          A escala é pra fora (1.02) e o y é positivo de propósito: assim o conteúdo
+          sempre transborda a cortina e é cortado por ela. Recuar/subir mais que a
+          cortina descobriria a borda e deixaria uma faixa de k-ink no rodapé.
+          E NÃO esmaece: se o conteúdo apaga enquanto a cortina opaca sobe, a aba de
+          trás dela vira uma faixa escura — a flor tem que sair inteira junto. */}
       <motion.div
         className="absolute inset-0"
         animate={
           revealing
-            ? { scale: reduce ? 1 : 0.985, y: reduce ? "0%" : "-16%", opacity: reduce ? 1 : 0 }
-            : { scale: 1, y: "0%", opacity: 1 }
+            ? { scale: reduce ? 1 : 1.02, y: reduce ? "0%" : "7%" }
+            : { scale: 1, y: "0%" }
         }
         transition={{
           scale: { duration: reduce ? 0 : WINDUP_S, ease: "easeOut" },
           y: { duration: reduce ? 0 : REVEAL_S, ease: REVEAL_EASE, delay: reduce ? 0 : WINDUP_S },
-          opacity: { duration: reduce ? 0 : REVEAL_S, ease: REVEAL_EASE, delay: reduce ? 0 : WINDUP_S },
         }}
       >
         {/* A flor — composição fechada 16:9 sobre k-ink, full-bleed, com Ken Burns */}
@@ -168,29 +178,95 @@ export default function LoadingScreen() {
         />
 
         {/* Scrim no canto pra garantir leitura do número sobre a flor */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-k-ink/85 via-k-ink/0 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-tl from-k-ink/85 via-k-ink/0 to-transparent" />
 
-        {/* Big number — canto inferior esquerdo, editorial */}
-        <div className="absolute bottom-[clamp(1.25rem,4vw,3.5rem)] left-[clamp(1.25rem,4vw,3.5rem)] flex items-end text-k-cream">
-          <span
-            className="font-display font-medium leading-[0.8] tabular-nums"
-            style={{ fontSize: "clamp(4.5rem, 15vw, 15rem)", letterSpacing: "-0.03em" }}
-          >
-            {pct}
-          </span>
-          <span
-            className="mb-[1.5vw] ml-[0.4vw] font-display leading-none text-k-cream/60"
-            style={{ fontSize: "clamp(1.5rem, 4vw, 3.5rem)" }}
-          >
-            %
-          </span>
+        {/* Desfoque do fim — leve, só pra abrir campo pro cartão de marca (o vídeo já
+            vem limpo, não há marca queimada pra esconder). Raio FIXO no backdrop-filter
+            e só a opacidade animando: raio variando por frame é o que custa caro. */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 backdrop-blur-[8px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: branded ? 1 : 0 }}
+          transition={{ duration: reduce ? 0.3 : 0.7, ease: "easeOut" }}
+        />
+        {/* Lavagem por cima do desfoque: assenta a cor sob o wordmark. O /50 é medido —
+            é o que leva o creme a ≥3:1 contra o p95 do fundo, com o desfoque em 8px. */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 bg-k-ink/50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: branded ? 1 : 0 }}
+          transition={{ duration: reduce ? 0.3 : 0.7, ease: "easeOut" }}
+        />
+
+        {/* Cartão de marca — logo e frase em DOM: nítidas e sem corte em qualquer tela */}
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-col items-center px-6 text-center text-k-cream">
+          <div className="overflow-hidden pb-[0.12em]">
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { y: "115%" }}
+              animate={
+                reduce
+                  ? { opacity: branded ? 1 : 0 }
+                  : { y: branded ? "0%" : "115%" }
+              }
+              transition={{ duration: reduce ? 0.4 : 0.75, ease: REVEAL_EASE, delay: reduce ? 0 : 0.25 }}
+            >
+              <Logo className="w-auto" style={{ height: "clamp(2.5rem, 6vw, 5rem)" }} title="Gaia" />
+            </motion.div>
+          </div>
+
+          <div className="mt-[clamp(0.75rem,1.8vw,1.5rem)] overflow-hidden pb-[0.22em]">
+            <motion.p
+              className="font-grotesk font-light leading-tight text-k-cream/85"
+              style={{ fontSize: "clamp(0.95rem, 2vw, 1.6rem)", letterSpacing: "0.01em" }}
+              initial={reduce ? { opacity: 0 } : { y: "130%" }}
+              animate={
+                reduce
+                  ? { opacity: branded ? 1 : 0 }
+                  : { y: branded ? "0%" : "130%" }
+              }
+              transition={{ duration: reduce ? 0.4 : 0.75, ease: REVEAL_EASE, delay: reduce ? 0 : 0.42 }}
+            >
+              O Futuro da nutrição te espera.
+            </motion.p>
+          </div>
         </div>
 
-        {/* Régua de progresso — borda de baixo, fio de marca acompanhando o % */}
-        <div className="absolute inset-x-0 bottom-0 h-px bg-k-cream/12">
+        {/* Número — canto inferior direito, editorial. Escala de detalhe, não de hero.
+            O pb/-mb cancelam no layout e só abrem folga de clipping pra serifa. */}
+        <div className="absolute bottom-[clamp(1.25rem,4vw,3.5rem)] right-[clamp(1.5rem,4.5vw,4rem)] -mb-2 overflow-hidden pb-2">
+          {/* Entrada: sobe de baixo por trás do corte — sem fade, o clip é o efeito */}
+          <motion.div
+            className="flex items-end text-k-cream"
+            initial={reduce ? { y: 0, opacity: 0 } : { y: "115%" }}
+            animate={reduce ? { y: 0, opacity: 1 } : { y: "0%" }}
+            transition={{ duration: reduce ? 0.4 : 0.85, ease: REVEAL_EASE, delay: reduce ? 0 : 0.2 }}
+          >
+            <span
+              className="font-display font-light leading-none tabular-nums"
+              style={{ fontSize: "clamp(2.75rem, 6.5vw, 6.5rem)", letterSpacing: "-0.01em" }}
+            >
+              {pct}
+            </span>
+            <span
+              className="ml-[0.15em] font-display font-light leading-none text-k-cream/60"
+              style={{ fontSize: "clamp(1.5rem, 3.8vw, 3.75rem)" }}
+            >
+              %
+            </span>
+          </motion.div>
+        </div>
+
+        {/* Régua de progresso — trilho vertical na borda direita, enchendo de baixo pra cima.
+            Track escuro (a flor é clara; cream sumiria) e fio lilás por cima. */}
+        <div className="absolute inset-y-0 right-0 w-[2px] bg-k-ink/15">
           <div
-            className="h-full origin-left bg-k-lilac"
-            style={{ transform: `scaleX(${count / 100})` }}
+            className="w-full origin-bottom bg-k-lilac"
+            style={{
+              height: "100%",
+              transform: `scaleY(${count / 100})`,
+              // contorno escuro: o lilás sozinho some sobre a pétala clara
+              boxShadow: "0 0 0 1px rgba(10,16,26,0.4)",
+            }}
           />
         </div>
       </motion.div>
