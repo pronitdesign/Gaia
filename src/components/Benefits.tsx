@@ -1,0 +1,109 @@
+"use client";
+
+import Image from "next/image";
+import { motion, useReducedMotion } from "framer-motion";
+import { SectionBadge } from "./ui";
+
+const features = [
+  {
+    icon: "/figma/icon-feat-transcribe.svg",
+    title: "Transcrição ao vivo",
+    desc: "Conversa registrada real time",
+  },
+  {
+    icon: "/figma/icon-feat-profile.svg",
+    title: "Prontuário automático",
+    desc: "Notas organizadas sem esforço.",
+  },
+  {
+    icon: "/figma/icon-feat-laptop.svg",
+    title: "Tudo em um só lugar",
+    desc: "Plano, exames e agendas",
+  },
+  {
+    icon: "/figma/icon-feat-shield.svg",
+    title: "Seus dados, seu controle",
+    desc: "Segurança e autonomia.",
+  },
+];
+
+const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+export default function Benefits() {
+  const reduced = useReducedMotion();
+
+  return (
+    <section id="beneficios" className="relative overflow-hidden bg-cream">
+      {/* Background full-bleed: crossfade + Ken Burns reverso na entrada */}
+      <motion.div
+        className="absolute inset-0"
+        initial={reduced ? false : { opacity: 0, scale: 1.08 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 1.4, ease: easeOut }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/figma/benefits-bg.png" alt="" className="size-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-cream to-transparent to-[27%]" />
+      </motion.div>
+
+      <div className="relative mx-auto flex w-full max-w-[1200px] flex-col items-center gap-14 px-6 py-20 lg:px-12 lg:py-28">
+        <motion.div
+          className="flex max-w-[720px] flex-col items-center gap-4"
+          initial={reduced ? false : { opacity: 0, y: 32 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.6 }}
+          transition={{ duration: 0.8, ease: easeOut }}
+        >
+          <SectionBadge tone="purple">NOSSOS BENEFÍCIOS</SectionBadge>
+          <h2 className="text-center font-display text-[40px] leading-[1.1] tracking-[-0.03em] text-ink sm:text-[56px] lg:text-[72px] lg:tracking-[-2.16px]">
+            Cuide melhor de cada paciente com a Gaia
+          </h2>
+          <p className="text-center text-[16px] leading-[1.5] text-ink/80 sm:text-[18px]">
+            Centralize informações, automatize tarefas e tenha mais clareza durante todo o
+            acompanhamento nutricional. A Gaia organiza sua rotina para que você dedique ao
+            paciente.
+          </p>
+        </motion.div>
+
+        {/* Mockup entra depois do background assentar */}
+        <motion.div
+          className="relative aspect-[3456/2062] w-full overflow-hidden rounded-[32px] border-8 border-white/40"
+          initial={reduced ? false : { opacity: 0, scale: 0.9 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, amount: 0.25 }}
+          transition={{ duration: 0.9, delay: 0.2, ease: easeOut }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/figma/mockup-app.png"
+            alt="Interface da Gaia: pacientes, agenda e prontuário"
+            className="absolute inset-0 size-full object-cover"
+          />
+        </motion.div>
+
+        {/* Faixa de features */}
+        <div className="grid w-full grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:flex lg:items-center">
+          {features.map((f, i) => (
+            <motion.div
+              key={f.title}
+              className="flex flex-1 items-center gap-2"
+              initial={reduced ? false : { opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.6 }}
+              transition={{ duration: 0.6, delay: 0.4 + i * 0.09, ease: easeOut }}
+            >
+              <Image src={f.icon} alt="" width={32} height={32} className="size-8 shrink-0" />
+              <div className="flex flex-col gap-1">
+                <p className="font-display text-[18px] leading-[0.9] tracking-[-0.54px] text-white">
+                  {f.title}
+                </p>
+                <p className="text-[16px] leading-[1.5] text-white/70">{f.desc}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
