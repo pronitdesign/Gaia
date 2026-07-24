@@ -68,6 +68,14 @@ export default function HeroGrid() {
           pin: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,
+          // Este pin é o PRIMEIRO da página (topo) e injeta ~100vh de pinSpacing.
+          // A ComoComecar logo abaixo usa refreshPriority 2 contando que nada com
+          // pin acima dela seja medido DEPOIS dela — senão ela calcula o `start`
+          // sem esse espaço e o pin dela nasce ~630px cedo (medido). Como a
+          // prioridade DECRESCE na ordem do documento (ComoComecar 2 → ARoberta 1
+          // → resto 0), o topo precisa ser o MAIOR: 3. Ver o comentário do pin em
+          // components/sections/ComoComecar.tsx.
+          refreshPriority: 3,
         },
       });
 
