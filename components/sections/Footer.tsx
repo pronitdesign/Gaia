@@ -295,7 +295,7 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
             <span className="font-body text-[11px] uppercase leading-none tracking-[0.09em] text-white/30">
               Designed by
             </span>
-            <laura-signature size="16px" no-sync="" />
+            <laura-signature href="https://instagram.com/laura_eckert" size="16px" no-sync="" />
           </div>
 
           <p className="text-white/30">Workspace clínico operado conforme a LGPD.</p>
