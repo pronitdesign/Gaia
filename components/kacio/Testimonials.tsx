@@ -74,6 +74,16 @@ export default function Testimonials() {
         <img src="/figma/testimonials-bg.png" alt="" className="size-full object-cover" />
       </div>
 
+      {/* Suaviza a emenda com a Pricing (que termina em creme): o topo do campo
+          verde nasce velado no MESMO creme (neutro-50) e o sage sobe por baixo,
+          dissolvendo a linha dura creme→verde da junção. Sem z-index de
+          propósito — pela ordem do DOM fica ACIMA da imagem e ABAIXO do conteúdo
+          (que vem depois). O fade morre antes dos cards. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-52 bg-gradient-to-b from-neutro-50 to-transparent"
+      />
+
       <div className="relative flex w-full flex-col gap-10 py-20 lg:gap-16 lg:py-28">
         <motion.div
           className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-4 px-6 lg:flex-row lg:items-end lg:gap-10 lg:px-12"

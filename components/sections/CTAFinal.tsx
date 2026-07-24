@@ -1355,10 +1355,19 @@ export default function CTAFinal() {
       <section
         ref={root}
         id="comecar"
-        // base = mesmo creme da seção de cima (Pricing): é NELE que o arco morde.
-        // Sem `overflow-hidden` aqui — ele transformaria a section no scroll
-        // container do palco e mataria o sticky. O recorte é do palco.
-        className="relative bg-neutro-50"
+        // base = o escuro em que o arco morde. Era `bg-neutro-50` (creme) pra
+        // casar com a Pricing quando ELA ficava logo acima; a ordem mudou
+        // (Pricing → Testimonials → Faq → CTA) e agora quem encosta em cima é o
+        // Faq (bg-k-ink, escuro), então o creme virava uma faixa branca no meio
+        // de dois escuros — a Laura vetou. #0A0714 é um lavanda MUITO fundo
+        // (mais escuro que o antigo #17102A, a pedido da Laura): unifica o
+        // quadro num escuro só, o pé fica no mundo lavanda e a cena roxa emerge
+        // dele sem emenda. É o MESMO valor pro qual a minimask do pé do Faq
+        // dissolve (ver Faq.tsx) — as duas sections fecham no mesmo escuro, sem
+        // linha de corte entre elas. Sem `overflow-hidden` aqui — ele
+        // transformaria a section no scroll container do palco e mataria o
+        // sticky. O recorte é do palco.
+        className="relative bg-[#0A0714]"
         // A pista. 400vh: ~100vh de entrada (o palco desliza até grudar) + 300vh
         // de execução da timeline — agora com dois vídeos (o pull-back e o
         // pull-out que apresenta o footer), o pull-out sozinho leva os últimos
@@ -1419,8 +1428,9 @@ export default function CTAFinal() {
               creme (bg-neutro-50, ver a section), então a banda fundia num
               CINZA CLARO esbranquiçado. A Laura vetou: o pé tem que ser escuro,
               a máscara tem que dissolver no escuro. Esta chapa dá esse fundo —
-              cor #17102A, a MESMA família do baseMask (o chão da Roberta), pra
-              o pé ficar no mundo lavanda e não virar buraco preto neutro.
+              cor #0A0714, a MESMA da base da section (ver lá em cima) pra o
+              retrato fechar no mesmo escuro do desktop, sem virar buraco preto
+              neutro (segue no mundo lavanda, só que bem fundo).
               Primeiro filho do z-0 = atrás de tudo: onde o vídeo pinta opaco
               (78% do topo da banda) ele cobre isto; onde a máscara abre (base
               da banda e tudo abaixo dela) isto aparece. Gated a
@@ -1429,7 +1439,7 @@ export default function CTAFinal() {
               chão nunca apareceria (e por segurança nem é pintado lá). */}
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 [@media(max-aspect-ratio:4/3)]:bg-[#17102A]"
+              className="pointer-events-none absolute inset-0 [@media(max-aspect-ratio:4/3)]:bg-[#0A0714]"
             />
 
             {/* a cena. MESMA caixa do recorte lá embaixo — ver SCENE_BOX. */}

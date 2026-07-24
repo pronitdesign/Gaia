@@ -1195,7 +1195,7 @@ function MockQuestionarios() {
   );
 
   return (
-    <div ref={ref} className="relative mt-7 flex-1 px-7 pb-7 md:px-8 md:pb-8">
+    <div ref={ref} className="relative mt-7 flex flex-1 flex-col justify-end px-7 pb-7 md:px-8 md:pb-8">
       {/* UM cartão fundo, inset dos dois lados — header focal + gráfico. */}
       <div ref={scopeRef} data-enter-delay={0} style={px(0.3)} className={"gaia-parallax rounded-[18px] p-4 md:p-5 " + GLASS}>
         {/* HEADER — leitura focal (label + número grande + pill). O número é
@@ -2971,7 +2971,7 @@ export default function Features() {
           </h2>
         </header>
 
-        <div data-grid className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-2">
+        <div data-grid className="grid grid-cols-1 gap-2.5 md:gap-3 lg:grid-cols-2">
           {/* A — Antropometria (escuro, vidro único) */}
           <article data-card className={CARD + " min-h-[440px] lg:col-start-1 lg:row-start-1"}>
             <Grain at="50% 100%" />
@@ -2995,29 +2995,37 @@ export default function Features() {
             </div>
           </article>
 
-          {/* B — Questionários (escuro neutro, igual ao A) */}
-          {/* A esmeralda SAIU, e essa é a decisão do card. Ele era o único hero
-              com foto colorida acesa, e isso brigava com tudo que se pusesse por
-              cima: o gráfico do mock é pastel (rosa/roxo/verde/amarelo) e pastel
-              sobre campo verde vira lama — a referência (splash) só funciona
-              porque a superfície dela é neutra e quase-preta. Agora a COR do
-              card mora nas barras, não no fundo, que é exatamente a gramática da
-              referência. De quebra o card volta pra família: mesma superfície do
-              Antropometria ao lado (CARD + Grain + Glow + Hotspot + EdgeLight),
-              mesmo vidro no painel (GLASS), então os dois heroes de cima leem
-              como par em vez de um aceso e um escuro.
-              Com a foto foi junto a conta de contraste dela (o véu 0,27 e o
-              object-top existiam pra domar a imagem) e o `tone="hero"` do corpo:
-              white/70 era o piso exigido por foto embaixo do texto. Sem foto, o
-              corpo volta pro `dark` (white/55) dos irmãos sem foto — ver a nota
-              do CardBody: o gatilho é o contraste medido, não o gosto. */}
-          <article data-card className={CARD + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
-            {/* Rig de luz ESPELHADO do card A, de propósito: mesma superfície
-                pede a mesma lâmpada. A primeira tentativa pôs o Hotspot em
-                left-[18%] pra "seguir o holofote do mock" e virou um borrão na
-                quina — fonte pontual perto do canto lê como vazamento, não como
-                luz. No centro-baixo ela nasce atrás do gráfico, que é onde a
-                leitura termina nos dois cards. */}
+          {/* B — Questionários (esmeralda ESCURA, atrás do vidro) */}
+          {/* A esmeralda ACESA (foto) saiu — era o que embarrava os pastéis. Mas
+              a faixa VERDE do card continua sendo a dele no bento (Plano é azul,
+              Prontuário é lilás), então a cor volta pela porta certa: uma
+              superfície esmeralda ESCURA (luminância ~28, não os ~200 da foto)
+              atrás do vidro. O painel tem backdrop-blur, então ele REFRATA essa
+              cor e ganha um coração verde suave — a cor mora no fundo, o pastel
+              segue limpo por cima. É a diferença entre tingir o card (deep, sob
+              o vidro) e estampá-lo (foto acesa, brigando com o conteúdo).
+              CARD_HERO (sem gradiente) + a superfície própria abaixo: não dá pra
+              recolorir o CARD compartilhado sem pintar o Antropometria junto.
+              Corpo segue em `dark` (white/55): esmeralda escura é fundo escuro,
+              o contraste do texto passa — o gatilho é a luminância medida. */}
+          <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
+            {/* superfície — esmeralda que ACENDE de baixo: o verde mais claro e
+                fresco nasce no chão do card (âncora radial abaixo do bottom) e
+                afunda subindo, até o topo em esmeralda-noite. Invertido do que
+                era (dark no bottom): a cor-identidade agora sobe do rodapé em
+                vez de morrer nele. */}
+            <div className="absolute inset-0 bg-[radial-gradient(125%_122%_at_50%_122%,#5FC397_0%,#2E8560_30%,#123726_64%,#0A1512_100%)]" />
+            {/* NÚCLEO DE COR atrás do vidro — um bloom esmeralda mais aceso,
+                borrado, exatamente onde o painel do mock pousa. É o que o
+                backdrop-blur do vidro refrata: sem ele o painel ficaria cinza
+                sobre verde; com ele, o verde atravessa o vidro e vira o coração
+                da peça. Fica atrás do conteúdo (o wrapper relative abaixo sobe). */}
+            <div aria-hidden className="pointer-events-none absolute inset-x-2 bottom-0 top-28 rounded-[28px] bg-[radial-gradient(110%_82%_at_50%_104%,rgba(140,236,188,0.17),transparent_74%)] blur-3xl" />
+            {/* Rig de luz ESPELHADO do card A, de propósito: mesma família de
+                superfície pede a mesma lâmpada. A primeira tentativa pôs o
+                Hotspot em left-[18%] pra "seguir o holofote do mock" e virou um
+                borrão na quina — fonte pontual perto do canto lê como vazamento.
+                No centro-baixo ela nasce atrás do gráfico, onde a leitura termina. */}
             <Grain at="50% 100%" />
             <Glow className="left-[-14%] top-[34%] h-80 w-80" />
             <Hotspot className="bottom-[-110px] left-1/2 h-[300px] w-[380px] -translate-x-1/2" />

@@ -279,16 +279,20 @@ export default function Pricing() {
       /* lg:pt-[22vh] — A DESCIDA SUBMERSA (ver Mergulho.tsx): o scroll entre a
          linha d'água e o pouso do phone. Não é respiro, é o espaço em que a
          câmera desvira e a água dissolve. */
-      /* lg:pb-72 — o tab (e o phone clipado nele) agora morre na aresta do
-         campo (+64px do rodapé dos cards); o pb segura essa descida e dá o
-         creme de respiro antes do CTAFinal. */
+      /* lg:pb-36 — o pb só precisa CONTER o SVG (o tab trapezoidal, onde o
+         phone mergulha): medido, a base do tab cai 120px abaixo do rodapé dos
+         cards, então 144px fecham a section ~24px depois dela. Era pb-72
+         (288px) e sobrava um vão de creme de ~168px ABAIXO do SVG — a Laura
+         pediu o fundo "até o svg no máximo" pra matar essa transição vazia
+         gigante. O respiro/costura com a próxima seção agora é do topo da
+         Testimonials (fade creme→verde de h-52), não deste creme morto. */
       /* -mt-px: fresta de subpixel da boundary Mergulho→Pricing (alturas em vh
          → px fracionário). Invisível porque as duas encostam no #C0B0D7. */
       /* pt-0 no mobile (2026-07-20): o campo-hero começa NA aresta da section
          — o Mergulho mobile morre no índigo chapado (#151948, DIVE_STOPS) e é
          o céu do campo que emenda nele (ver o slab navy no bloco mobile). Um
          pt aqui reabria a fresta de lavanda entre os dois navies. */
-      className="relative -mt-px overflow-x-clip pb-20 md:pb-24 lg:pt-[22vh] lg:pb-72"
+      className="relative -mt-px overflow-x-clip pb-20 md:pb-24 lg:pt-[22vh] lg:pb-36"
       /* FUNDO = a descida lavanda→creme, curva-S de ~480px (stops por
          smoothstep, slope→0 nas pontas pra não criar banda de Mach na chegada
          do creme). O campo NÃO mora aqui: é camada própria (ver [data-campo]).

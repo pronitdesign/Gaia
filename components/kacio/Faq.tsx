@@ -160,6 +160,19 @@ export default function Faq() {
         <img src="/figma/faq-bg.png" alt="" className="size-full object-cover" />
       </div>
 
+      {/* Minimask de base — o hedge terminava num corte reto no pé da section e
+          batia direto na base escura do CTA logo abaixo. Este gradiente
+          dissolve a foto pro MESMO #0A0714 do frame do CTA (ver CTAFinal.tsx),
+          costurando as duas sections num escuro só — sem linha de emenda.
+          SEM z-index de propósito: a ordem do DOM (depois da foto, antes do
+          bloco `relative` de conteúdo) já a deixa ACIMA da foto e ABAIXO dos
+          balões. Um z-[1] positivo a subiria por cima do conteúdo (z auto) e
+          apagaria o último balão. aria-hidden, pointer-events-none. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[220px] bg-gradient-to-b from-transparent to-[#0A0714]"
+      />
+
       <div className="relative mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-6 py-20 lg:gap-16 lg:px-[88px] lg:py-28">
         <motion.div
           className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end lg:gap-10"
