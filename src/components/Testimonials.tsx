@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import useEmblaCarousel from "embla-carousel-react";
+import AutoScroll from "embla-carousel-auto-scroll";
 import { GradientButton, OutlineButton, SectionBadge } from "./ui";
 
 const testimonials = [
@@ -41,28 +42,30 @@ const testimonials = [
   },
 ];
 
-// Alinha o trilho do carrossel com o container de 1200px, sangrando até a borda
-const railPadding = "max(1.5rem, calc((100vw - 1200px) / 2 + 3rem))";
-
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export default function Testimonials() {
   const reduced = useReducedMotion();
-  const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", skipSnaps: false });
-  const [canPrev, setCanPrev] = useState(false);
-  const [canNext, setCanNext] = useState(true);
+  const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", loop: true }, [
+    AutoScroll({
+      speed: 0.5,
+      startDelay: 0,
+      stopOnInteraction: false,
+      stopOnMouseEnter: false,
+      stopOnFocusIn: false,
+    }),
+  ]);
 
-  const onSelect = useCallback(() => {
-    if (!emblaApi) return;
-    setCanPrev(emblaApi.canScrollPrev());
-    setCanNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    onSelect();
-    emblaApi.on("select", onSelect).on("reInit", onSelect);
-  }, [emblaApi, onSelect]);
+  // Pausa o ticker no hover de um card e retoma ao sair
+  const toggleTicker = useCallback(
+    (play: boolean) => {
+      const autoScroll = emblaApi?.plugins()?.autoScroll;
+      if (!autoScroll) return;
+      if (play) autoScroll.play();
+      else autoScroll.stop();
+    },
+    [emblaApi]
+  );
 
   return (
     <section id="depoimentos" className="relative overflow-hidden bg-[#fdf5ff]">
@@ -71,9 +74,9 @@ export default function Testimonials() {
         <img src="/figma/testimonials-bg.png" alt="" className="size-full object-cover" />
       </div>
 
-      <div className="relative flex w-full flex-col gap-16 py-20 lg:py-28">
+      <div className="relative flex w-full flex-col gap-10 py-20 lg:gap-16 lg:py-28">
         <motion.div
-          className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-10 px-6 lg:flex-row lg:items-end lg:px-12"
+          className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-4 px-6 lg:flex-row lg:items-end lg:gap-10 lg:px-12"
           initial={reduced ? false : { opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.5 }}
@@ -82,7 +85,7 @@ export default function Testimonials() {
           <div className="flex max-w-[611px] flex-col items-start gap-4">
             <SectionBadge tone="purple">Quem já usa</SectionBadge>
             <h2 className="font-display text-[40px] leading-[0.9] tracking-[-0.03em] text-ink sm:text-[56px] lg:text-[72px] lg:tracking-[-2.16px]">
-              Quem já atende com a Gaia.
+              Quem já atende com&nbsp;a&nbsp;Gaia.
             </h2>
           </div>
           <div className="flex max-w-[407px] flex-col items-start gap-4">
@@ -98,19 +101,23 @@ export default function Testimonials() {
 
         <div>
           <div ref={emblaRef} className="w-full cursor-grab overflow-hidden active:cursor-grabbing">
-            <div
-              className="flex touch-pan-y gap-4"
-              style={{ paddingLeft: railPadding, paddingRight: railPadding }}
-            >
-              {testimonials.map((t, i) => (
-                <motion.div
-                  key={t.name}
-                  className="min-w-0 shrink-0 basis-[85%] rounded-[40px] bg-white p-1 sm:basis-[449px]"
-                  initial={reduced ? false : { opacity: 0, y: 40 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.3 }}
-                  transition={{ duration: 0.7, delay: i * 0.09, ease: easeOut }}
+            {/* Loop do embla exige container sem padding/gap e sem transform nos slides:
+                o espaçamento vive no pl-4 de cada slide e o motion fica num wrapper interno */}
+            <div className="flex touch-pan-y">
+              {[...testimonials, ...testimonials].map((t, i) => (
+                <div
+                  key={`${t.name}-${i}`}
+                  className="min-w-0 shrink-0 basis-[85%] pl-4 sm:basis-[465px]"
                 >
+                  <motion.div
+                    className="group rounded-[40px] bg-white p-1"
+                    onMouseEnter={() => toggleTicker(false)}
+                    onMouseLeave={() => toggleTicker(true)}
+                    initial={reduced ? false : { opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.7, delay: (i % 4) * 0.09, ease: easeOut }}
+                  >
                   <div className="relative flex h-[520px] flex-col justify-between overflow-hidden rounded-[32px] px-6 py-8 lg:h-[600px]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -126,6 +133,8 @@ export default function Testimonials() {
                           "linear-gradient(180deg, rgba(10,16,26,0.5) 0%, rgba(10,16,26,0) 18%), linear-gradient(0deg, rgb(10,16,26) 0%, rgba(10,16,26,0) 43%)",
                       }}
                     />
+                    {/* Escurece de leve no hover para dar contraste ao texto */}
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink/15 to-ink/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                     <div className="relative flex items-center gap-2">
                       <Image
                         src={t.avatar}
@@ -144,44 +153,13 @@ export default function Testimonials() {
                     <p className="relative text-[18px] leading-[1.5] text-white lg:text-[20px]">
                       {t.quote}
                     </p>
-                  </div>
-                </motion.div>
+                    </div>
+                  </motion.div>
+                </div>
               ))}
             </div>
           </div>
 
-          <div className="mx-auto mt-8 flex w-full max-w-[1200px] items-center gap-2 px-6 lg:px-12">
-            <button
-              type="button"
-              aria-label="Depoimento anterior"
-              onClick={() => emblaApi?.scrollPrev()}
-              disabled={!canPrev}
-              className="flex size-12 cursor-pointer items-center justify-center rounded-full border border-ink/10 bg-white transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-40"
-            >
-              <Image
-                src="/figma/icon-arrow-forward-dark.svg"
-                alt=""
-                width={20}
-                height={20}
-                className="size-5 -rotate-90"
-              />
-            </button>
-            <button
-              type="button"
-              aria-label="Próximo depoimento"
-              onClick={() => emblaApi?.scrollNext()}
-              disabled={!canNext}
-              className="flex size-12 cursor-pointer items-center justify-center rounded-full border border-ink/10 bg-white transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-40"
-            >
-              <Image
-                src="/figma/icon-arrow-forward-dark.svg"
-                alt=""
-                width={20}
-                height={20}
-                className="size-5 rotate-90"
-              />
-            </button>
-          </div>
         </div>
       </div>
     </section>

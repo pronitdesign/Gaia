@@ -11,24 +11,56 @@ const faqs = [
     a: "A Gaia é uma plataforma desenvolvida para nutricionistas que centraliza informações, automatiza tarefas e ajuda a tornar cada consulta mais estratégica, organizada e personalizada.",
   },
   {
-    q: "Quanto tempo leva pra abrir conta?",
-    a: "Poucos minutos. Você cria sua conta, configura sua agenda e já pode atender com a Gaia no mesmo dia, sem instalação nem burocracia.",
+    q: "Preciso instalar algum programa?",
+    a: "Não. A Gaia funciona diretamente pelo navegador e pode ser acessada pelo computador, tablet ou celular, sem necessidade de instalação.",
   },
   {
-    q: "Posso investir em dólar?",
-    a: "A Gaia é um workspace clínico para nutricionistas — não oferecemos produtos de investimento. Se ficou com dúvida sobre planos e pagamentos, fale com nosso suporte.",
+    q: "A Gaia substitui o nutricionista?",
+    a: "Não. A Gaia atua como uma assistente para o profissional, ajudando na organização das informações, no registro das consultas e na preparação dos atendimentos. As decisões clínicas continuam sendo sempre do nutricionista.",
   },
   {
-    q: "Tem cartão físico?",
-    a: "Não. A Gaia é 100% digital: prontuário, plano alimentar, exames e agenda vivem no mesmo lugar, acessíveis de qualquer dispositivo.",
+    q: "Como a Gaia ajuda durante a consulta?",
+    a: "A plataforma pode acompanhar e transcrever a conversa, organizar as informações importantes e ajudar a transformar o atendimento em um prontuário estruturado.",
   },
   {
-    q: "Tem taxa escondida?",
-    a: "Não. O valor do seu plano é o único custo — sem taxas de adesão, cancelamento ou cobranças surpresa.",
+    q: "Posso acessar o histórico dos meus pacientes?",
+    a: "Sim. A Gaia mantém as informações organizadas para que você consulte o histórico, objetivos, hábitos, evolução e registros anteriores de cada paciente.",
   },
   {
-    q: "Funciona fora do Brasil?",
-    a: "Sim. A Gaia funciona em qualquer lugar com acesso à internet, e seus dados ficam sincronizados com segurança onde você estiver.",
+    q: "Meus dados e os dados dos pacientes ficam seguros?",
+    a: "Sim. A Gaia foi desenvolvida com foco em privacidade e segurança. As informações permanecem protegidas e sob o controle do profissional.",
+  },
+  {
+    q: "A Gaia funciona para qualquer abordagem nutricional?",
+    a: "Sim. A plataforma pode ser utilizada por nutricionistas de diferentes especialidades e metodologias, adaptando-se à rotina e à forma de atendimento de cada profissional.",
+  },
+  {
+    q: "Consigo usar a Gaia em consultas online e presenciais?",
+    a: "Sim. A Gaia pode acompanhar tanto atendimentos presenciais quanto consultas realizadas por videochamada.",
+  },
+  {
+    q: "Quanto custa a assinatura?",
+    a: "A assinatura da Gaia custa R$ 49,90 por mês.",
+  },
+  {
+    q: "Existe período de teste?",
+    a: "As condições de teste ou acesso promocional podem variar. Consulte a oferta disponível no momento do cadastro.",
+  },
+  {
+    q: "Já utilizo outra plataforma. Posso migrar para a Gaia?",
+    a: "Sim. Profissionais que estão migrando de outra plataforma podem receber até dois meses gratuitos, de acordo com as condições da campanha vigente.",
+  },
+  {
+    q: "Posso cancelar quando quiser?",
+    a: "Sim. Você pode cancelar sua assinatura de acordo com as condições apresentadas no momento da contratação.",
+  },
+  {
+    q: "Preciso entender de tecnologia para usar?",
+    a: "Não. A Gaia foi criada para ser simples, intuitiva e fácil de integrar à rotina do consultório.",
+  },
+  {
+    q: "Como começo a utilizar a Gaia?",
+    a: "Basta criar sua conta, configurar seu perfil profissional e cadastrar ou importar seus pacientes para começar.",
   },
 ];
 
@@ -128,9 +160,9 @@ export default function Faq() {
         <img src="/figma/faq-bg.png" alt="" className="size-full object-cover" />
       </div>
 
-      <div className="relative mx-auto flex w-full max-w-[1200px] flex-col gap-16 px-6 py-20 lg:px-[88px] lg:py-28">
+      <div className="relative mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-6 py-20 lg:gap-16 lg:px-[88px] lg:py-28">
         <motion.div
-          className="flex flex-col items-start justify-between gap-10 lg:flex-row lg:items-end"
+          className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end lg:gap-10"
           initial={reduced ? false : { opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.5 }}

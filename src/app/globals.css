@@ -23,6 +23,11 @@ html {
   background: var(--ink);
 }
 
+html,
+body {
+  overflow-x: clip;
+}
+
 html.scroll-locked,
 html.scroll-locked body {
   overflow: hidden;

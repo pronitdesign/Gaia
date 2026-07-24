@@ -14,7 +14,10 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
-    const lenis = new Lenis({ lerp: 0.12 });
+    const lenis = new Lenis({
+      lerp: 0.08,
+      anchors: { offset: 0, duration: 1.4, easing: (t) => 1 - Math.pow(1 - t, 3) },
+    });
     lenisRef.current = lenis;
 
     lenis.on("scroll", ScrollTrigger.update);

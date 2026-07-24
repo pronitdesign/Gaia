@@ -1,7 +1,8 @@
 "use client";
 
+import { useRef } from "react";
 import Image from "next/image";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { SectionBadge } from "./ui";
 
 const features = [
@@ -31,6 +32,17 @@ const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export default function Benefits() {
   const reduced = useReducedMotion();
+
+  // Mockup 3D estilo Apple: inclinado pra trás ao entrar, assenta plano no centro da tela
+  const mockupRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: mockupRef,
+    offset: ["start end", "center center"],
+  });
+  const rotateX = useTransform(scrollYProgress, [0, 1], [38, 0]);
+  const mockupScale = useTransform(scrollYProgress, [0, 1], [0.88, 1]);
+  const mockupY = useTransform(scrollYProgress, [0, 1], [64, 0]);
+  const mockupOpacity = useTransform(scrollYProgress, [0, 1], [0.5, 1]);
 
   return (
     <section id="beneficios" className="relative overflow-hidden bg-cream">
@@ -66,28 +78,37 @@ export default function Benefits() {
           </p>
         </motion.div>
 
-        {/* Mockup entra depois do background assentar */}
-        <motion.div
-          className="relative aspect-[3456/2062] w-full overflow-hidden rounded-[32px] border-8 border-white/40"
-          initial={reduced ? false : { opacity: 0, scale: 0.9 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true, amount: 0.25 }}
-          transition={{ duration: 0.9, delay: 0.2, ease: easeOut }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/figma/mockup-app.png"
-            alt="Interface da Gaia: pacientes, agenda e prontuário"
-            className="absolute inset-0 size-full object-cover"
-          />
-        </motion.div>
+        {/* Mockup 3D: rotaciona em perspectiva conforme o scroll (scrub) */}
+        <div className="w-full [perspective:1600px]">
+          <motion.div
+            ref={mockupRef}
+            className="relative aspect-[3456/2062] w-full overflow-hidden rounded-[32px] border-8 border-white/40 will-change-transform"
+            style={
+              reduced
+                ? undefined
+                : {
+                    rotateX,
+                    scale: mockupScale,
+                    y: mockupY,
+                    opacity: mockupOpacity,
+                  }
+            }
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/figma/mockup-app.png"
+              alt="Interface da Gaia: pacientes, agenda e prontuário"
+              className="absolute inset-0 size-full object-cover"
+            />
+          </motion.div>
+        </div>
 
         {/* Faixa de features */}
-        <div className="grid w-full grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:flex lg:items-center">
+        <div className="grid w-full grid-cols-2 gap-x-4 gap-y-8 lg:flex lg:items-center">
           {features.map((f, i) => (
             <motion.div
               key={f.title}
-              className="flex flex-1 items-center gap-2"
+              className="flex flex-1 flex-col items-start gap-2 lg:flex-row lg:items-center"
               initial={reduced ? false : { opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.6 }}
