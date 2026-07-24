@@ -30,3 +30,23 @@ export const clashDisplay = localFont({
   variable: "--font-body",
   display: "swap",
 });
+
+// Corpo do bloco do Kácio → Clash Grotesk (grotesca de trabalho, distinta da
+// Display). Estáticas Regular/Medium; entra só no bloco dele via `font-grotesk`,
+// sem mexer no corpo da Laura (que segue Clash Display via --font-body).
+export const clashGrotesk = localFont({
+  src: [
+    {
+      path: "../public/fonts/ClashGrotesk-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/ClashGrotesk-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+  ],
+  variable: "--font-grotesk",
+  display: "swap",
+});

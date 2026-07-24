@@ -69,10 +69,25 @@ const config: Config = {
         warning: "#D6A04E",
         error: "#C05B5B",
         info: "#7A90AE",
+        // Bloco do Kácio (topo da página) — paleta dele namespaceada em `k-*`
+        // pra não colidir com os tokens da Laura (o `ink` dela é #000A1A, o
+        // dele #0a101a). Só os componentes em components/kacio/ usam.
+        k: {
+          ink: "#0a101a",
+          cream: "#faf2ef",
+          purple: "#7451cc",
+          "purple-light": "#8c6cda",
+          lilac: "#d8c8ff",
+        },
       },
       fontFamily: {
         title: ["var(--font-title)", "serif"],
         body: ["var(--font-body)", "sans-serif"],
+        // Bloco do Kácio: display=Sentient (=title da Laura), nav=ClashDisplay
+        // (=body), grotesk=ClashGrotesk (fonte de corpo própria dele).
+        display: ["var(--font-title)", "serif"],
+        nav: ["var(--font-body)", "sans-serif"],
+        grotesk: ["var(--font-grotesk)", "sans-serif"],
       },
       fontSize: {
         // Escala FLUIDA (clamp): o máximo é o tamanho de desktop original — então

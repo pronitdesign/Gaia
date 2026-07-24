@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { sentient, clashDisplay } from "@/lib/fonts";
+import { sentient, clashDisplay, clashGrotesk } from "@/lib/fonts";
 import SmoothScroll from "@/components/SmoothScroll";
 import "./globals.css";
 
@@ -15,7 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className={`${sentient.variable} ${clashDisplay.variable}`}>
+    <html
+      lang="pt-BR"
+      className={`${sentient.variable} ${clashDisplay.variable} ${clashGrotesk.variable}`}
+    >
       <body className="bg-neutro-50 text-neutro-800 font-body antialiased">
         <SmoothScroll />
         {children}
