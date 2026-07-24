@@ -9,8 +9,9 @@ import CTAFinal from "@/components/sections/CTAFinal";
 
 // ═══ Bloco do Kácio (topo da página) — portado de origin/main pra dentro da
 // estrutura da Laura. Tokens namespaceados em `k-*`, fonte de corpo Clash
-// Grotesk escopada no wrapper. A HeroGrid já inclui a Navbar. Ordem original
-// dele mantida (LoadingScreen → HeroGrid → Benefits → Testimonials → Faq).
+// Grotesk escopada no wrapper. A HeroGrid já inclui a Navbar. Topo:
+// LoadingScreen → HeroGrid → Benefits → Testimonials. O Faq saiu daqui e foi
+// pra antes do CTA (lá embaixo), a pedido da Laura.
 import LoadingScreen from "@/components/kacio/LoadingScreen";
 import HeroGrid from "@/components/kacio/HeroGrid";
 import Benefits from "@/components/kacio/Benefits";
@@ -35,7 +36,6 @@ export default function Home() {
         <HeroGrid />
         <Benefits />
         <Testimonials />
-        <Faq />
       </div>
 
       {/* ═══ Parte da Laura ═══ */}
@@ -48,6 +48,13 @@ export default function Home() {
           Pricing não cabem em dois tempos de scroll; ver o cabeçalho dela. */}
       <Mergulho />
       <Pricing />
+      {/* FAQ do Kácio — movido pra antes do CTA (pedido da Laura). Leva o
+          wrapper `font-grotesk` junto pra manter a fonte de corpo dele; o
+          heading já é font-display (Sentient). O fundo bg-k-ink escuro emenda
+          no campo escuro do CTA logo abaixo. */}
+      <div className="font-grotesk">
+        <Faq />
+      </div>
       {/* CTA Final — fecha a página com o footer embutido sobre a imagem */}
       <CTAFinal />
 
