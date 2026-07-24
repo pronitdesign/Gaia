@@ -1813,13 +1813,13 @@ export default function ARoberta() {
             />
             <span
               data-word-inner
-              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0"
+              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0 [@media(max-aspect-ratio:4/3)]:text-[clamp(3.25rem,14vw,4.5rem)]"
             >
               QUEM ESTÁ
             </span>
             <span
               data-word-inner
-              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0"
+              className="block font-title text-[clamp(2.5rem,7.65vw,9rem)] font-medium leading-[0.94] tracking-[-0.01em] text-neutro-0 [@media(max-aspect-ratio:4/3)]:text-[clamp(3.25rem,14vw,4.5rem)]"
             >
               POR TRÁS?
             </span>

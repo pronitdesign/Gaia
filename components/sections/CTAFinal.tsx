@@ -235,13 +235,28 @@ const ARCH_ID = "cta-arch";
  * caminho dele, então o cume visível assenta em yc + r·(ys−yc) ≈ 0.21. Mexer em
  * `r` sozinho move o cume visível junto.
  */
-const archD = (p: number) => {
+// Proporção de referência do telhado. Os três números da forma (ombro 0.47,
+// cume 0.21, arredondamento) foram lidos/tunados em PAISAGEM. Do gate 4/3 pra
+// cima (desktop, tablet deitado) o arco fica exatamente como sempre foi;
+// abaixo dele (retrato) o eixo Y encolhe na proporção — ver `vy`. 4/3 é o
+// MESMO gate que já governa toda a adaptação de retrato desta cena
+// (object-position, chão escuro, CopyScrim).
+const ARCH_REF_ASPECT = 4 / 3;
+
+const archD = (p: number, vy = 1) => {
   const k = 1 - p;
-  const ys = k * 0.47; // ombro: onde o telhado encontra a lateral
-  const yc = k * 0.16; // bico virtual — controle da curva, não o cume visível
-  const r = k * 0.16; // meia-largura do arredondamento do cume
-  const sx = k * 0.05; // quanto o arredondamento do ombro avança pra dentro
-  const sy = k * 0.045; // e quanto ele desce pela lateral
+  // vy = correção de aspect no eixo Y (só < 1 em retrato, 1 em paisagem).
+  // clipPathUnits="objectBoundingBox" estica a MESMA forma normalizada pra
+  // proporção do elemento — num retrato alto o mesmo cume vira um BICO agudo.
+  // Multiplicar só os termos verticais por vy = aspect/(4/3) faz o ÂNGULO
+  // visível do telhado ficar igual ao do desktop em qualquer proporção: o
+  // cume abre largo como abre lá, em vez de pontudo. r e sx são eixo X e não
+  // escalam — o cume só fica mais RASO, mantendo a largura do arredondamento.
+  const ys = k * 0.47 * vy; // ombro: onde o telhado encontra a lateral
+  const yc = k * 0.16 * vy; // bico virtual — controle da curva, não o cume visível
+  const r = k * 0.16; // meia-largura do arredondamento do cume (X, não escala)
+  const sx = k * 0.05; // quanto o arredondamento do ombro avança pra dentro (X)
+  const sy = k * 0.045 * vy; // e quanto ele desce pela lateral (Y)
   const m = (ys - yc) / 0.5; // inclinação do telhado
   const yr = yc + r * m; // onde a reta entrega a curva do cume
   const yo = ys - sx * m; // onde a curva do ombro entrega a reta
@@ -253,7 +268,7 @@ const archD = (p: number) => {
 };
 
 // Arco em repouso — estado inicial do <path> no SSR e o único estado que
-// reduced-motion enxerga.
+// reduced-motion enxerga. p=1 zera todo termo (k=0), então vy é irrelevante.
 const ARCH_REST = archD(1);
 
 type Sources = { video: string; cutout: string; field: string };
@@ -903,8 +918,15 @@ export default function CTAFinal() {
       // Proxy do mask. O ScrollTrigger não sabe animar o atributo `d` de um
       // <path>, então tweenamos um número e escrevemos a forma no onUpdate.
       const mask = { p: 0 };
+      // vy lido do viewport A CADA escrita (leitura barata, não força reflow):
+      // o elemento recortado é a camada z-0 do palco = viewport cheio, então
+      // aspect = innerWidth/innerHeight. Em retrato o telhado achata pra abrir
+      // com o mesmo ângulo do desktop; do 4/3 pra cima vy=1 e nada muda. Re-lê
+      // no onRefresh (resize/rotação) porque é o mesmo writeArch chamado lá.
+      const archVY = () =>
+        Math.min(1, window.innerWidth / window.innerHeight / ARCH_REF_ASPECT);
       const writeArch = (p: number) =>
-        arch.current?.setAttribute("d", archD(p));
+        arch.current?.setAttribute("d", archD(p, archVY()));
       writeArch(0); // `.to()` não faz immediateRender: fecha na mão antes do 1º paint
 
       // UMA timeline, posições absolutas em unidades de progresso (0..1) da
@@ -2071,10 +2093,20 @@ export default function CTAFinal() {
         {/* SCRIM sutil — quase nada no topo (a cena segue à vista), subindo só
           o necessário pro texto no pé. É o único escurecimento; nada de placa
           preta nem card opaco. Se o texto ficar apagado sobre a flor, é ESTE
-          número que sobe, não o card (que agora é transparente). */}
+          número que sobe, não o card (que agora é transparente).
+
+          MOBILE (`max-aspect-ratio:4/3`): o footer é ALTÍSSIMO (~2 viewports) e
+          o `bg-cover` da imagem estica a arte inteira por toda a altura — a
+          Laura pediu pra NÃO recriar a imagem no footer inteiro, só emendar no
+          topo. O scrim de 0.74 do desktop deixava a foto vazar nas bordas até
+          o pé (listras roxas, canto vermelho). Aqui ele fecha em PRETO SÓLIDO
+          (`#0B0D12` = o mesmo `rgba(11,13,18)`) já em 80vh: a arte segura só a
+          emenda (30vh→~80vh, casando com o fade-in do mask da imagem) e todo o
+          resto do rodapé — colunas, newsletter, copyright — assenta em preto
+          limpo. Não é placa opaca nova: é o MESMO scrim, só mais fundo antes. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_bottom,transparent_0,rgba(11,13,18,0.34)_34vh,rgba(11,13,18,0.74)_100%)]"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_bottom,transparent_0,rgba(11,13,18,0.34)_34vh,rgba(11,13,18,0.74)_100%)] [@media(max-aspect-ratio:4/3)]:bg-[linear-gradient(to_bottom,transparent_0,rgba(11,13,18,0.4)_45vh,#0B0D12_80vh)]"
         />
         <div className="relative">
           <Footer embedded />

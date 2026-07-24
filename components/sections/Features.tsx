@@ -229,6 +229,12 @@ const GLASS_ON_LIGHT =
   "bg-gradient-to-b from-black/[0.82] to-black/[0.74] " +
   "shadow-[0_30px_80px_-28px_rgba(0,0,0,0.55),inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)]";
 
+/* Houve aqui um GLASS_DEEP (vidro quase-opaco com bloom esmeralda) feito pros
+   painéis do Questionários enquanto aquele card tinha foto verde acesa por
+   baixo. Saiu junto com a foto: sobre superfície neutra escura o card usa o
+   mesmo GLASS do Antropometria, que é o ponto — os dois heroes de cima leem
+   como par. Receita especial só se justifica por fundo especial. */
+
 /* GLASS_FROST (vidro branco translúcido) morava aqui e vestia os três satélites
    do Prontuário. Saiu junto com o véu escuro daquele card: tinta branca a 13%
    existia pra deixar a pétala ESCURA atravessar. Sobre a gradiente lilás crua
@@ -1026,147 +1032,263 @@ function MockPlano() {
 }
 
 /* ═══════════════ QUESTIONÁRIOS (hero verde) ═══════════════ */
+/* Paleta PASTEL — cor POR BARRA (não por status): rosa, roxo, verde e amarelo
+   pastel. Menos saturado = mais clean. E o foco não é COR — é LUZ: a barra não
+   troca de cor, um holofote suave desliza até ela, ela sobe um toque e clareia.
+   Cor estável + luz que viaja é o que dá o craft sem virar semáforo vibrante. */
+const QUEST_PASTEL: Record<string, string> = {
+  rosa: "linear-gradient(180deg, #F6C9DC 0%, #E7A6C4 100%)",
+  roxo: "linear-gradient(180deg, #D6C6F8 0%, #B49DED 100%)",
+  verde: "linear-gradient(180deg, #BAE9CE 0%, #90D7AF 100%)",
+  amarelo: "linear-gradient(180deg, #F5E5B0 0%, #E9CF86 100%)",
+};
+/* Espelho — os MESMOS stops invertidos. O reflexo não pode reusar o gradiente
+   da barra: sem o scaleY(-1) (que saiu quando o GSAP assumiu o transform), a
+   cópia cresce pra baixo sem virar, e reusar o gradiente deixaria o topo do
+   reflexo com a cor do TOPO da barra — o lado errado encostando na base. */
+const QUEST_PASTEL_REFL: Record<string, string> = {
+  rosa: "linear-gradient(180deg, #E7A6C4 0%, #F6C9DC 100%)",
+  roxo: "linear-gradient(180deg, #B49DED 0%, #D6C6F8 100%)",
+  verde: "linear-gradient(180deg, #90D7AF 0%, #BAE9CE 100%)",
+  amarelo: "linear-gradient(180deg, #E9CF86 0%, #F5E5B0 100%)",
+};
+
 function MockQuestionarios() {
-  // Micro-interação: a lista de instrumentos fica de fundo e um card de Insight
-  // flutua por cima, trocando sozinho a cada ~3,4s (pop). A cada troca, o
-  // instrumento correspondente acende na lista — a Gaia "lendo" as respostas.
+  // Widget de dashboard, craft da splash — MAS clean e pastel, e o motion é a
+  // estrela: leitura focal no topo (número que CONTA na troca), e os sete
+  // instrumentos em barras pastel com reflexo. O foco é LUZ — um holofote
+  // desliza de barra em barra (GSAP), a barra da vez sobe e clareia, as outras
+  // recuam. Entrada em mola com stagger. useAutoCycle dá o índice e respeita
+  // reduced-motion (congela em 0); sob reduce, estado final seco, sem viagem.
+  // Os três instrumentos com score ficam em posições alternadas (0,2,4) pra o
+  // holofote varrer o gráfico inteiro, não só a metade esquerda.
   const instruments = [
-    { k: "EAT-26", full: "Atitudes alimentares", s: "19 pts" },
-    { k: "PSQI", full: "Qualidade do sono", s: "8 pts" },
-    { k: "BSQ", full: "Imagem corporal", s: "82 pts" },
-    { k: "TFEQ-21", full: "Comportamento alimentar", s: "ok" },
-    { k: "QFA", full: "Frequência alimentar", s: "revisar" },
-    { k: "IES-2", full: "Comer intuitivo", s: "3,8" },
+    { k: "EAT-26", full: "Atitudes alimentares", tone: "rosa", val: 0.74 },
+    { k: "TFEQ-21", full: "Comportamento alimentar", tone: "verde" },
+    { k: "PSQI", full: "Qualidade do sono", tone: "roxo" },
+    { k: "QFA", full: "Frequência alimentar", tone: "amarelo" },
+    { k: "BSQ", full: "Imagem corporal", tone: "rosa" },
+    { k: "IES-2", full: "Comer intuitivo", tone: "verde" },
   ];
+  // Cada foco carrega o SEU dataset — é isto que faz o gráfico SE RE-PLOTAR
+  // (as barras sobem e descem) a cada troca, em vez de ficar um gráfico parado
+  // com uma luz passeando por cima. A ordem dos valores segue `instruments`.
+  // A altura mora no scaleY, não no `height`: transform não dispara layout, e
+  // o mesmo canal já serve pra entrada (0 → valor).
   const insights = [
-    { k: "EAT-26", n: "19", of: "/ 78 pts", msg: "Acima do limiar de risco (20). Vale investigar restrição.", warn: true },
-    { k: "PSQI", n: "8", of: "/ 21 pts", msg: "Sono ruim há 3 semanas — pode estar puxando a fome.", warn: true },
-    { k: "BSQ", n: "82", of: "/ 204 pts", msg: "Insatisfação corporal moderada. Acompanhar de perto.", warn: false },
+    { k: "EAT-26", n: 19, of: "/ 78 pts", msg: "Acima do limiar de risco (20). Vale investigar restrição.", vals: [0.78, 0.42, 0.55, 0.64, 0.86, 0.48] },
+    { k: "PSQI", n: 8, of: "/ 21 pts", msg: "Sono ruim há 3 semanas — pode estar puxando a fome.", vals: [0.6, 0.53, 0.36, 0.72, 0.8, 0.58] },
+    { k: "BSQ", n: 82, of: "/ 204 pts", msg: "Insatisfação corporal moderada. Acompanhar de perto.", vals: [0.68, 0.38, 0.62, 0.5, 0.94, 0.44] },
   ];
   const [i, ref, entered] = useAutoCycle(insights.length, 3400);
   const ins = insights[i];
+  const activeFull = instruments.find((x) => x.k === ins.k)?.full ?? "";
+  const focusIdx = instruments.findIndex((x) => x.k === ins.k);
+  const PLOT = 116; // altura do gráfico em px — o reflexo parte do mesmo chão
+  const REFLECT = 24;
+
+  const scopeRef = useRef<HTMLDivElement>(null);
+  const colRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const numRef = useRef<HTMLSpanElement>(null);
+  const prevFocus = useRef<number>(-1);
+  const prevNum = useRef<number>(0);
+
+  const centerX = (idx: number) => {
+    const col = colRefs.current[idx];
+    return col ? col.offsetLeft + col.offsetWidth / 2 : 0;
+  };
+
+  // ENTRADA — barras sobem em mola (back.out) com stagger, o reflexo brota
+  // atrás, o holofote acende na barra em foco e ela sobe, e o número conta de
+  // 0. Só transform/opacity/filter. Reduced-motion: estado final, sem mola.
+  useGSAP(
+    () => {
+      if (!entered) return;
+      const root = scopeRef.current;
+      if (!root) return;
+      const bars = Array.from(root.querySelectorAll<HTMLElement>(".q-bar"));
+      const refls = Array.from(root.querySelectorAll<HTMLElement>(".q-refl"));
+      const spot = root.querySelector<HTMLElement>(".q-spot");
+      if (!bars.length) return;
+      const setNum = (v: number) => { if (numRef.current) numRef.current.textContent = String(v); };
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (spot) gsap.set(spot, { xPercent: -50, x: centerX(focusIdx) });
+
+      if (reduce) {
+        gsap.set(bars, { scaleY: (idx: number) => ins.vals[idx], y: 0, opacity: 0.85, transformOrigin: "50% 100%" });
+        gsap.set(bars[focusIdx], { opacity: 1, y: -4 });
+        gsap.set(refls, { scaleY: (idx: number) => ins.vals[idx], opacity: 0.22, transformOrigin: "50% 0%" });
+        if (spot) gsap.set(spot, { autoAlpha: 0.85 });
+        setNum(ins.n);
+        prevFocus.current = focusIdx;
+        prevNum.current = ins.n;
+        return;
+      }
+
+      gsap.set(bars, { scaleY: 0, y: 0, opacity: 0.85, transformOrigin: "50% 100%" });
+      gsap.set(refls, { scaleY: 0, opacity: 0, transformOrigin: "50% 0%" });
+      if (spot) gsap.set(spot, { autoAlpha: 0 });
+      setNum(0);
+
+      const tl = gsap.timeline();
+      tl.to(bars, { scaleY: (idx: number) => ins.vals[idx], duration: 0.72, ease: "back.out(1.2)", stagger: 0.07 });
+      tl.to(refls, { scaleY: (idx: number) => ins.vals[idx], opacity: 0.22, duration: 0.5, ease: "power2.out", stagger: 0.07 }, "-=0.55");
+      if (spot) tl.to(spot, { autoAlpha: 1, duration: 0.45, ease: "power2.out" }, "-=0.4");
+      tl.to(bars[focusIdx], { opacity: 1, y: -4, filter: "brightness(1.05)", duration: 0.45, ease: "power2.out" }, "<");
+      const counter = { v: 0 };
+      tl.to(counter, {
+        v: ins.n,
+        duration: 0.95,
+        ease: "power2.out",
+        onUpdate: () => setNum(Math.round(counter.v)),
+      }, 0.15);
+
+      prevFocus.current = focusIdx;
+      prevNum.current = ins.n;
+    },
+    { scope: scopeRef, dependencies: [entered] },
+  );
+
+  // TROCA DE FOCO — o holofote VIAJA até a barra nova (ease-in-out, o movimento
+  // na tela), ela sobe e clareia, a antiga recua, e o número reconta. Só corre
+  // depois da entrada; sob reduce a entrada já congelou tudo.
+  useGSAP(
+    () => {
+      if (!entered || prevFocus.current === focusIdx) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (numRef.current) numRef.current.textContent = String(ins.n);
+        return;
+      }
+      const root = scopeRef.current;
+      if (!root) return;
+      const bars = Array.from(root.querySelectorAll<HTMLElement>(".q-bar"));
+      const refls = Array.from(root.querySelectorAll<HTMLElement>(".q-refl"));
+      const spot = root.querySelector<HTMLElement>(".q-spot");
+      const prev = prevFocus.current;
+
+      // RE-PLOT — o gráfico INTEIRO se redesenha pro dataset do novo foco: as
+      // barras sobem e descem. Stagger da esquerda pra direita pra ler como
+      // onda, não como seis barras pulando juntas. ease-in-out porque é
+      // movimento NA tela (não entrada): acelera e desacelera, que é como massa
+      // se move. O reflexo acompanha no mesmo canal, senão descola da barra.
+      gsap.to(bars, { scaleY: (idx: number) => ins.vals[idx], duration: 0.8, ease: "power3.inOut", stagger: 0.045, overwrite: "auto" });
+      gsap.to(refls, { scaleY: (idx: number) => ins.vals[idx], duration: 0.8, ease: "power3.inOut", stagger: 0.045, overwrite: "auto" });
+
+      if (spot) gsap.to(spot, { x: centerX(focusIdx), duration: 0.6, ease: "power3.inOut", overwrite: "auto" });
+      if (bars[focusIdx]) gsap.to(bars[focusIdx], { opacity: 1, y: -4, filter: "brightness(1.05)", duration: 0.45, ease: "power2.out", overwrite: "auto" });
+      if (prev >= 0 && bars[prev]) gsap.to(bars[prev], { opacity: 0.85, y: 0, filter: "brightness(1)", duration: 0.5, ease: "power2.out", overwrite: "auto" });
+
+      const counter = { v: prevNum.current };
+      gsap.to(counter, {
+        v: ins.n,
+        duration: 0.7,
+        ease: "power2.out",
+        onUpdate: () => { if (numRef.current) numRef.current.textContent = String(Math.round(counter.v)); },
+        overwrite: "auto",
+      });
+
+      prevFocus.current = focusIdx;
+      prevNum.current = ins.n;
+    },
+    { scope: scopeRef, dependencies: [focusIdx, entered] },
+  );
+
   return (
-    // pb grande até <lg e pb-7 normal dali pra cima: abaixo de lg (1024px) o
-    // grid vira 1 coluna e cada hero cresce pela PRÓPRIA altura — nada aqui
-    // estica o Antropometria, então dá pra dar folga de verdade pro Insight
-    // pousar. A partir de lg os dois heroes voltam a dividir a mesma linha
-    // do grid (o Antropometria manda), e aí a folga já vem de graça dessa
-    // divisão — pb extra ali só inflaria a linha inteira, o que é proibido.
-    <div ref={ref} className="relative mt-8 flex-1 px-7 pb-32 md:px-8 lg:pb-7">
-      {/* ASSINATURA — a Gaia lê e conclui. Os sete instrumentos entram um a um
-          de baixo, cada um com seu check dando tick logo atrás, e SÓ ENTÃO o
-          Insight pousa por cima (ver o gaia-land lá embaixo). É a promessa do
-          card em ordem: primeiro a leitura, depois a conclusão. Se o Insight
-          chegasse junto com a lista, o card diria as duas coisas ao mesmo
-          tempo e não diria nenhuma. */}
-      {/* wrapper local — igual ao "CENTRO" do MockPlano: o Insight morde a
-          quina do PAINEL, não a do container. Ancorar nele (não no container)
-          é o que faz a mordida ser sempre a mesma profundidade, não impórta
-          se a lista tem folga sobrando embaixo. */}
-      <div className="relative">
-        {/* lista de instrumentos — de fundo. Único mock sem gaia-parallax até
-            aqui; recebe a mesma receita de entrada do MockExames/MockAntropometria.
-            Recuo à esquerda (ml) abre a pista pro Insight pousar sem decapar
-            linha nenhuma; -mr cancela o padding direito do container e sangra
-            a lista até a borda real do card — mesma receita de sangria do
-            MockPlano (-left-2/-right-3), o overflow-hidden do CARD_HERO é
-            quem faz o corte. Ritmo das linhas mais seco (py-1, era py-2) e
-            pb-10 (era o p-4 padrão de 16px) só trocam ONDE dentro da lista a
-            altura mora — o total é o mesmo de antes (nada aqui pode crescer a
-            linha do grid: o Antropometria ao lado é quem dita essa altura, e
-            ela é fixa). O pb-10 sobra de propósito: é o vidro vazio embaixo
-            da última linha onde o Insight pousa por cima. */}
-        <div data-enter-delay={0} style={px(0.32)} className={"gaia-parallax ml-8 -mr-7 rounded-[18px] p-4 pb-10 md:ml-10 md:-mr-8 " + GLASS_ON_LIGHT}>
-          <div className="mb-1 flex items-baseline justify-between">
-            <span className="font-title text-[15px] font-medium text-white">7 instrumentos validados</span>
-            <span className="font-body text-[11.5px] text-white/50">pontuação automática</span>
+    <div ref={ref} className="relative mt-7 flex-1 px-7 pb-7 md:px-8 md:pb-8">
+      {/* UM cartão fundo, inset dos dois lados — header focal + gráfico. */}
+      <div ref={scopeRef} data-enter-delay={0} style={px(0.3)} className={"gaia-parallax rounded-[18px] p-4 md:p-5 " + GLASS}>
+        {/* HEADER — leitura focal (label + número grande + pill). O número é
+            dirigido pelo GSAP (conta); label/of/mensagem crossfade via Swap. */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Swap k={i}>
+              <div className="font-body text-[11.5px] text-white/50">{ins.k} · {activeFull}</div>
+            </Swap>
+            <div className="mt-1 flex items-end gap-1.5">
+              <span ref={numRef} className="font-title text-[2rem] font-medium leading-none tabular-nums text-white">{ins.n}</span>
+              <Swap k={i} className="mb-1">
+                <span className="font-body text-[12px] tabular-nums text-white/40">{ins.of}</span>
+              </Swap>
+            </div>
           </div>
-          {/* A entrada mora num WRAPPER e não na própria linha, e isso é
-              obrigatório, não estilo: gaia-meal-rise roda com fill-mode `both`,
-              que gruda o estado final (`opacity: 1`) no nó PRA SEMPRE depois de
-              terminar — e animação vence declaração comum na cascata. Na linha,
-              ela mataria o opacity-40 de quem não é o instrumento da vez e o
-              acender/apagar do ciclo nunca mais aconteceria. Separadas, cada nó
-              tem um dono só: o wrapper monta, a linha acende.
-              O divide-y é do pai e cai no filho direto — que agora é o wrapper,
-              então a régua entra junto com a linha em vez de aparecer antes. */}
-          <div className="divide-y divide-white/[0.06]">
+          <span className="mt-0.5 shrink-0 rounded-full bg-white/[0.05] px-2.5 py-1 font-body text-[10.5px] text-white/55 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
+            7 validados
+          </span>
+        </div>
+
+        {/* mensagem do insight — crossfade junto com o foco */}
+        <Swap k={i} className="mt-1.5 min-h-[15px]">
+          <p className="font-body text-[11.5px] leading-snug text-white/60">{ins.msg}</p>
+        </Swap>
+
+        {/* GRÁFICO — barras pastel com reflexo. Holofote (q-spot) viaja atrás
+            das barras; a barra em foco sobe e clareia. Motion todo em GSAP. */}
+        <div className="relative mt-4">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0" style={{ height: PLOT }}>
+            {[0, 0.34, 0.67].map((g) => (
+              <div key={g} className="absolute inset-x-0 border-t border-white/[0.04]" style={{ top: `${g * 100}%` }} />
+            ))}
+          </div>
+          <div className="relative flex items-end gap-2">
+            {/* holofote — mancha de luz suave que viaja até a barra em foco */}
+            <div
+              aria-hidden
+              className="q-spot pointer-events-none absolute bottom-0 left-0 z-0"
+              style={{
+                width: 100,
+                height: PLOT + REFLECT,
+                background: "radial-gradient(50% 52% at 50% 44%, rgba(255,255,255,0.2), rgba(255,255,255,0) 70%)",
+                filter: "blur(3px)",
+                opacity: 0,
+              }}
+            />
             {instruments.map((it, idx) => {
-              const on = it.k === ins.k;
+              // Altura CHEIA no DOM; quem define o valor é o scaleY do GSAP —
+              // é o que permite a barra subir e descer entre datasets sem
+              // reflow (transform não dispara layout).
+              const on = idx === focusIdx;
               return (
-                <div key={it.k} className={entered ? "gaia-meal-rise" : "opacity-0"} style={{ animationDelay: `${120 + idx * 60}ms` }}>
-                  <div className={"flex items-center gap-2.5 py-1 transition-opacity duration-500 " + (on ? "opacity-100" : "opacity-40")}>
-                    {/* tick 140ms atrás da linha: o quadro chega, o check marca.
-                        Juntos viram um borrão só; o atraso é o que faz ler como
-                        a Gaia pontuando o instrumento que acabou de ler. */}
-                    {/* O check da vez EMITE — glow brand no box-shadow, junto
-                        do aro interno (os dois moram na mesma propriedade,
-                        então vivem juntos nos dois ramos; separados, um
-                        shadow-[...] sobrescreveria o outro pela ordem do CSS
-                        gerado, não pela intenção). É a lanterna de leitura da
-                        Gaia: a luz está em quem ela está lendo agora. */}
-                    <span
-                      className={
-                        "grid h-5 w-5 place-items-center rounded-full transition-[background-color,box-shadow] duration-500 " +
-                        (on
-                          ? "bg-brand shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_0_12px_rgba(138,105,216,0.5)]"
-                          : "bg-white/12 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]") +
-                        (entered ? " gaia-tick" : " opacity-0")
-                      }
-                      style={{ animationDelay: `${260 + idx * 60}ms` }}
-                    >
-                      <IconCheck className="h-3 w-3 text-white" />
-                    </span>
-                    <span className="font-body text-[12.5px] font-medium text-white/90">{it.k}</span>
-                    <span className="hidden truncate font-body text-[11.5px] text-white/45 sm:block">{it.full}</span>
-                    {/* a pontuação responde à leitura: é ELA que a Gaia acabou
-                        de computar na linha ativa */}
-                    <span className={"ml-auto font-body text-[11px] tabular-nums transition-colors duration-500 " + (on ? "text-white/90" : "text-white/55")}>{it.s}</span>
+                <div
+                  key={it.k}
+                  ref={(el) => { colRefs.current[idx] = el; }}
+                  className="relative z-10 flex flex-1 flex-col items-center"
+                >
+                  <div className="flex w-full items-end justify-center" style={{ height: PLOT }}>
+                    <div
+                      className="q-bar w-[56%] rounded-t-[3px]"
+                      style={{ height: PLOT, background: QUEST_PASTEL[it.tone], boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.28)" }}
+                    />
                   </div>
+                  {/* chão — baseline de onde o reflexo parte */}
+                  <div className="h-px w-full bg-white/[0.1]" />
+                  <div className="flex w-full justify-center" style={{ height: REFLECT }}>
+                    <div
+                      aria-hidden
+                      className="q-refl w-[56%] rounded-b-[3px]"
+                      style={{
+                        height: REFLECT,
+                        background: QUEST_PASTEL_REFL[it.tone],
+                        transformOrigin: "50% 0%",
+                        // opaco junto ao chão, sumindo pra BAIXO — é assim que
+                        // reflexo se comporta. Invertido, virava mancha escura.
+                        WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)",
+                        maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)",
+                        opacity: 0,
+                      }}
+                    />
+                  </div>
+                  <span className={"mt-1.5 whitespace-nowrap font-body text-[9px] tabular-nums transition-colors duration-500 sm:text-[9.5px] " + (on ? "text-white/85" : "text-white/45")}>{it.k}</span>
                 </div>
               );
             })}
           </div>
         </div>
-
-        {/* card de Insight — flutua por cima e troca sozinho. Wrapper externo
-            carrega a entrada (gaia-parallax escreve transform); o miolo é a
-            <Swap>, que carrega a troca de conteúdo (fade-through, sem key-
-            remount) — as duas NUNCA no mesmo nó, senão uma pisa na transform
-            da outra. GLASS/FLOAT/rounded vão na `className` da Swap, não nos
-            filhos: é chrome do painel, fica FORA do grid interno e por isso
-            não duplica nem pisca no vão mudo entre saída e entrada — só o
-            miolo (tag, número, mensagem) de fato troca.
-            Ancorado NO PAINEL (-bottom/-left negativos, mesma receita da
-            Sugestão do MockPlano), não no container: a maior parte do card
-            cai FORA da lista, no vão que já existia embaixo dela, e só a
-            quina de cima morde o pb-10 — vidro vazio, nunca linha. Compactado
-            (p-2.5, número menor, gaps mais secos) porque o orçamento vertical
-            aqui é a folga que já existia, não uma nova — o -bottom-[93px] foi
-            medido no DOM, não chutado: cobre a folga que sobra abaixo da
-            lista sem deixar a mordida encostar na última linha nem o Insight
-            passar do overflow-hidden do card. */}
-        <div data-enter-delay={800} style={px(1.5, 4)} className="gaia-parallax gaia-land absolute -bottom-[93px] -left-3 z-20 w-[222px]">
-          <Swap k={i} className={"rounded-[14px] p-2.5 " + GLASS_ON_LIGHT + " " + FLOAT}>
-            <div className="flex items-center justify-between">
-              <GaiaTag>Insight · {ins.k}</GaiaTag>
-              {/* glow estático por estado (a Swap remonta o miolo a cada
-                  troca, não há o que transicionar): âmbar avisa, roxo informa */}
-              <span className={"grid h-4 w-4 place-items-center rounded-full " + (ins.warn ? "bg-warning/15 text-warning shadow-[0_0_10px_rgba(214,160,78,0.35)]" : "bg-brand/20 text-roxo-200 shadow-[0_0_10px_rgba(138,105,216,0.3)]")}>
-                <IconArrowUpRight className="h-2.5 w-2.5" />
-              </span>
-            </div>
-            <div className="mt-1 flex items-end gap-1.5">
-              <span className={"font-title text-[1.5rem] font-medium leading-none tabular-nums " + (ins.warn ? "text-warning" : "text-white")}>{ins.n}</span>
-              <span className="mb-0.5 font-body text-[10.5px] text-white/45">{ins.of}</span>
-            </div>
-            <p className="mt-1 font-body text-[11.5px] leading-snug text-white/70">{ins.msg}</p>
-          </Swap>
-        </div>
       </div>
     </div>
   );
 }
+
 
 /* ═══════════════ ANTROPOMETRIA (hero óleo) ═══════════════ */
 /* Régua única de X pros pontos E pros meses — o desalinhamento antigo vinha
@@ -1832,6 +1954,17 @@ function ExamesNovosCard() {
           </div>
         ))}
       </div>
+      {/* lastro simétrico ao da Calibragem: por que a Vitamina D está em warning
+          — 18 abaixo da faixa 30–100. O spacer 'grow' abaixo é inerte em bloco
+          (lg+, ProntuarioRight: card fecha na própria altura, lastro fica logo
+          após a lista com seu mt-3) e CRESCE no flex-col do mobile
+          (ProntuarioStacked + grid stretch): quando a Calibragem dita a altura,
+          o espaço extra vira respiro ENTRE a lista e este lastro em vez do vidro
+          vazio pendurado que a Laura vetou, e as bases dos dois cards fecham. */}
+      <div className="grow" aria-hidden />
+      <p className="mt-3 border-t border-white/10 pt-2.5 font-body text-[10px] uppercase tracking-wide text-white/40">
+        vitamina d · ref. 30–100 ng/mL
+      </p>
     </>
   );
 }
@@ -1973,17 +2106,19 @@ function ProntuarioStacked() {
           lista e quebra linha de graça, então ela e a Exames dividem o topo
           sem drama, agora na mesma largura e sem o degrau vertical que
           existia antes. */}
-      {/* items-start: o pedido foi mesma LARGURA, não mesma ALTURA. No stretch
-          default do grid a Exames (2 linhas de exame contra a lista + lastro
-          da Calibragem) era esticada pra altura da vizinha e abria ~120px de
-          vidro vazio embaixo do "Ferritina" — medido no render @430. Com
-          items-start cada card fecha na própria altura e as bases ficam
-          desencontradas de propósito: é a mesma coluna, não a mesma caixa. */}
-      <div className="grid grid-cols-2 items-start gap-2">
+      {/* stretch (default) + bases alinhadas: pedido da Laura. Antes rodava
+          items-start porque o stretch esticava a Exames e abria ~120px de vidro
+          vazio embaixo do "Ferritina" — mas agora a Exames ganhou lastro próprio
+          (ver ExamesNovosCard) que o spacer 'grow' cola na base, então o espaço
+          extra vira respiro entre a lista e o rodapé em vez de buraco. A
+          Calibragem segue ditando a altura (3 linhas + quebra + lastro); o
+          wrapper flex-col é o que deixa o grow da Exames empurrar o lastro pra
+          baixo. items-stretch fica implícito no default do grid. */}
+      <div className="grid grid-cols-2 gap-2">
         <div data-enter-delay={0} style={px(0)} className={"gaia-parallax gaia-from-left rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
           <CalibragemCard />
         </div>
-        <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-right rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
+        <div data-enter-delay={90} style={px(0)} className={"gaia-parallax gaia-from-right flex flex-col rounded-[16px] p-4 " + GLASS_ON_LIGHT + " " + FLOAT}>
           <ExamesNovosCard />
         </div>
       </div>
@@ -2860,39 +2995,37 @@ export default function Features() {
             </div>
           </article>
 
-          {/* B — Questionários (hero verde) */}
-          <article data-card className={CARD_HERO + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/questionarios-esmeralda.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-top" />
-            {/* object-top não é só enquadramento — é a metade da conta de
-                contraste que o véu sozinho não fecha. Medido no render (corpo
-                real hero white/70, p95 = pior ponto local, não a média):
-                object-top dá 6,28:1. O topo escuro da imagem sobe pra trás do
-                texto e a faixa clara desce pro rodapé, atrás do mock — o card
-                ganha contraste E mantém a parte bonita visível, só que mais
-                embaixo. Confirmado no screenshot renderizado, não só calculado.
-                Véu LEVE e chapado (0,27), não gradiente — mesmo alpha de antes,
-                razão diferente agora que o fundo é a esmeralda escura: existe
-                pra assentar a gradiente, não pra domar foto clara que ofusca.
-                Chapado de propósito: gradiente de véu existia pra domar foto, que
-                tem assunto e regiões. Uma gradiente já É uniforme — véu com stops
-                em cima só brigaria com o desenho dela.
-                O Hotspot que saiu era branco em mix-blend-plus-lighter — a razão
-                de ter saído (plus-lighter estoura sobre pastel) caducou com a
-                troca pra fundo escuro. A volta dele não foi avaliada. */}
-            <div className="absolute inset-0 bg-[rgba(10,14,10,0.27)]" />
-            {/* O Glow FICA, e agora rende mais que antes: ele não é tinta, é
-                backdrop-filter saturate(1.55) — amplifica o que está atrás. Atrás
-                dele há gradiente esmeralda de verdade, então ele adensa o verde na
-                quina em vez de lavar. É a única camada de luz que sobrevive à
-                inversão, porque é a única que trabalha COM o fundo. */}
-            <Glow className="bottom-[-4%] left-[-10%] h-80 w-80" />
-            <Grain at="18% 100%" />
-            <EdgeLight at="18% 100%" />
+          {/* B — Questionários (escuro neutro, igual ao A) */}
+          {/* A esmeralda SAIU, e essa é a decisão do card. Ele era o único hero
+              com foto colorida acesa, e isso brigava com tudo que se pusesse por
+              cima: o gráfico do mock é pastel (rosa/roxo/verde/amarelo) e pastel
+              sobre campo verde vira lama — a referência (splash) só funciona
+              porque a superfície dela é neutra e quase-preta. Agora a COR do
+              card mora nas barras, não no fundo, que é exatamente a gramática da
+              referência. De quebra o card volta pra família: mesma superfície do
+              Antropometria ao lado (CARD + Grain + Glow + Hotspot + EdgeLight),
+              mesmo vidro no painel (GLASS), então os dois heroes de cima leem
+              como par em vez de um aceso e um escuro.
+              Com a foto foi junto a conta de contraste dela (o véu 0,27 e o
+              object-top existiam pra domar a imagem) e o `tone="hero"` do corpo:
+              white/70 era o piso exigido por foto embaixo do texto. Sem foto, o
+              corpo volta pro `dark` (white/55) dos irmãos sem foto — ver a nota
+              do CardBody: o gatilho é o contraste medido, não o gosto. */}
+          <article data-card className={CARD + " min-h-[440px] lg:col-start-2 lg:row-start-1"}>
+            {/* Rig de luz ESPELHADO do card A, de propósito: mesma superfície
+                pede a mesma lâmpada. A primeira tentativa pôs o Hotspot em
+                left-[18%] pra "seguir o holofote do mock" e virou um borrão na
+                quina — fonte pontual perto do canto lê como vazamento, não como
+                luz. No centro-baixo ela nasce atrás do gráfico, que é onde a
+                leitura termina nos dois cards. */}
+            <Grain at="50% 100%" />
+            <Glow className="left-[-14%] top-[34%] h-80 w-80" />
+            <Hotspot className="bottom-[-110px] left-1/2 h-[300px] w-[380px] -translate-x-1/2" />
+            <EdgeLight at="50% 100%" />
             <div className="relative flex h-full flex-col">
               <div className="px-7 pt-7 md:px-8 md:pt-8">
                 <CardTitle>Questionários</CardTitle>
-                <CardBody tone="hero">Sete instrumentos validados (EAT-26, QFA, PSQI e outros), com pontuação automática.</CardBody>
+                <CardBody>Sete instrumentos validados (EAT-26, QFA, PSQI e outros), com pontuação automática.</CardBody>
               </div>
               <MockQuestionarios />
             </div>
@@ -3151,7 +3284,7 @@ export default function Features() {
                 <div
                   data-phone-start
                   aria-hidden
-                  className="pointer-events-none relative mx-auto -mb-28 mt-3 h-[525px] w-[220px]"
+                  className="pointer-events-none relative mx-auto -mb-28 mt-3 h-[448px] w-[260px]"
                 />
               </div>
 
