@@ -16,9 +16,9 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
 });
 
 /* ── Pricing ────────────────────────────────────────────────────────────────
-   Layout 2026-07-19 (mockup da Laura): o campo florido vira o HERO da seção —
+   Layout 2026-07-19 (mockup da Pronit): o campo florido vira o HERO da seção —
    full-bleed, aresta de baixo RETA — e dois cards montam sobre a metade de
-   baixo dele. O mockup trazia cards brancos e accent laranja; a Laura pediu o
+   baixo dele. O mockup trazia cards brancos e accent laranja; a Pronit pediu o
    VIDRO que o card antigo já tinha (gradiente diagonal lavanda→creme denso,
    sheen, borda de luz) e a paleta do DS — só o CONTEÚDO segue o mockup.
    Card 1 (trial, LARGO): headline serifada "Teste grátis", subtítulo, o CTA
@@ -34,7 +34,7 @@ const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
    overlay na aresta de BAIXO dele (r.bottom), então o phone lê como mergulhando
    pra dentro do tab.
 
-   Mobile (<lg), mock da Laura 2026-07-20: o campo também é o HERO — mas em
+   Mobile (<lg), mock da Pronit 2026-07-20: o campo também é o HERO — mas em
    vez de full-bleed cortado, a imagem encolhe pro recorte retrato caber com
    TODO o contexto (céu, o "A", as duas colinas, flores) e o pé dela dissolve
    numa BANDA ESCURA (ink) que hospeda o pouso do phone e o card de preço,
@@ -62,7 +62,7 @@ const INCLUDES = [
 
 /* PREÇOS por período — o toggle Anual/Mensal troca o lockup inteiro (mensal
    equivalente + linha de total). Mensal é o preço vigente (R$ 49,90); o anual
-   (R$ 39,90/mês → 478,80/ano) é PLACEHOLDER de negócio até a Laura cravar o
+   (R$ 39,90/mês → 478,80/ano) é PLACEHOLDER de negócio até a Pronit cravar o
    desconto real. `monthly` como string já formatada porque é texto de UI, não
    aritmética — o único consumidor numérico (count-up) faz o parse dele. */
 const PRICES = {
@@ -86,7 +86,7 @@ const GLASS_DESKTOP =
 const CARD_SHEEN =
   "pointer-events-none absolute inset-0 rounded-card shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)]";
 
-/* TAB atrás do phone — iteração 2026-07-20 (2ª volta): a Laura vetou o flare
+/* TAB atrás do phone — iteração 2026-07-20 (2ª volta): a Pronit vetou o flare
    côncavo na saída ("não quero que aumente na saída") e mandou a referência —
    o TRAPÉZIO do Figma de volta, AFUNILANDO na descida, só que de cantos
    arredondados e mais raso. Shape em clip-path:path() com coordenadas
@@ -282,7 +282,7 @@ export default function Pricing() {
       /* lg:pb-36 — o pb só precisa CONTER o SVG (o tab trapezoidal, onde o
          phone mergulha): medido, a base do tab cai 120px abaixo do rodapé dos
          cards, então 144px fecham a section ~24px depois dela. Era pb-72
-         (288px) e sobrava um vão de creme de ~168px ABAIXO do SVG — a Laura
+         (288px) e sobrava um vão de creme de ~168px ABAIXO do SVG — a Pronit
          pediu o fundo "até o svg no máximo" pra matar essa transição vazia
          gigante. O respiro/costura com a próxima seção agora é do topo da
          Testimonials (fade creme→verde de h-52), não deste creme morto. */
@@ -513,7 +513,7 @@ export default function Pricing() {
       {/* ══ MOBILE (<lg) ══════════════════════════════════════════════════
           O campo como HERO retrato (ver o bloco de comentário no topo): a
           imagem NÃO é full-bleed cortado — o recorte h-[58svh] (era 70svh,
-          2026-07-21: medido @430×932 o hero ia de 12812 a 13464 e a Laura
+          2026-07-21: medido @430×932 o hero ia de 12812 a 13464 e a Pronit
           pediu a seção mais baixa — 58svh fecha em ~13353, ~111px a menos)
           mostra o contexto inteiro (céu estrelado, o "A", as duas colinas,
           as flores) e o pé da grama fecha na banda escura via degradê. */}
@@ -533,7 +533,7 @@ export default function Pricing() {
             alt=""
             aria-hidden
             decoding="async"
-            /* h-[58svh] (era 70svh, 2026-07-21 — a Laura pediu a seção mais
+            /* h-[58svh] (era 70svh, 2026-07-21 — a Pronit pediu a seção mais
                baixa e o phone pousando SOBRE a grama, não numa faixa preta
                abaixo dela): a altura fixa o recorte e a largura da tela
                decide o quanto sobra dos lados — no phone vira o retrato do
@@ -576,7 +576,7 @@ export default function Pricing() {
               Fix: tirar a âncora do fluxo. `absolute` não participa de
               margin collapse — a posição dela não pode mais empurrar o pai.
               A banda recupera o padding-top (`pt-[188px]` acima, era 236 —
-              2026-07-21, a Laura pediu o card mais alto) pra RESERVAR o
+              2026-07-21, a Pronit pediu o card mais alto) pra RESERVAR o
               espaço do pouso — padding não colapsa, ao contrário de margin.
 
               GEOMETRIA ALVO (doc, @430×932 — confira com

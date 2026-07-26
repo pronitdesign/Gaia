@@ -8,10 +8,10 @@ import Pricing from "@/components/sections/Pricing";
 import CTAFinal from "@/components/sections/CTAFinal";
 
 // ═══ Bloco do Kácio (topo da página) — portado de origin/main pra dentro da
-// estrutura da Laura. Tokens namespaceados em `k-*`, fonte de corpo Clash
+// estrutura da Pronit. Tokens namespaceados em `k-*`, fonte de corpo Clash
 // Grotesk escopada no wrapper. A HeroGrid já inclui a Navbar. Topo:
 // LoadingScreen → HeroGrid → Benefits. Testimonials e Faq saíram daqui e foram
-// pra baixo da Pricing (bloco de fechamento antes do CTA), a pedido da Laura.
+// pra baixo da Pricing (bloco de fechamento antes do CTA), a pedido da Pronit.
 import LoadingScreen from "@/components/kacio/LoadingScreen";
 import HeroGrid from "@/components/kacio/HeroGrid";
 import Benefits from "@/components/kacio/Benefits";
@@ -29,7 +29,7 @@ export default function Home() {
     <main>
       {/* ═══ Parte do Kácio — topo da página, na ordem original dele. A fonte
           de corpo (Clash Grotesk) fica escopada neste wrapper pra não tocar no
-          corpo da Laura (Clash Display via --font-body). A Navbar vem dentro da
+          corpo da Pronit (Clash Display via --font-body). A Navbar vem dentro da
           HeroGrid; a LoadingScreen é overlay fixo que some após o vídeo. */}
       <div className="font-grotesk">
         <LoadingScreen />
@@ -37,7 +37,7 @@ export default function Home() {
         <Benefits />
       </div>
 
-      {/* ═══ Parte da Laura ═══ */}
+      {/* ═══ Parte da Pronit ═══ */}
       <ComoComecar />
       <ARoberta />
       <Features />
@@ -47,7 +47,7 @@ export default function Home() {
           Pricing não cabem em dois tempos de scroll; ver o cabeçalho dela. */}
       <Mergulho />
       <Pricing />
-      {/* Fechamento do Kácio — abaixo da Pricing, antes do CTA (pedido da Laura):
+      {/* Fechamento do Kácio — abaixo da Pricing, antes do CTA (pedido da Pronit):
           Depoimentos ("Quem já atende com a Gaia") logo após o preço, e o FAQ por
           último. O wrapper `font-grotesk` mantém a fonte de corpo deles; os
           headings já são font-display (Sentient). */}

@@ -70,7 +70,7 @@ const config: Config = {
         error: "#C05B5B",
         info: "#7A90AE",
         // Bloco do Kácio (topo da página) — paleta dele namespaceada em `k-*`
-        // pra não colidir com os tokens da Laura (o `ink` dela é #000A1A, o
+        // pra não colidir com os tokens da Pronit (o `ink` dela é #000A1A, o
         // dele #0a101a). Só os componentes em components/kacio/ usam.
         k: {
           ink: "#0a101a",
@@ -83,7 +83,7 @@ const config: Config = {
       fontFamily: {
         title: ["var(--font-title)", "serif"],
         body: ["var(--font-body)", "sans-serif"],
-        // Bloco do Kácio: display=Sentient (=title da Laura), nav=ClashDisplay
+        // Bloco do Kácio: display=Sentient (=title da Pronit), nav=ClashDisplay
         // (=body), grotesk=ClashGrotesk (fonte de corpo própria dele).
         display: ["var(--font-title)", "serif"],
         nav: ["var(--font-body)", "sans-serif"],
@@ -91,7 +91,7 @@ const config: Config = {
       },
       fontSize: {
         // Escala FLUIDA (clamp): o máximo é o tamanho de desktop original — então
-        // ≥~960px fica idêntico ao que a Laura tunou, e abaixo disso o título
+        // ≥~960px fica idêntico ao que a Pronit tunou, e abaixo disso o título
         // encolhe sozinho em vez de estourar o mobile. Só os títulos grandes
         // (display/h1/h2) ganham clamp; h3/body pra baixo já são tamanhos mobile-ok.
         display: [

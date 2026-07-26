@@ -229,7 +229,7 @@ function GlassCard({
 
 /** posição do card principal: no mobile o card desce pra BASE, ancorado na
     lateral OPOSTA ao rosto da foto (cada painel escolhe o lado), logo acima
-    do texto — topo-centro tampava o rosto (mock da Laura, 2026-07-20). O
+    do texto — topo-centro tampava o rosto (mock da Pronit, 2026-07-20). O
     mt-auto empurra card+texto pro pé do painel como um bloco só; mb-6 é o
     respiro até o título. Desktop intocado: ancora na FAIXA INFERIOR-direita,
     na mesma linha de visão do título (cluster de HUD). */
@@ -264,7 +264,7 @@ function PhotoBg({ src, focus = "object-center" }: { src: string; focus?: string
     <div aria-hidden className="pointer-events-none absolute inset-0">
       {/* base escura do phone: é ELA que a máscara da foto revela. Sem essa
           camada o fade dissolvia pro pastel do painel e a metade de baixo
-          nascia clara (veto da Laura, 2026-07-21 — mask escura no bottom).
+          nascia clara (veto da Pronit, 2026-07-21 — mask escura no bottom).
           roxo-900 e não preto: a transição não passa por breu. */}
       <div className="absolute inset-0 bg-roxo-900 md:hidden" />
       <img
@@ -295,7 +295,7 @@ function Glow() {
     <div
       aria-hidden
       /* hidden md:block — no phone os 420px cobrem a tela quase inteira e o
-         branco a 40% lava o rosto da foto (veto da Laura, 2026-07-20). */
+         branco a 40% lava o rosto da foto (veto da Pronit, 2026-07-20). */
       className="pointer-events-none absolute right-[6%] top-1/2 hidden h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-neutro-0/40 blur-3xl md:block"
     />
   );
@@ -338,7 +338,7 @@ export function Panel1({ active, reduced, step }: PanelProps) {
           <GlassCard aria dim active={active} delay={120} className="absolute -right-5 -top-6 h-full w-full" />
           {/* p-4 no phone (md volta a p-6): o card de 232px com padding de
               desktop virava torre — conteúdo também enxuga via max-md abaixo
-              (pedido da Laura, 2026-07-21: cards menores e adaptáveis). */}
+              (pedido da Pronit, 2026-07-21: cards menores e adaptáveis). */}
           <GlassCard active={active} delay={120} sheen className="p-4 md:p-6">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-body text-small font-semibold text-white">

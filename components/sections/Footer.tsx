@@ -296,7 +296,7 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
             NOMINAL do viewBox erra por quase um ponto. */}
           <div className="inline-flex flex-col items-start gap-[7px]">
             <span className="font-body text-[11px] uppercase leading-none tracking-[0.09em] text-white/30">
-              Designed by
+              Made by
             </span>
             <a
               href="https://www.instagram.com/pronitdesign/"

@@ -66,11 +66,11 @@ export default function Mergulho() {
          ScrollPhone). O scroll do mergulho não precisa mais morar aqui: ele vem
          de graça do Pricing subindo, que é um viewport inteiro.
          6vh, E ELA NÃO É MAIS UMA ESCOLHA — É UM RESTO.
-         (Foi 15vh por uma rodada; a Laura olhou e pediu a água MAIS PRA CIMA.
+         (Foi 15vh por uma rodada; a Pronit olhou e pediu a água MAIS PRA CIMA.
          O vão texto→superfície estava em 310px — 66 do line-box do texto, 126
          do pb do Manifesto, 118 daqui. Cortou-se dos dois lados: 6vh aqui e
          pb 8vh lá, vão final ~176px. Se um dia subir de novo, é ESTE número
-         que a Laura calibra a olho — os dois paddings são só onde ele mora.)
+         que a Pronit calibra a olho — os dois paddings são só onde ele mora.)
          Foram 120vh (a água morava aqui e precisava de scroll próprio), depois
          60vh. Os dois números morreram pelo mesmo motivo: a partir do momento em
          que a linha É a base desta seção, a altura daqui deixou de ser "quanto
@@ -89,7 +89,7 @@ export default function Mergulho() {
          Pricing (ver lá). É por isso que esta seção pode encolher sem espremer
          nada — ela não carrega mais tempo, só distância.
          Mobile é 10vh e sem água nenhuma: lá isto é só um respiro fino de navy
-         entre o Manifesto e o campo do Pricing. Foi 70vh, depois 42vh, e a Laura
+         entre o Manifesto e o campo do Pricing. Foi 70vh, depois 42vh, e a Pronit
          ainda via "esse espaço" — o phone boiando num vão navy vazio antes do
          campo entrar (Image #4, 2026-07-22). No mobile o Mergulho não carrega
          água nenhuma (o phone viaja mas a cena da água é desktop), então o vão

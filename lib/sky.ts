@@ -50,7 +50,7 @@ export type SkyStop = {
    O Pricing deixou de começar claro (creme/lavanda) — hoje ele abre no céu
    escuro do campo florido (pricing-campo-bg, topo ~#0E133A→#151948). O Manifesto
    morria em #C0B0D7 (lavanda claro) e essa cauda aparecia como uma FAIXA CLARA no
-   meio da transição, antes de o campo entrar (o "branco no centro" que a Laura
+   meio da transição, antes de o campo entrar (o "branco no centro" que a Pronit
    apontou). Agora a cauda desce pro índigo do campo: a section de textos termina
    no MESMO tom em que a de pricing começa, e a mask do topo do campo
    ([data-campo] em Pricing) costura as duas sem faixa clara.
@@ -58,7 +58,7 @@ export type SkyStop = {
    é lida, calibração que já valia. Só a cauda mudou de lavanda pra índigo. */
 /* A CAUDA AGORA CRAVA O NAVY EXATO DO VÍDEO (#0E133B), não mais #151948.
    O campo virou VÍDEO (a mesma imagem em motion, ver [data-campo] em Pricing) e o
-   pedido da Laura é a section de textos terminar EXATAMENTE no tom em que o vídeo
+   pedido da Pronit é a section de textos terminar EXATAMENTE no tom em que o vídeo
    abre. O topo de pricing-campo-bg (= frame 1 do vídeo) é #0E133B; #151948 lia um
    toque mais claro/roxo. Os dois últimos stops seguram #0E133B chapado nos ~6% de
    baixo, então a base do Manifesto É esse navy — e a mask bottom da section (ver
@@ -92,7 +92,7 @@ export const SKY_STOPS: SkyStop[] = [
    segunda derivada = BANDA DE MACH: o olho inventa uma linha branca na quina,
    mesmo sem nenhum pixel mais claro que o creme (medido: 0 pixels acima de
    #FAF9F5 na zona, e a "faixa branca" continuava lá). Foi o "corte seco" que a
-   Laura apontou @1920.
+   Pronit apontou @1920.
 
    A cura é geométrica, não de cor: a transição precisa de DISTÂNCIA e de slope
    ZERO nas duas pontas. Numa faixa de 57px não cabe. Então o Mergulho fica

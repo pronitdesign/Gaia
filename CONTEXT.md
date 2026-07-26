@@ -41,7 +41,7 @@ Nutricionistas de consultório (muitos do ecossistema/formação da Roberta) que
 
 ## 4. Arquitetura do site + estado da copy
 
-> ⚠️ **A copy aprovada abaixo é do posicionamento ANTIGO (anamnese pré-consulta).** Está marcada `[SUPERSEDED]`. Cada seção traz o que precisa passar a comunicar no novo posicionamento (`→ novo`). A copy final do novo posicionamento ainda **não foi aprovada** — não inventar; escrever draft e validar com a Laura/Roberta.
+> ⚠️ **A copy aprovada abaixo é do posicionamento ANTIGO (anamnese pré-consulta).** Está marcada `[SUPERSEDED]`. Cada seção traz o que precisa passar a comunicar no novo posicionamento (`→ novo`). A copy final do novo posicionamento ainda **não foi aprovada** — não inventar; escrever draft e validar com a Pronit/Roberta.
 
 Regras de copy (mantêm-se): headline ≤8 palavras (benefício direto), sub ≤20 palavras, CTA = verbo + valor. **Nunca** "Saiba mais", nunca slider na hero, no máx. 1 CTA primário por viewport.
 
@@ -148,16 +148,16 @@ Hero e seções imersivas. Idealmente **animados** (mesh/flow lento). Biblioteca
 | 1 | HERO | 9:375 | Kácio |
 | 2 | BENEFITS | 9:403 | Kácio |
 | 3 | MISSÃO DA GAIA | 9:581 | Kácio |
-| 4 | COMO COMEÇAR | 9:433 | **Laura** |
-| 5 | A ROBERTA | 9:579 | **Laura** |
-| 6 | FEATURES | 9:448 | **Laura** |
-| 7 | PRICING | 9:508 | **Laura** |
+| 4 | COMO COMEÇAR | 9:433 | **Pronit** |
+| 5 | A ROBERTA | 9:579 | **Pronit** |
+| 6 | FEATURES | 9:448 | **Pronit** |
+| 7 | PRICING | 9:508 | **Pronit** |
 | 8 | TESTIMONIALS | 9:523 | Kácio |
 | 9 | FAQ | 9:538 | Kácio |
-| 10 | CTA FINAL | 9:553 | **Laura** |
-| 11 | FOOTER | 9:567 | **Laura** |
+| 10 | CTA FINAL | 9:553 | **Pronit** |
+| 11 | FOOTER | 9:567 | **Pronit** |
 
-Laura constrói: **Como Começar, A Roberta, Features, Pricing, CTA Final, Footer.** Nenhuma inclui o hero → motion do lado dela = scroll reveals (Lenis + GSAP), sem shader/WebGL.
+Pronit constrói: **Como Começar, A Roberta, Features, Pricing, CTA Final, Footer.** Nenhuma inclui o hero → motion do lado dela = scroll reveals (Lenis + GSAP), sem shader/WebGL.
 
 ## 8. Regras de conversão & anti-padrões
 - Hero: headline (benefício) + sub (contexto) + visual (produto) + CTA + prova. **Nunca slider.**

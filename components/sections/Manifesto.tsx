@@ -27,7 +27,7 @@ const CURVE_2 = "M 0 96 Q 250 154 500 100 Q 750 52 1000 116";
    O curso NÃO é o mesmo nos dois breakpoints porque a FONTE não é (ver os
    text-[..px] nos <text>). A regra é geométrica: textAnchor é middle, então a
    frase ocupa [centro − metade, centro + metade] do path e nenhuma das pontas
-   pode sair de [0,100], senão a frase é CORTADA na curva — o que a Laura vetou
+   pode sair de [0,100], senão a frase é CORTADA na curva — o que a Pronit vetou
    ("desde que passem na animação curva por completo"). Logo o curso máximo é
    `centro ∈ [frac/2, 100−frac/2]`, com `frac` = quanto do path a frase mede.
 
@@ -77,7 +77,7 @@ const NOISE =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 /* fontSize saiu daqui pra virar RESPONSIVO — mobile pede a frase maior (pedido
-   da Laura 2026-07-22), e o tamanho vai por classe (text-[80px] lg:text-[64px])
+   da Pronit 2026-07-22), e o tamanho vai por classe (text-[80px] lg:text-[64px])
    nos <text>, não inline, senão o style ganharia da classe. Em SVG o "px" da
    font-size cai em UNIDADES DO viewBox (1000×200), então 80 unidades ≈ 34px
    renderizado no phone (430px de largura) contra os 27,5px que 64 dava. O curso
@@ -182,7 +182,7 @@ export default function Manifesto() {
          seção. Ver NÉVOA em ScrollPhone. */
       data-sky-manifesto
       aria-label="Você cuida da pessoa. A Gaia cuida do resto."
-      /* O RODAPÉ CEDE (pb 42vh → 16vh → 8vh; a segunda descida foi a Laura pedindo a água mais pra cima — o vão total texto→superfície é calibrado a olho, ver Mergulho.tsx), E SÓ NO MD+ — o pt fica intacto.
+      /* O RODAPÉ CEDE (pb 42vh → 16vh → 8vh; a segunda descida foi a Pronit pedindo a água mais pra cima — o vão total texto→superfície é calibrado a olho, ver Mergulho.tsx), E SÓ NO MD+ — o pt fica intacto.
          `justify-between` joga as duas frases nas pontas da caixa de conteúdo,
          então o pb é literalmente a distância de "A Gaia cuida do resto." até o
          fim da seção — e, desde que a linha d'água virou a base do Mergulho
@@ -191,14 +191,14 @@ export default function Manifesto() {
          este padding.
          Não é o Manifesto perdendo respiro pro mergulho: é a frase passando a
          ter um chão. "A Gaia cuida do resto." dita sobre o mar, quase encostando
-         nele, é a leitura — e a régua é a referência da Laura, onde a frase e a
+         nele, é a leitura — e a régua é a referência da Pronit, onde a frase e a
          linha dividem o quadro. Com 42vh ela terminava no vácuo e a água chegava
          um viewport depois, quando ela já tinha ido embora.
          O pt segue 42vh: "Você cuida da pessoa." nasce do escuro do Features e
          essa entrada não mudou. A caixa deixou de ser simétrica porque as duas
          pontas deixaram de fazer a mesma coisa — a de cima abre um capítulo, a
          de baixo agora encosta noutro. */
-      /* COMPACTAÇÃO MOBILE/TABLET (<lg, 2026-07-22) — a Laura mandou tirar "esse
+      /* COMPACTAÇÃO MOBILE/TABLET (<lg, 2026-07-22) — a Pronit mandou tirar "esse
          espaço" entre "A Gaia cuida do resto." e o campo do Pricing (Image #4: o
          phone boiando num vão navy vazio). O vão era pb-30vh(280px) + Mergulho
          42vh(391px) ≈ 670px de navy morto.

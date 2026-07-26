@@ -1977,7 +1977,7 @@ function ExamesNovosCard() {
           após a lista com seu mt-3) e CRESCE no flex-col do mobile
           (ProntuarioStacked + grid stretch): quando a Calibragem dita a altura,
           o espaço extra vira respiro ENTRE a lista e este lastro em vez do vidro
-          vazio pendurado que a Laura vetou, e as bases dos dois cards fecham. */}
+          vazio pendurado que a Pronit vetou, e as bases dos dois cards fecham. */}
       <div className="grow" aria-hidden />
       <p className="mt-3 border-t border-white/10 pt-2.5 font-body text-[10px] uppercase tracking-wide text-white/40">
         vitamina d · ref. 30–100 ng/mL
@@ -2078,7 +2078,7 @@ function ProntuarioLeft() {
    248px e o phone RENDERIZA 326 — o glb no START_G nasce ~35px mais largo de
    cada lado que a caixa que marca o lugar dele. A borda real do aparelho está
    em x 883, não 844, e o cluster começava em 888,8: fresta REAL de 5,8px, o
-   Calibrado encostado no phone (o print da Laura). w-[240px] com a borda quase
+   Calibrado encostado no phone (o print da Pronit). w-[240px] com a borda quase
    no fim do palco recompõe a folga em ~60px, medidos contra o pixel do
    aparelho. Quem for mexer nisto de novo: mede o phone no render, a âncora
    mente sobre o tamanho dele. */
@@ -2101,7 +2101,7 @@ function ProntuarioRight() {
    nasce EMBAIXO deles, centrado, atravessando a borda de baixo do card (ver a
    âncora no palco mobile). Antes a pilha vivia à esquerda com o phone por
    cima, e o overlay (z-60, acima do conteúdo do card) tampava os três.
-   ARRANJO (pedido da Laura, 2026-07-21): dupla de largura IGUAL em cima
+   ARRANJO (pedido da Pronit, 2026-07-21): dupla de largura IGUAL em cima
    (Calibragem | Exames) e uma faixa cheia embaixo (Plano Ativo). A colagem
    solta anterior — larguras divergentes (176/138/248), degrau vertical na
    Exames e o Plano empurrado pra direita por ml-auto — saiu junto.
@@ -2112,7 +2112,7 @@ function ProntuarioStacked() {
     <div className="-mx-4 mt-7 lg:hidden">
       {/* px(0): entram, mas não seguem o cursor nem tortas — dedo não tem
           hover; depth aqui seria peso de will-change sem contrapartida.
-          Pedido da Laura: duas colunas IGUAIS em cima (Calibragem | Exames,
+          Pedido da Pronit: duas colunas IGUAIS em cima (Calibragem | Exames,
           grid-cols-2 — o minmax(0,1fr) que o Tailwind já embute nessa
           utility impede o conteúdo de estourar a coluna, ao contrário de um
           flex comum) e o Plano Ativo embaixo ocupando a largura TOTAL das
@@ -2123,7 +2123,7 @@ function ProntuarioStacked() {
           lista e quebra linha de graça, então ela e a Exames dividem o topo
           sem drama, agora na mesma largura e sem o degrau vertical que
           existia antes. */}
-      {/* stretch (default) + bases alinhadas: pedido da Laura. Antes rodava
+      {/* stretch (default) + bases alinhadas: pedido da Pronit. Antes rodava
           items-start porque o stretch esticava a Exames e abria ~120px de vidro
           vazio embaixo do "Ferritina" — mas agora a Exames ganhou lastro próprio
           (ver ExamesNovosCard) que o spacer 'grow' cola na base, então o espaço
@@ -2163,14 +2163,14 @@ export default function Features() {
          Aqui não há transição de página.
 
          QUINTA RODADA (mecanismo ATUAL — o resto deste bloco, incluindo os
-         parágrafos "cortina" abaixo, é HISTÓRICO): a Laura viu na tela e
+         parágrafos "cortina" abaixo, é HISTÓRICO): a Pronit viu na tela e
          reprovou a ORDEM de entrada (bentos aparecendo antes do título), não
          o scrub em si. Causa: a cortina (clipPath dirigido por `eased`,
          #features cravado em y:-naturalTop) revela a section de BAIXO PRA
          CIMA — pra QUALQUER deslocamento uniforme do conteúdo, a peça com
          offsetTop MENOR (o h2, no topo) é sempre revelada por ÚLTIMO. Não era
          ajustável tunando LEAD_FRAC/DUR_MAX — é a mecânica da MÁSCARA que
-         fixava a ordem. A Laura escolheu: o Features sobe como BLOCO, sem
+         fixava a ordem. A Pronit escolheu: o Features sobe como BLOCO, sem
          clip, liderado pela própria borda de CIMA (ver ARoberta.tsx,
          applyTransition, o gsap.set(featuresEl,...) final — QUINTA RODADA lá
          também). Não há mais "cortina": #features não é mais cravado, ele
@@ -2239,7 +2239,7 @@ export default function Features() {
          408 e 848 — a borda cruza 848 bem antes de p=0.46), mas o gatilho
          só disparava em p≈0.46. Entre 0.19 e 0.46 a cortina abria sobre
          cards ainda em opacity:0 (o gsap.set logo abaixo) — um retângulo
-         preto por ~27% da janela de scroll, exatamente o que a Laura via.
+         preto por ~27% da janela de scroll, exatamente o que a Pronit via.
          O erro original comparava o gatilho com o ponto em que a cortina
          alcança a BASE dos cards (p≈0.51 — perto de 0.46, parecia margem
          de sobra); o que importa é o TOPO deles (p≈0.19), bem mais cedo.
@@ -2264,7 +2264,7 @@ export default function Features() {
          timeline de TEMPO REAL (~2,1s) coincidir com uma cortina dirigida por
          SCROLL, movendo o gatilho pra cada vez mais cedo. Mover o gatilho pra
          "top bottom" (p≈0) matou o retângulo preto, mas comprou o problema
-         oposto, que é o que a Laura viu e chamou: num scroll normal a janela
+         oposto, que é o que a Pronit viu e chamou: num scroll normal a janela
          inteira leva bem mais que 2,1s, então a timeline TERMINA muito antes
          de a cortina abrir e a máscara sobe sobre uma cena JÁ ASSENTADA — a
          entrada acontece toda escondida atrás da ARoberta. Nenhum gatilho
@@ -2333,7 +2333,7 @@ export default function Features() {
          cujo topo está `offsetTop` px abaixo do topo do bloco é revelada
          quando (1-eased)*vh + offsetTop = vh, ou seja em eased_i =
          offsetTop/vh — não mais `1 - offsetTop/vh`. Consequência (a que a
-         Laura pediu): quem está no alto do #features (badge, h2 — offsetTop
+         Pronit pediu): quem está no alto do #features (badge, h2 — offsetTop
          pequeno) é revelado PRIMEIRO (eased_i ≈ 0.15–0.2), e os cards, mais
          embaixo, são revelados DEPOIS (eased_i ≈ 0.4). Título antes dos
          bentos. A ordem de entrada não é a ordem de leitura por acidente — é
@@ -2577,7 +2577,7 @@ export default function Features() {
            era `1 - top/vh`. A consequência é a INVERSA da anterior: quem tem
            `top` MENOR (h2, badge, topo do #features) é revelado PRIMEIRO;
            quem tem `top` MAIOR (cards, mais abaixo) é revelado DEPOIS. Título
-           antes dos bentos — era isso que a Laura queria, e não dava pra
+           antes dos bentos — era isso que a Pronit queria, e não dava pra
            conseguir só ajustando LEAD_FRAC/DUR_MAX: a ORDEM vinha da fórmula
            de `reveal`, não do "quanto antes" de cada peça.
 
@@ -2953,7 +2953,7 @@ export default function Features() {
           posições eram % da viewport (medidas a 1440) e em janela mais larga
           o container centralizado para de crescer, a % continua crescendo, e
           a poça esquerda saía dos cards e boiava no vão escuro da margem —
-          exatamente o blur que a Laura mandou de volta pra trás dos cards.
+          exatamente o blur que a Pronit mandou de volta pra trás dos cards.
           Ancorada no container ela acompanha a grade em qualquer largura.
           Coordenadas convertidas da medição 1440×2575 (container 1152px a
           partir de x=144, py-32=128px por lado):
@@ -3035,7 +3035,7 @@ export default function Features() {
                 Antes era UMA radial concêntrica em 50% 122%. O problema dela não
                 é a cor, é a geometria: elipse única, centrada no eixo, com
                 paradas regulares — o olho lê "gradiente CSS", que é o oposto de
-                premium. Referência de fundo caro (o mesh que a Laura trouxe) é
+                premium. Referência de fundo caro (o mesh que a Pronit trouxe) é
                 sempre foto DESFOCADA, e o que a define não é o blur: é a
                 IRREGULARIDADE. Vários campos de cor fora de eixo, de tamanhos
                 diferentes, se dissolvendo uns nos outros, sem centro comum.
@@ -3374,7 +3374,7 @@ export default function Features() {
             {/* Scrim localizado — a peça que fecha a conta que o véu chapado
                 não fechou. Véu chapado em 0,45 PASSA (4,84:1) e foi REJEITADO:
                 nesse alpha a pétala inteira vira um vinho escuro, o rosa e o
-                clarão somem — resolve contraste matando a imagem que a Laura
+                clarão somem — resolve contraste matando a imagem que a Pronit
                 trocou pra ter ali.
                 O scrim compra o mesmo contraste gastando só a coluna do texto:
                 o Prontuário tem 1024px de largura, o texto mora nos primeiros

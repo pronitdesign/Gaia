@@ -47,7 +47,7 @@ const BACKDROP = "/quem-construiu-olhos.webp";
 // do site — mobile recebe a mesma cena, só a geometria adapta). Aplica em
 // backdrop + canvas + vinheta JUNTOS: os três precisam da mesma caixa, senão a
 // troca backdrop→canvas (pixel-idêntica por contrato) ganha costura.
-// 160vw (terceira rodada da Laura: "faça ocupar mais espaço da altura o olho" —
+// 160vw (terceira rodada da Pronit: "faça ocupar mais espaço da altura o olho" —
 // foi 125vw, depois 140vw) com TETO em 92vh: sem o teto, no tablet em pé
 // (820×1180) a caixa engoliria o palco inteiro e o meshy rosa sumiria; o min()
 // preserva um chão rosa em qualquer retrato. A máscara mora no PRÓPRIO
@@ -65,7 +65,7 @@ const EYE_PORTRAIT_BOX =
 // aparece até o primeiro bitmap decodificar, ±1% é invisível.
 const EYE_BACKDROP_POS_PORTRAIT = "[@media(max-aspect-ratio:4/3)]:object-[73%_50%]";
 
-// ── Card do retrato da Roberta (receita .card-image da Laura, 3ª rodada) ─────
+// ── Card do retrato da Roberta (receita .card-image da Pronit, 3ª rodada) ─────
 // SÓ NO VIEWPORT RETRATO. O desktop/landscape segue FULL-BLEED — a régua dela
 // só mascara no mobile, e a rodada que vestiu o desktop com uma coluna 3:5
 // (w-[60vh] ancorada à esquerda) quebrou a composição: os cards de prova e o
@@ -87,7 +87,7 @@ const ROBERTA_CARD_BOX =
   "[@media(max-aspect-ratio:4/3)]:h-[min(125vw,88vh)] [@media(max-aspect-ratio:4/3)]:[-webkit-mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)] [@media(max-aspect-ratio:4/3)]:[mask-image:linear-gradient(to_bottom,#000_78%,transparent_100%)]";
 
 // Meshy rosa que recebe o fade do vídeo no retrato — manchas radiais no magenta
-// do glow da própria foto (amostrado da referência da Laura), núcleo quente
+// do glow da própria foto (amostrado da referência da Pronit), núcleo quente
 // subindo do rodapé e topo desmanchando em transparente antes da metade do
 // palco. A headline pousa nele em texto branco puro (o scrim escuro sai no
 // retrato — sobre rosa chapado ele leria como mancha suja).
@@ -113,7 +113,7 @@ const EYE_MESHY_ROSA = [
 // blur) e scrub amortecido (ver o damp no useGSAP). SÓ carrega no modo pinned
 // (Armadilha 4) — o fallback stacked/mobile nunca busca um frame.
 //
-// QUALIDADE (pedido da Laura "aumente a qualidade da intro"): reencodados do MASTER
+// QUALIDADE (pedido da Pronit "aumente a qualidade da intro"): reencodados do MASTER
 // pristino (3852×2152) a 2400×1340 q84 (antes 1920×1072 q68, 5MB → agora ~11MB). O
 // salto de q68→q84 mata o mush de compressão (pele/cílios/veias da esclera) e os
 // 2400px dão backing retina nítido no full-bleed (o dpr do canvas é capado em SEQ_W/vw,
@@ -136,14 +136,14 @@ const seqSrc = (i: number) => `/olho-seq/olho-${String(i + 1).padStart(3, "0")}.
 // ×1.25 pro raster de 2400×1340 (ver bloco do SEQ_W acima): centro (1378.75,
 // 673.75). É o ponto de fuga do dolly — transform-origin do push-in e do mergulho.
 // (Os raios 293.75×237.5 do disco chegaram a dimensionar uma máscara-portal e um
-// sprite de limbus que cavalgava a borda — a Laura cortou os dois: o aro recortado
+// sprite de limbus que cavalgava a borda — a Pronit cortou os dois: o aro recortado
 // do próprio frame lia como um SEGUNDO olho dentro do olho. O handoff pro retrato
 // hoje é dissolve no auge do mergulho, ver applyDive — nenhuma geometria de recorte
 // sobrou pra afinar.)
 const DISC_CX_SRC = 1378.75;
 const DISC_CY_SRC = 673.75;
 
-// ── Centro do olho AO LONGO da sequência (pedido da Laura: "sempre deixe o
+// ── Centro do olho AO LONGO da sequência (pedido da Pronit: "sempre deixe o
 // olho centralizado... talvez terá que ajustar conforme scroll") ─────────────
 // O dolly não é estático: a pupila DIREITA migra no raster durante o push-in.
 // MEDIDO nos frames (grade visual, raster 2400×1340): frame 1 ≈ (1520, 614),
@@ -272,7 +272,7 @@ const PROOF_CARD =
 // O card 1 pousa sobre o abajur quente da foto (canto inferior-esquerdo do
 // retrato): com a tinta do PROOF_CARD (black/58→40) + saturate-150, a luz âmbar
 // vaza pelo vidro e o card lê como vidro quente/claro, não dark glass (medido no
-// render — a Laura pediu "volte a ser dark glass"). O Alcance segue no PROOF_CARD
+// render — a Pronit pediu "volte a ser dark glass"). O Alcance segue no PROOF_CARD
 // porque cai sobre o paletó escuro e já lê dark. Tinta subida (black/82→66) +
 // saturate mais baixo (125) fecham a janela pro âmbar e devolvem o charcoal do
 // Alcance neste card, onde quer que a foto reposicione o abajur. Recipe própria
@@ -302,7 +302,7 @@ const BIO =
 // Pinned: escuro (ink) — a foto dissolve num fundo cinematográfico, texto claro por cima.
 const PORTRAIT_SCRIM_DARK =
   "linear-gradient(to top, #05080F 0%, rgba(5,8,15,0.94) 24%, rgba(7,11,22,0.55) 52%, transparent 100%)";
-// (Houve uma rodada com scrim magenta profundo no retrato — a Laura trocou na
+// (Houve uma rodada com scrim magenta profundo no retrato — a Pronit trocou na
 // 3ª rodada: "o bg da mask será escuro nessa parte". O campo ink mora no
 // wrapper `portrait`; este scrim segue reforçando a base pro editorial.)
 // Stacked (mobile): claro — a foto emenda no off-white do editorial embaixo.
@@ -839,7 +839,7 @@ export default function ARoberta() {
       // d: 0 = frame final do vídeo em repouso · 1 = mergulho completo, retrato cheio.
       const DIVE_SCALE_MAX = 9; // escala final do frame congelado (expoente, ver applyDive)
       // Janela do DISSOLVE (em d) — o retrato entra por crossfade, não por recorte.
-      // (Já foi máscara-portal com sprite de limbus cavalgando a borda — a Laura
+      // (Já foi máscara-portal com sprite de limbus cavalgando a borda — a Pronit
       // cortou: o aro recortado do frame lia como um segundo olho DENTRO do olho.
       // O corte imperceptível agora é de linguagem de cinema: a fusão acontece no
       // trecho em que zoom exponencial + blur crescente + PICO de exposição
@@ -1040,7 +1040,7 @@ export default function ARoberta() {
           // ponto da pupila: mantém a pupila cravada no lugar enquanto tudo escala
           // pra FORA dela — sensação de entrar, não de aproximar. rotate ∝ d² (não
           // d): a torção só existe quando a escala já lê como vórtice de fibras,
-          // nunca como a foto inteira girando; 22° no fim (a ref da Laura pede ~25,
+          // nunca como a foto inteira girando; 22° no fim (a ref da Pronit pede ~25,
           // acima disso os cílios riscam diagonal demais e denunciam o giro 2D).
           cv.style.transformOrigin = `${iris.cx}px ${iris.cy}px`;
           cv.style.transform = `translate(${sx}px, ${sy}px) scale(${S}) rotate(${d * d * 22}deg)`;
@@ -1048,7 +1048,7 @@ export default function ARoberta() {
           // (atravessando a córnea molhada, brightness até ~1.4 + saturate até 1.6,
           // os valores da ref) e volta a 1 no fim — o mergulho atravessa LUZ do
           // começo ao fim; o crush pro escuro que existia aqui saiu junto com o
-          // breu (veto da Laura: nenhum frame escuro no caminho).
+          // breu (veto da Pronit: nenhum frame escuro no caminho).
           // Blur ∝ d²: no meio do mergulho as fibras ainda precisam ser legíveis
           // riscando (blur linear lavava tudo cedo demais — medido no render); no
           // fim, 14px é motion blur E disfarce da pixelização de ampliar 9×.
@@ -1089,7 +1089,7 @@ export default function ARoberta() {
         // O RETRATO (full-bleed por baixo, ver o gsap.set no setup) entra por
         // FUSÃO, não por recorte — nenhuma máscara, nenhuma borda, nenhum aro:
         // qualquer geometria de recorte duplicava a anatomia do olho dentro dele
-        // mesmo (veto da Laura). O corte fica imperceptível por linguagem de
+        // mesmo (veto da Pronit). O corte fica imperceptível por linguagem de
         // câmera: a opacidade sobe em smoothstep na janela FADE_START→FADE_END,
         // cujo meio (d≈0.48) cai no PICO da exposição (brightness ~1.4) com o
         // zoom exponencial e o blur d²·14 já embaralhando o footage — a emenda
@@ -1156,7 +1156,7 @@ export default function ARoberta() {
         scrollTrigger: { trigger: pin.current, start: "top 62%", once: true },
       });
       // Scrim da headline entra junto — a mancha escura só faz sentido quando o texto
-      // aparece (substitui a text-shadow antiga que a Laura reprovou).
+      // aparece (substitui a text-shadow antiga que a Pronit reprovou).
       gsap.from("[data-headline-scrim]", {
         autoAlpha: 0,
         duration: 1.1,
@@ -1226,7 +1226,7 @@ export default function ARoberta() {
         // Beat 1 — MERGULHO/DISSOLVE: o dolly não para no fim do scrub; o frame
         // congelado segue pupila adentro e o retrato entra por fusão no auge (ver
         // applyDive). Começa onde o scrub termina (0.45). ACELERADO (pedido da
-        // Laura: "só mais rápido"): o efeito de aceleração mora SÓ aqui — o olho
+        // Pronit: "só mais rápido"): o efeito de aceleração mora SÓ aqui — o olho
         // segue scrubbado 1:1 pelo scroll, e é este beat que ganha punch.
         // `power3.in` (era power2.in) segura mais no começo e chicoteia no fim;
         // `duration: 0.2` (era 0.35) encurta o scroll que o mergulho consome
@@ -1370,7 +1370,7 @@ export default function ARoberta() {
       // própria, no seu próprio ease, e o current recua ATRÁS dela) — colar
       // a máscara no rodapé faz o Features só PREENCHER o vazio que a
       // ARoberta desocupa, nunca sobrepor. Grudar a régua e ter sobreposição
-      // são incompatíveis; a Laura viu a diferença e chamou certo. REVERTIDA
+      // são incompatíveis; a Pronit viu a diferença e chamou certo. REVERTIDA
       // nesta rodada.
       //
       // TERCEIRA RODADA — troquei o recuo por parallax+fade (sem scale) pra
@@ -1381,7 +1381,7 @@ export default function ARoberta() {
       //
       // QUARTA RODADA — de volta à mecânica FIEL do demo (clip dirigido pela
       // ease, recuo com scale+y+opacity do original), porque é ISSO que
-      // produz a sobreposição que o demo tem e a Laura queria. O vão creme é
+      // produz a sobreposição que o demo tem e a Pronit queria. O vão creme é
       // INERENTE ao efeito — existe no demo também (o gap entre o rodapé do
       // current recuado e a borda da cortina, que abre no próprio ease, sem
       // relação geométrica com onde o current parou). No demo ele não
@@ -1393,7 +1393,7 @@ export default function ARoberta() {
       // `bgEase`/`BG_DONE_AT` e este parágrafo inteiro CONTINUAM valendo —
       // nada disso mudou na rodada seguinte.
       //
-      // QUINTA RODADA — SUPERSEDED apenas a parte do CLIP: a Laura viu na
+      // QUINTA RODADA — SUPERSEDED apenas a parte do CLIP: a Pronit viu na
       // tela e reprovou a ORDEM de entrada do Features (bentos antes do
       // título), não o recuo nem o vão creme descritos acima. O clipPath
       // dirigido pela ease (citado neste parágrafo) SAIU; o Features agora
@@ -1564,7 +1564,7 @@ export default function ARoberta() {
         // painel translúcido do rodapé (deslocado pra cima por margin
         // negativa, ver o commit "Devolve o rodapé à noite") que deixa
         // passar o `bg-neutro-50` do `<body>` por trás dele — o creme que a
-        // Laura via não vinha da ARoberta, vinha do HTML por trás de tudo.
+        // Pronit via não vinha da ARoberta, vinha do HTML por trás de tudo.
         // Escurecer o `body` fecha essa última costura: agora não existe
         // NENHUMA camada clara possível atrás do efeito inteiro, custe o que
         // custar de DOM estar exposto no vão. `gsap.set` com array de alvos
@@ -1577,14 +1577,14 @@ export default function ARoberta() {
           backgroundColor: gsap.utils.interpolate(BG_REST, BG_FEATURES, easedBg),
         });
 
-        // QUINTA RODADA — a Laura viu na tela e reprovou a ORDEM de entrada
+        // QUINTA RODADA — a Pronit viu na tela e reprovou a ORDEM de entrada
         // do Features (bentos aparecendo antes do título), não o timing do
         // scrub. Causa: a cortina anterior (clipPath dirigido por `eased`,
         // topo cravado em y=-naturalTop) revela a section de BAIXO PRA CIMA
         // — pra QUALQUER deslocamento uniforme do conteúdo, a peça com
         // offsetTop MENOR (o h2, no topo) é sempre revelada por ÚLTIMO. Não
         // era ajustável tunando LEAD/DUR (ver Features.tsx) — é a mecânica
-        // da MÁSCARA que fixa a ordem. A Laura escolheu, entre três opções: o
+        // da MÁSCARA que fixa a ordem. A Pronit escolheu, entre três opções: o
         // Features sobe como BLOCO, sem clip, liderado pela própria borda de
         // CIMA — o h2 (que já é o topo do bloco) entra primeiro por
         // construção, não por sorte de geometria.
@@ -1731,7 +1731,7 @@ export default function ARoberta() {
               do ticker/recorte/editorial): vinheta funda nas bordas + grão de filme.
               A vinheta acompanha a caixa retrato do vídeo (EYE_PORTRAIT_BOX): sem
               isso ela escureceria os cantos do meshy rosa, que na referência da
-              Laura é limpo até a borda. O grão segue full-bleed — grão sobre o
+              Pronit é limpo até a borda. O grão segue full-bleed — grão sobre o
               rosa é textura de filme, não sujeira. */}
           <div
             aria-hidden
@@ -1784,7 +1784,7 @@ export default function ARoberta() {
               bottom-anchored, não top: mais robusto pra uma headline que mora no
               rodapé do frame, imune a diferença de line-height entre fontes.
 
-              LEGIBILIDADE — a Laura reprovou a text-shadow antiga (halo escuro
+              LEGIBILIDADE — a Pronit reprovou a text-shadow antiga (halo escuro
               apertado que lia como contorno duro/sujo sobre o glow magenta). Trocada
               por um SCRIM: uma mancha radial escura ATRÁS do bloco (data-headline-
               scrim), emplumada, que baixa o fundo fotográfico imprevisível sob o texto

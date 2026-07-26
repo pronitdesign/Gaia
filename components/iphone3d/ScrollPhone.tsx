@@ -45,15 +45,15 @@ const TWO_PI = Math.PI * 2;
 // inclinado. O giro completo (eS·2π) some por cima, então p=0 e p=1 caem
 // nessas poses.
 const START_YAW = Math.PI; // reto de frente, dentro do Features
-// Pricing pousa RETO DE FRENTE (pedido da Laura: "de frente, não torto"). Igual
+// Pricing pousa RETO DE FRENTE (pedido da Pronit: "de frente, não torto"). Igual
 // ao START: o giro completo (eS·2π) some por cima e as duas pontas caem na
 // mesma pose frontal, então o aparelho gira no miolo e assenta reto no slot.
 const END_YAW = Math.PI; // reto de frente, no Pricing
 const START_TILT: [number, number] = [0, 0]; // reto, sem inclinação
 const END_TILT: [number, number] = [0, 0]; // reto, sem inclinação — de frente no Pricing
-const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário. O tamanho PARADO é o certo (print da Laura); a queixa de "muito grande" era o EFEITO DE ENTRADA, não a pose parada — tratado à parte (ENTER_G/grow-in), não encolhendo esta constante.
+const START_G = 1.06; // grande e dominante, centralizado no card de Prontuário. O tamanho PARADO é o certo (print da Pronit); a queixa de "muito grande" era o EFEITO DE ENTRADA, não a pose parada — tratado à parte (ENTER_G/grow-in), não encolhendo esta constante.
 /* GROW-IN NA ENTRADA — o phone entra menor e cresce até START_G quando o card
-   assenta. A queixa da Laura era o phone dominando o card ENQUANTO ele ainda
+   assenta. A queixa da Pronit era o phone dominando o card ENQUANTO ele ainda
    sobe pra dentro do quadro (roçando a emenda com a Agenda), não a pose parada.
    0.90 é o tamanho de entrada escolhido por ela; vira START_G quando a âncora
    centraliza (ver `settle` em place()). Só afeta a subida — satura em 1 no
@@ -110,7 +110,7 @@ const CLIP_GATE: [number, number] = [0.62, 0.95];
    MAX segura pra não virar deslize grande. "mesmo no clip": a base do phone já
    encosta na aresta da fita, então afundar empurra ela pra baixo do clip — o phone
    mergulha de volta pra dentro da fita ao sair. */
-/* 2026-07-18 — DESLIGADO a pedido da Laura ("não quero que o phone desça para a
+/* 2026-07-18 — DESLIGADO a pedido da Pronit ("não quero que o phone desça para a
    saída"). RATE=0 zera o termo somado a cy na linha ~1399 (Math.min(MAX,0)=0),
    então o phone sai de quadro junto com a seção, na mesma taxa do scroll, sem
    afundar de volta na fita. MAX fica documentado como o teto que valia. */
@@ -231,7 +231,7 @@ const DIVE_DROP = 0; // água removida — câmera fica nivelada, sem descida
    ver camSpan em place(). Mais que isso e o phone chega ao slot do Pricing
    visto por uma câmera ainda inclinada. */
 const CAM_LAG = 0.12;
-/** Quanto o phone encolhe no pico do mergulho. ZERO por decisão da Laura
+/** Quanto o phone encolhe no pico do mergulho. ZERO por decisão da Pronit
  *  ("não quero que o phone diminua de tamanho quando entra na água") — e o
  *  racional antigo ("a câmera desceu, perspectiva o infla, devolver respiro")
  *  era falso de qualquer jeito: placeWorld posiciona o aparelho a CAM_Z da
@@ -519,7 +519,7 @@ const HOLD_RISE = 0.22;
    explica por que ela já foi outras duas coisas.
 
    TOUCH_FRAC = 0.55: dispara quando o horizonte cruza pouco abaixo do meio da
-   tela. É a composição que a Laura apontou — última frase do Manifesto em cima,
+   tela. É a composição que a Pronit apontou — última frase do Manifesto em cima,
    linha d'água no meio, mar embaixo — e agora ela se diz numa linha, porque o
    horizonte É a aresta do Pricing (ver a regra em PITCH_CLAMP) e a aresta é um
    rect vivo. "O mar chegou no meio da tela" é a coisa que o olho de fato vê.
@@ -546,7 +546,7 @@ const TOUCH_FRAC = 0.55;
 
      p=0.36  o piso encosta no phone (grip 0.14)
      p=0.40  grip=1 — a superfície segura 1.45 de mundo. Ele está EM PÉ na água.
-     p=0.50  o mar lê cheio, com horizonte. É o frame que a Laura apontou.
+     p=0.50  o mar lê cheio, com horizonte. É o frame que a Pronit apontou.
      p=0.62  wp — o gatilho finalmente disparava
 
    De 0.40 a 0.64 o piso prende o phone na superfície (ver floorGrip): 765px de
@@ -604,7 +604,7 @@ const TINT_OUT: [number, number] = [0.86, 0.96];
    FOG_NEAR/FOG_FAR são a névoa ABERTA — e eles deixaram de ser decorativos.
 
    Eram 20/320, "na prática, névoa nenhuma no que se vê" — e era ISSO o erro de
-   perspectiva que a Laura apontou ("a água deveria ir aparecendo de forma mais
+   perspectiva que a Pronit apontou ("a água deveria ir aparecendo de forma mais
    realista"). A análise no topo deste bloco já tinha feito a conta: com far=320
    e o olho a ~0.3 da superfície, o ponto 100% enevoado cai a 0.05° do horizonte
    — UM pixel. Sem perspectiva aérea, o horizonte é uma régua e o mar entra no
@@ -788,7 +788,7 @@ const easeX = (t: number) => {
 /* giro: smootherstep concentra a rotação no miolo (Manifesto) → de costas no centro.
    Com START_HOLD por baixo, o miolo continua sendo o miolo — só não há mais
    giro nenhum sobrando pro card do Prontuário. */
-/* SPIN_DONE — o giro completa EXATAMENTE na chegada, não antes (pedido da Laura:
+/* SPIN_DONE — o giro completa EXATAMENTE na chegada, não antes (pedido da Pronit:
    o phone continua a rotação de 360º até pousar no Pricing, sem parar no meio do
    caminho e descer reto). Com 1.0 o easeSpin usa o MESMO held(t) do easePos, então
    giro e posição terminam juntos em p=1 — chega de frente porque a curva conclui
@@ -1032,7 +1032,7 @@ export default function ScrollPhone() {
    *  waterOn liga (a boca da rampa de entrada do waterGate) a cena nasce com a névoa FECHADA (far=3 <
    *  CAM_Z=4) e o phone — que está EM QUADRO, na frente da frase — vira uma
    *  silhueta chapada da cor do céu por ~50px de scroll, do nada, até a rampa
-   *  abrir. Print da Laura, 2026-07-16. "Nascer de dentro da névoa" é destino
+   *  abrir. Print da Pronit, 2026-07-16. "Nascer de dentro da névoa" é destino
    *  da ÁGUA (e a bruma do horizonte, que é geometria do fog aberto, segue
    *  entregando isso); o phone não pode nascer engolido. Na SAÍDA nada muda:
    *  ali waterAmt == esta rampa por construção (a de entrada já saturou em 1),
@@ -1050,7 +1050,7 @@ export default function ScrollPhone() {
   const bodyHalf = useRef(0);
 
   useEffect(() => {
-    // Ligado em TODA largura (pedido da Laura: "cadê o phone" no mobile). Era
+    // Ligado em TODA largura (pedido da Pronit: "cadê o phone" no mobile). Era
     // gated em ≥1024px; agora o phone viaja também no mobile, mirando as âncoras
     // mobile (lg:hidden) que Features/Pricing passam a expor. O posicionamento é
     // rect-vivo (responsivo por construção), então a mesma viagem serve as duas
@@ -1165,7 +1165,7 @@ export default function ScrollPhone() {
       // construída sobre essa afirmação falsa: "origem na linha" já era meia
       // imersão, e "origem uma meia-altura abaixo" (o antigo settle=1) era o
       // aparelho 95% afogado, só o aro de fora — os frames quebrados da
-      // introdução que a Laura apontou. As composições que os comentários
+      // introdução que a Pronit apontou. As composições que os comentários
       // prometiam ("em pé, fundo na linha") nunca tinham renderizado.
       // O PISO SÓ TEM A AUTORIDADE QUE A ÁGUA TEM.
       //
@@ -1223,7 +1223,7 @@ export default function ScrollPhone() {
          do aparelho — e como a origem é o CENTRO, cada ponta afundava meia
          altura a mais do que dizia: settle=0 já era meia-imersão e settle=1
          era o afogado de 95%, só o aro e as lentes de fora, atravessando a
-         frase — os "erros de introdução" apontados pela Laura, medidos frame
+         frase — os "erros de introdução" apontados pela Pronit, medidos frame
          a frame @1440×900 (v2-f115…v2-f09, 2026-07-16).
 
          Com a origem no centro, "boiando" é origem parte de meia-altura ACIMA
@@ -1350,7 +1350,7 @@ export default function ScrollPhone() {
            de scroll NA MÃO do usuário) o mergulho já tinha começado sem
            entrega: o piso soltando (p > wp), camAmt subindo 0.56→0.88, a
            câmera afundando −0.54→−0.80 e as cristas comendo o corpo do
-           aparelho — o print da Laura: frase ainda em quadro e o phone
+           aparelho — o print da Pronit: frase ainda em quadro e o phone
            enterrado até as lentes, a água "aparecendo antes" do mergulho.
            Pior: o bump já CAÍA (0.996→0.914) quando a entrega enfim
            disparava — o gatilho assinava depois do quadro.
@@ -1825,7 +1825,7 @@ export default function ScrollPhone() {
              quadro: o olhar subia pro skydome — um paredão roxo dos stops
              altos do gradiente, que não é o céu que o DOM mostra nesse scroll
              — e o mar nascia como um fiapo no pé da tela, que só virava mar
-             de verdade meio viewport depois. Pedido da Laura, com print de
+             de verdade meio viewport depois. Pedido da Pronit, com print de
              referência: "assim que acabar a frase já tenha essa visão mais
              reta do mar". Então a entrada É a visão nivelada: pitch 0,
              horizonte em 50%, água na metade de baixo, desde o primeiro
@@ -1863,7 +1863,7 @@ export default function ScrollPhone() {
              Era 1.15→0.95, e nesse compasso o mar se materializava JUNTO com
              o phone chegando nele: em frac 1.12 ele já estava de corpo na
              água que ainda era 2% opaca, e o mergulho lia como "a água
-             apareceu em volta dele". Pedido da Laura: "a água deve aparecer
+             apareceu em volta dele". Pedido da Pronit: "a água deve aparecer
              ANTES do phone entrar, justamente para ocorrer a imersão de
              entrada" — imersão é entrar em algo que JÁ EXISTE.
 
@@ -1896,7 +1896,7 @@ export default function ScrollPhone() {
            (theta grande ⇒ transparência). Medido em quadro @1440×900, frac
            0.95: a metade submersa do phone aparecia inteira ATRAVÉS da
            superfície, um vulto escuro sujando a frase — enquanto o print de
-           referência da Laura é espelho pálido, que só existe no RASANTE.
+           referência da Pronit é espelho pálido, que só existe no RASANTE.
            Baixar a câmera é o que fecha o Fresnel e faz a água nascer espelho.
 
            waterGate, não uma rampa nova: a descida acontece no mesmo compasso
@@ -1993,7 +1993,7 @@ export default function ScrollPhone() {
        chega nele chega com momentum por definição. A entrega se auto-abortava a
        100% das vezes no uso real, e o que sobrava era o usuário terminando o
        trecho na mão, atravessando o S da segunda perna (ver o cy acima). Os dois
-       bugs que a Laura apontou eram o mesmo frame.
+       bugs que a Pronit apontou eram o mesmo frame.
 
        Pior: `armed` ia a false no escape, então nem retentava — a única saída
        era subir acima de wp de novo. A página ficava parada dentro d'água em

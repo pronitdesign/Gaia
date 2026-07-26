@@ -71,7 +71,7 @@ export default function ComoComecar() {
   const [highlight, setHighlight] = useState(0); // estado das abas
 
   useEffect(() => {
-    // Pinned em TODA largura (pedido da Laura: mesmo efeito do desktop no mobile).
+    // Pinned em TODA largura (pedido da Pronit: mesmo efeito do desktop no mobile).
     // Só cai pra stacked em prefers-reduced-motion — quem pediu menos movimento
     // não recebe a tira horizontal presa ao scroll.
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");

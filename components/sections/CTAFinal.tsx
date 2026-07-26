@@ -137,14 +137,14 @@ const MEDIA =
 // Tudo acima foi calibrado em 1440, onde a sobra horizontal do cover é 172px e
 // a tela mostra 89% do frame. Em retrato a conta vira outra: o frame é 1.79:1
 // e a viewport 0.46:1, então o cover escala pela ALTURA e a sobra explode. A
-// PEDIDO DA LAURA a cena agora é FULL-HEIGHT no celular (não mais a caixa 4/5
+// PEDIDO DA PRONIT a cena agora é FULL-HEIGHT no celular (não mais a caixa 4/5
 // que houve aqui): num box de 390×844 o cover escala o frame de 1280×714 pra
 // 1513×844, sobra 1123px, e a janela visível é **390 de 1513 = 26% do frame**.
 //
 // 26% não hospeda o cluster tablet+rosto de uma vez: no frame final do
 // pull-back o tablet e o rosto juntos ocupam ~36% da largura. Ancorar fixo
 // cortaria um dos dois — foi por isso que a caixa 4/5 existia. A saída que a
-// Laura pediu no lugar dela é PANORÂMICA: como o primeiro vídeo é um pull-back,
+// Pronit pediu no lugar dela é PANORÂMICA: como o primeiro vídeo é um pull-back,
 // o sujeito ANDA dentro do quadro (frame 0 = tela do tablet fechada, centro
 // ~0.32; frame final = mulher segurando o iPad, cluster centrado ~0.46), então
 // a janela de 26% desliza junto — `object-position` X de ~30% (fechado no
@@ -184,7 +184,7 @@ const MEDIA_PORTRAIT =
 // scale-110), o MESMO do vídeo 2 landscape — registra de graça. Em RETRATO a
 // conta é outra: a mulher mora em x≈0.60 do frame (MEDIDO na arte, blusa branca
 // contra o campo — não 0.44, que o olho chutava), e full-height só mostra ~26%
-// da largura. Pra CENTRALIZAR ela — pedido da Laura — a janela precisa cair em
+// da largura. Pra CENTRALIZAR ela — pedido da Pronit — a janela precisa cair em
 // 0.60, o que dá `object-position` X ≈ 63% (centro = 0.129 + p·0.742 = 0.60).
 // Em obj 50% ela ficava colada na borda direita da janela; em 63% ela senta no
 // meio. Esse 63% é o MESMO do fim da panorâmica do vídeo 2 (ver matchMedia) E
@@ -196,7 +196,7 @@ const MEDIA_FIELD_END = `${MEDIA} [@media(max-aspect-ratio:4/3)]:object-[63%_50%
 /** Wrapper das camadas da cena. Full-height em TODOS os aspectos agora — a
  *  cena toma a tela inteira no desktop E no retrato (`h-full` = 100vh do palco
  *  sticky). A faixa 4/5 com máscara de dissolução na base saiu quando o retrato
- *  virou full-height (pedido da Laura): sem banda, não há base pra dissolver, e
+ *  virou full-height (pedido da Pronit): sem banda, não há base pra dissolver, e
  *  a legibilidade do texto que antes morava no chão escuro abaixo dela agora é
  *  o `baseMask`/`copyScrim` subindo por cima do vídeo, junto com o CTA (mesma
  *  máquina do desktop — ver os tweens em useGSAP).
@@ -343,7 +343,7 @@ function Wash() {
  * 0.62, que só apaga — ver o tween dele) protege a FRASE que mora ali. Este
  * scrim, escuro desde o mount, não protegia nenhuma copy nessa fase — não há
  * eyebrow/headline/sub na primeira cena, só a tela do tablet — e por isso só
- * pintava uma faixa escura na lateral esquerda sem função nenhuma. A Laura
+ * pintava uma faixa escura na lateral esquerda sem função nenhuma. A Pronit
  * vetou exatamente essa faixa. A correção segue o PRECEDENTE do `baseMask`
  * (mesmo defeito, já resolvido lá): nasce em `opacity:0` por CSS (classe, não
  * `gsap.set` — num load já rolado ou deep-link ele não pode piscar aceso) e a
@@ -406,7 +406,7 @@ function CopyScrim({
       className={
         // FORA no retrato: no mobile o texto mora EMBAIXO (não numa coluna à
         // esquerda como no desktop), então um gradiente da esquerda pinta uma
-        // faixa escura lateral sem função — a Laura vetou. Quem dá legibilidade
+        // faixa escura lateral sem função — a Pronit vetou. Quem dá legibilidade
         // ali é o `baseMask` (gradiente de baixo, ver o tween). Só landscape.
         "pointer-events-none absolute inset-0 [@media(max-aspect-ratio:4/3)]:hidden bg-[linear-gradient(to_right,#17102A_0%,rgba(36,26,56,0.88)_22%,rgba(36,26,56,0.55)_40%,transparent_58%)]" +
         (bornHidden ? " opacity-0" : "")
@@ -416,7 +416,7 @@ function CopyScrim({
 }
 
 /* ── Micro-gráficos dos cards ─────────────────────────────────────────────
-   O vocabulário vem dos wearables de saúde (referências da Laura: heart-rate
+   O vocabulário vem dos wearables de saúde (referências da Pronit: heart-rate
    em barras finas com acentos de cor, stress em linha com contas), reescrito
    na paleta da Gaia. São DECORATIVOS — aria-hidden, quem argumenta é o texto
    do card — mas o dado é dirigido: cada acento cai exatamente onde a copy
@@ -865,7 +865,7 @@ export default function CTAFinal() {
         v.load();
       });
       // A ARTE DO CAMPO (z-50) assume a cena num snap de duração 0 em p=1.0 —
-      // o frame exato em que o vídeo 2 acaba (pedido da Laura, sem antecipar a
+      // o frame exato em que o vídeo 2 acaba (pedido da Pronit, sem antecipar a
       // troca). Se o webp só decodar NESSE instante, o browser mostra o frame
       // comprimido do mp4 por um piscar antes da arte nítida entrar. Forçar o
       // decode AQUI — a ~3 pistas de scroll do fim, no mesmo gatilho que
@@ -1049,7 +1049,7 @@ export default function CTAFinal() {
       // ── CARDS — trigger de uma vez (fora da timeline scrubada) ────────────
       // A pilha da esquerda NÃO segue o dedo. Antes ela era mais um tween nesta
       // timeline (offset 0.54), então a posição/opacidade dos cards era função
-      // direta do scroll: rolar meio card pra cima mostrava meio card. Laura
+      // direta do scroll: rolar meio card pra cima mostrava meio card. Pronit
       // pediu o oposto — quando a Roberta assenta no quadro, os cards DISPARAM
       // como animação de entrada e correm sozinhos em tempo real, independentes
       // do scroll. Por isso saem da `tl` (scrub) e ganham um ScrollTrigger
@@ -1187,7 +1187,7 @@ export default function CTAFinal() {
       // acendendo junto com o CTA subindo. Antes de 0.48 não há copy nenhuma
       // pra proteger — só a primeira cena, que tem contraste próprio (o DIM,
       // `sceneDim`) — pintar o scrim ali seria escurecer a lateral esquerda
-      // sem função: foi exatamente esse defeito que a Laura reportou (faixa
+      // sem função: foi exatamente esse defeito que a Pronit reportou (faixa
       // escura antes do CTA subir). Ver o comentário de `CopyScrim`, acima.
       tl.fromTo(
         copyScrim.current,
@@ -1225,7 +1225,7 @@ export default function CTAFinal() {
       // trás do rodapé em vez de trocar de textura na emenda.
       //
       // POSIÇÃO 1.0, DURAÇÃO 0: a troca acontece NO FRAME em que o vídeo acaba,
-      // nem antes nem depois — pedido da Laura, e é a única posição que casa,
+      // nem antes nem depois — pedido da Pronit, e é a única posição que casa,
       // porque o scrub do vídeo 2 chega em `currentTime = duration` exatamente
       // em 1.0 (0.86 + 0.14, ver wire(v2) abaixo). Qualquer duração > 0 aqui
       // faria o fade COMEÇAR antes do fim; qualquer posição < 1.0, idem.
@@ -1359,8 +1359,8 @@ export default function CTAFinal() {
         // casar com a Pricing quando ELA ficava logo acima; a ordem mudou
         // (Pricing → Testimonials → Faq → CTA) e agora quem encosta em cima é o
         // Faq (bg-k-ink, escuro), então o creme virava uma faixa branca no meio
-        // de dois escuros — a Laura vetou. #0A0714 é um lavanda MUITO fundo
-        // (mais escuro que o antigo #17102A, a pedido da Laura): unifica o
+        // de dois escuros — a Pronit vetou. #0A0714 é um lavanda MUITO fundo
+        // (mais escuro que o antigo #17102A, a pedido da Pronit): unifica o
         // quadro num escuro só, o pé fica no mundo lavanda e a cena roxa emerge
         // dele sem emenda. É o MESMO valor pro qual a minimask do pé do Faq
         // dissolve (ver Faq.tsx) — as duas sections fecham no mesmo escuro, sem
@@ -1426,7 +1426,7 @@ export default function CTAFinal() {
               máscara na base. A máscara funde o vídeo pra TRANSPARENTE, e o que
               aparece atrás é o que estiver por baixo — e o `<body>`/section é
               creme (bg-neutro-50, ver a section), então a banda fundia num
-              CINZA CLARO esbranquiçado. A Laura vetou: o pé tem que ser escuro,
+              CINZA CLARO esbranquiçado. A Pronit vetou: o pé tem que ser escuro,
               a máscara tem que dissolver no escuro. Esta chapa dá esse fundo —
               cor #0A0714, a MESMA da base da section (ver lá em cima) pra o
               retrato fechar no mesmo escuro do desktop, sem virar buraco preto
@@ -2079,7 +2079,7 @@ export default function CTAFinal() {
         (`-mt`) porque a PRÓPRIA imagem do campo é o fundo dele: o conteúdo do
         rodapé mora POR CIMA da foto, não num card escuro que a corta. A arte do
         campo (`cta-field-bg.webp` — o destino da câmera do vídeo 2, escolhida
-        pela Laura; não é o frame final extraído do mp4, então não conte com
+        pela Pronit; não é o frame final extraído do mp4, então não conte com
         registro pixel-perfect: quem esconde a emenda é a máscara abaixo) entra
         como fundo, com fade no topo pra emendar com a cena e um scrim sutil só
         pra legibilidade. O
@@ -2093,7 +2093,7 @@ export default function CTAFinal() {
           RETRATO centra a mulher (`bg-[63%_50%]`): ela mora em x≈0.60 do frame
           (MEDIDO, ver MEDIA_FIELD_END), então `bg-bottom` (50% horizontal) a
           jogava pra direita e cortava — o oposto do frame final do vídeo, que
-          agora a centra no mesmo 63%. Pedido da Laura: no mobile a mulher no
+          agora a centra no mesmo 63%. Pedido da Pronit: no mobile a mulher no
           footer tem que estar exatamente como o vídeo termina. DESKTOP segue
           `bg-bottom` (lá a arte é obj 100%, primeiro plano de flores). */}
         <div
@@ -2107,7 +2107,7 @@ export default function CTAFinal() {
 
           MOBILE (`max-aspect-ratio:4/3`): o footer é ALTÍSSIMO (~2 viewports) e
           o `bg-cover` da imagem estica a arte inteira por toda a altura — a
-          Laura pediu pra NÃO recriar a imagem no footer inteiro, só emendar no
+          Pronit pediu pra NÃO recriar a imagem no footer inteiro, só emendar no
           topo. O scrim de 0.74 do desktop deixava a foto vazar nas bordas até
           o pé (listras roxas, canto vermelho). Aqui ele fecha em PRETO SÓLIDO
           (`#0B0D12` = o mesmo `rgba(11,13,18)`) já em 80vh: a arte segura só a

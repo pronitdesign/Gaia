@@ -219,7 +219,7 @@ ScrollPhone.
 
 - `dimensions` do render target: começar em 1024, subir só se necessário
 - `dpr={[1,2]}` já existe — considerar teto menor na janela da água
-- Medir com `r3f-perf` antes de entregar. **Meta: 60fps no MacBook da Laura.**
+- Medir com `r3f-perf` antes de entregar. **Meta: 60fps no MacBook da Pronit.**
   Não fechar sem medição real; "parece fluido" não conta.
 
 ## Fora de escopo
@@ -253,7 +253,7 @@ package.json                             +three-stdlib, +@react-three/postproces
 5. A água reflete o roxo do Manifesto — não estúdio cinza.
 6. O mouse deixa rastro de ondas.
 7. Nenhuma seção fora da janela é ocluída pelo canvas.
-8. 60fps medido (não estimado) no MacBook da Laura.
+8. 60fps medido (não estimado) no MacBook da Pronit.
 9. `prefers-reduced-motion` respeitado (o path de `ScrollPhone.tsx:99-109` continua
    válido — sem viagem, e sem água).
 10. Zero regressão visual em Features / Pricing / CTA Final.
