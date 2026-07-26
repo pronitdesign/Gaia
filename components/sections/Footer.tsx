@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import Script from "next/script";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Logo } from "@/components/ui/Logo";
+import { PronitMark } from "@/components/ui/PronitMark";
 import {
   IconInstagram,
   IconLinkedin,
@@ -160,11 +160,6 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
           : "relative border-t border-white/10 bg-[#0E1016] text-white"
       }
     >
-      {/* define <laura-signature>. type="module" já é deferido: não bloqueia
-        render, e a assinatura só é interativa depois de hidratar de qualquer
-        forma. Uma vez por página — o próprio arquivo guarda contra redefinir. */}
-      <Script type="module" src="/laura-signature.js" strategy="afterInteractive" />
-
       <div
         ref={card}
         className={
@@ -286,16 +281,32 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
         >
           <p>© 2026 Gaia · Hospedado no Brasil.</p>
 
-          {/* assinatura de autoria — a janela do retrato abre no hover.
-            `no-sync`: o arquivo, por default, busca foto/link em
-            eckertlaura.com a cada load. Numa página que afirma LGPD uma linha
-            acima, o IP do visitante não sai daqui. Congelado nos embutidos.
-            `size` e `no-sync` como string: React 18 não trata custom element. */}
+          {/* assinatura de autoria — a marca da Pronit, o mesmo SVG de contorno
+            que ela assina no rodapé da pandavideo.com.
+
+            `white/25` e não `white/40` (o tier do bloco) porque este é o
+            crédito, o degrau mais baixo da linha de confiança: fica um passo
+            abaixo do "DESIGNED BY" em white/30, que já é o rótulo mais quieto
+            daqui. É também exatamente o valor em que a assinatura anterior
+            pousava na tela — a linha não mudou de peso ao trocar de marca.
+
+            h-[13px] no SVG: o viewBox é 88.95×19 mas a caixa alta mede 17.427
+            (0.917 da altura), então 13px de caixa dão ~11.9px de letra. É a
+            altura que casa com a escada de tipo do rodapé; medir pela altura
+            NOMINAL do viewBox erra por quase um ponto. */}
           <div className="inline-flex flex-col items-start gap-[7px]">
             <span className="font-body text-[11px] uppercase leading-none tracking-[0.09em] text-white/30">
               Designed by
             </span>
-            <laura-signature href="https://instagram.com/laura_eckert" size="16px" no-sync="" />
+            <a
+              href="https://www.instagram.com/pronitdesign/"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Pronit — perfil no Instagram"
+              className="inline-block rounded-sm text-white/25 transition-colors duration-150 hover:text-white/60 focus-visible:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-roxo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1016]"
+            >
+              <PronitMark className="h-[13px] w-auto" title="Pronit" />
+            </a>
           </div>
 
           <p className="text-white/30">Workspace clínico operado conforme a LGPD.</p>
