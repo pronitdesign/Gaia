@@ -260,10 +260,21 @@ export default function HeroGrid() {
                   JS e da intro, e nenhuma delas é vista antes do usuário rolar.
                   Medido em 3G: preload delas custava ~1,3s no início da intro.
                   O hero-bg logo acima NÃO leva lazy — aquele é o LCP. */}
+              {/* 512 era o tamanho único e mira o pior caso (mobile 3x num
+                  layout que não existe mais). No celular a célula rende ~58px
+                  CSS: mesmo em DPR 2.625 pede ~152px, e as 8 juntas custavam
+                  260KB de um cano de 1,6Mbps pra pintar 460KB de pixel útil.
+                  Com o candidato de 256 elas fecham em 73KB somadas.
+                  O `sizes` é em px fixo no desktop de propósito: lá a célula é
+                  fração da ALTURA (17vh), e `sizes` não fala vh — 180px é essa
+                  altura medida a 940px de viewport, que em DPR 2 ainda escolhe
+                  a 512. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 loading="lazy"
                 src={cell.img}
+                srcSet={`${cell.img.replace(/\.webp$/, "-256.webp")} 256w, ${cell.img} 512w`}
+                sizes="(min-width: 1024px) 180px, 15vw"
                 alt=""
                 className="size-full object-cover"
               />

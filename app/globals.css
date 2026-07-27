@@ -674,6 +674,19 @@ html.scroll-locked body {
   );
 }
 
+/* Celular tem que sair da conta de DPR acima, senão a densidade dele (2.625 num
+   telefone de 412px) escolhe a variante 2x e ele baixa os 327KB da 1920 — o
+   MAIOR arquivo da página, num cano de 1,6Mbps, pra pintar uma faixa de ~412px
+   no pé. A tela pequena não tem área pra hospedar essa resolução: 960 já cobre
+   DPR 2.3 na largura real, e o enquadramento é o mesmo (bg-cover recorta). */
+@media (max-width: 767px) {
+  .cta-field-bg {
+    background-image: url("/video/cta-field-bg-960.webp");
+    background-image: -webkit-image-set(url("/video/cta-field-bg-960.webp") 1x);
+    background-image: image-set(url("/video/cta-field-bg-960.webp") 1x);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .typing-dot {
     animation: none;

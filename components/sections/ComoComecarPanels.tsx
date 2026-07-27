@@ -277,7 +277,10 @@ function PhotoBg({ src, focus = "object-center" }: { src: string; focus?: string
         // Convenção de nome (`-2048` antes da extensão) em vez de prop nova: os
         // três painéis usam o mesmo componente e a mesma regra, e assim não há
         // como um deles ficar pra trás por esquecimento na chamada.
-        srcSet={`${src.replace(/\.webp$/, "-2048.webp")} 2048w, ${src} 2752w`}
+        // O candidato de 1200 é o do CELULAR: lá o box é 100vw (~412px), que em
+        // DPR 2.625 pede ~1081px — sem ele o menor candidato era o 2048 e o
+        // telefone baixava 233KB nas três fotos. Com o 1200 elas somam 96KB.
+        srcSet={`${src.replace(/\.webp$/, "-1200.webp")} 1200w, ${src.replace(/\.webp$/, "-2048.webp")} 2048w, ${src} 2752w`}
         sizes="(min-width: 768px) 150vw, 100vw"
         alt=""
         // decoding="async": tira o decode do WebP do caminho síncrono de render —
