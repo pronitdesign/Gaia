@@ -2099,7 +2099,7 @@ export default function CTAFinal() {
           `bg-bottom` (lá a arte é obj 100%, primeiro plano de flores). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 -z-20 bg-[url('/video/cta-field-bg.webp')] bg-cover bg-[63%_50%] [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)] [@media(min-aspect-ratio:4/3)]:bg-bottom"
+          className="cta-field-bg pointer-events-none absolute inset-0 -z-20 bg-cover bg-[63%_50%] [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)] [@media(min-aspect-ratio:4/3)]:bg-bottom"
         />
         {/* SCRIM sutil — quase nada no topo (a cena segue à vista), subindo só
           o necessário pro texto no pé. É o único escurecimento; nada de placa

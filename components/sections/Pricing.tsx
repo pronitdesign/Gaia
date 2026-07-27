@@ -130,16 +130,8 @@ export default function Pricing() {
     setPeriod(p);
   };
 
-  // Campo em motion (ver [data-campo]): só dá autoplay se o usuário não pediu
-  // menos movimento. Sob reduce fica no poster (o mesmo frame parado da webp).
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReduceMotion(m.matches);
-    sync();
-    m.addEventListener("change", sync);
-    return () => m.removeEventListener("change", sync);
-  }, []);
+  // O gate de reduced-motion do campo saiu junto com o <video>: uma <img>
+  // parada não tem autoplay para condicionar. Ele volta com o mp4.
 
   useGSAP(
     () => {
@@ -320,19 +312,23 @@ export default function Pricing() {
           aria-hidden
           className="pointer-events-none absolute -bottom-16 left-1/2 z-0 -ml-[50vw] w-screen"
         >
-          {/* Era um <div> com bg da webp; é VÍDEO — a mesma imagem em motion.
-              poster = a webp, então enquanto pricing-campo-motion.mp4 não
-              existir (ou sob reduce) o quadro parado idêntico aparece. */}
-          <video
+          {/* Era um <div> com bg da webp; a intenção é VÍDEO — a mesma imagem em
+              motion. Enquanto pricing-campo-motion.mp4 não existir, isto é uma
+              <img> e NÃO um <video> com só o poster: o <video> pedia o mp4
+              ausente em todo carregamento (404 no console, que derruba
+              best-practices) e o `poster` não aceita lazy — os 410KB da webp
+              entravam no boot disputando banda com o LCP, para pintar uma seção
+              que só é vista depois de ~10 telas de scroll. Quando o mp4 chegar,
+              volta o <video> com poster={CAMPO_STILL} e preload="none".
+              Visualmente idêntico: o poster JÁ era esta webp. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             data-campo
             aria-hidden
-            poster="/pricing-campo-bg.webp"
-            src="/pricing-campo-motion.mp4"
-            autoPlay={!reduceMotion}
-            loop
-            muted
-            playsInline
-            preload="metadata"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            src="/pricing-campo-bg.webp"
             className="aspect-[775/624] w-full rounded-b-card object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
           />
         </div>

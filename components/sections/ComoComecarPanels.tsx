@@ -271,6 +271,14 @@ function PhotoBg({ src, focus = "object-center" }: { src: string; focus?: string
         loading="lazy"
         data-parallax
         src={src}
+        // As fotos são 2752×1536 e servem retina. No desktop o box é w-[150%] do
+        // painel, então num viewport de 1350 o DPR 1 precisa de ~2025px e o 2752
+        // é sobra pura — 528KB na passo3 pra pintar 2025. A 2048 fecha em 122KB.
+        // Convenção de nome (`-2048` antes da extensão) em vez de prop nova: os
+        // três painéis usam o mesmo componente e a mesma regra, e assim não há
+        // como um deles ficar pra trás por esquecimento na chamada.
+        srcSet={`${src.replace(/\.webp$/, "-2048.webp")} 2048w, ${src} 2752w`}
+        sizes="(min-width: 768px) 150vw, 100vw"
         alt=""
         // decoding="async": tira o decode do WebP do caminho síncrono de render —
         // o navegador decodifica fora da main thread e composita quando pronto,

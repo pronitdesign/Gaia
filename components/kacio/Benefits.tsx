@@ -54,8 +54,19 @@ export default function Benefits() {
         viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 1.4, ease: easeOut }}
       >
+        {/* srcset por DPR, mesma razão do hero-bg (e o mesmo 1600, pelo mesmo
+            motivo: com sizes=100vw um candidato de 1280 fica abaixo do que um
+            viewport de 1350 pede e é ignorado). Esta é uma superfície suave,
+            então a 1600 fecha em 41KB contra 363KB da 2560 — 322KB que saem do
+            boot pra pintar o mesmo pixel em tela não-retina.
+            O `loading="lazy"` do <img> não cobria isto sozinho: a Benefits nasce
+            perto o bastante do hero pra cair dentro do raio de pré-carga. */}
         <picture>
-          <source media="(min-width: 1024px)" srcSet="/figma/benefits-bg.webp" />
+          <source
+            media="(min-width: 1024px)"
+            srcSet="/figma/benefits-bg-1600.webp 1600w, /figma/benefits-bg.webp 2560w"
+            sizes="100vw"
+          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             loading="lazy"

@@ -19,6 +19,20 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${sentient.variable} ${clashDisplay.variable} ${clashGrotesk.variable}`}
     >
+      <head>
+        {/* O primeiro pixel da página é o poster da intro. O scanner de preload
+            até acha `<video poster>` no HTML, mas o atribui prioridade baixa e
+            ele entra atrás de ~250KB de JS e do hero-bg. Declarado aqui, em
+            high, ele chega antes de tudo — 21KB que decidem se o primeiro
+            segundo é a flor ou k-ink puro. */}
+        <link
+          rel="preload"
+          as="image"
+          href="/loading-poster.webp"
+          type="image/webp"
+          fetchPriority="high"
+        />
+      </head>
       <body className="bg-neutro-50 text-neutro-800 font-body antialiased">
         <SmoothScroll />
         {children}

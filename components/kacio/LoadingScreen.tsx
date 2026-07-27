@@ -21,6 +21,23 @@ const REVEAL_EASE = [0.76, 0, 0.24, 1] as const;
 const GRAIN =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
+/**
+ * Marca o fim da intro para o resto da página.
+ *
+ * Existe porque a cortina é o único momento em que a thread fica ociosa DE
+ * PROPÓSITO (a animação corre no compositor), e `requestIdleCallback` não sabe
+ * distinguir isso de "a página acabou": quem agendava peso por idle carregava
+ * exatamente durante a intro, disputando banda com o LCP. Este evento é o sinal
+ * de que a banda ficou livre de verdade.
+ *
+ * O flag no <html> é para quem montar DEPOIS do disparo e teria perdido o
+ * evento — ler estado é confiável, ouvir evento passado não é.
+ */
+const anunciarFim = () => {
+  document.documentElement.dataset.introDone = "1";
+  window.dispatchEvent(new Event("gaia:intro-done"));
+};
+
 export default function LoadingScreen() {
   const [mounted, setMounted] = useState(true);
   const [skipped, setSkipped] = useState(false);
@@ -40,6 +57,10 @@ export default function LoadingScreen() {
     if (sessionStorage.getItem(SESSION_KEY)) {
       setSkipped(true);
       setMounted(false);
+      // Não há cortina nesta navegação: quem espera o fim da intro pra carregar
+      // peso (ver ScrollPhoneDeferred) tem que ser liberado agora, senão fica
+      // preso no teto de 8s à toa.
+      anunciarFim();
       return () => window.removeEventListener("pagehide", onPageHide);
     }
 
@@ -110,6 +131,7 @@ export default function LoadingScreen() {
   const onRevealComplete = () => {
     document.documentElement.classList.remove("scroll-locked");
     setMounted(false);
+    anunciarFim();
   };
 
   if (skipped || !mounted) return null;
@@ -173,9 +195,40 @@ export default function LoadingScreen() {
             — ou seja, pra depois de 513KB de JS chegarem — que é exatamente o
             atraso que estamos matando. O src precisa estar no HTML inicial.
             VERIFICADO nos dois viewports: cada um baixa só o arquivo da sua faixa. */}
+        {/* PRIMEIRO QUADRO — frame 0 do próprio mp4 em WebP de 21KB (a flor é
+            desfocada, comprime a quase nada).
+            Não é enfeite: o véu nasce em 0.55, ou seja a ARTE pede a flor já
+            visível e escurecida desde o instante zero — mas o mp4 só decodifica
+            lá pelos 1,2s e até lá a tela ficava em k-ink puro. Aquele primeiro
+            segundo preto era latência de decode, não direção (e contrariava o
+            veto de transição por breu).
+
+            Vai como <img> ATRÁS do vídeo, e não no atributo `poster`, por dois
+            motivos — um de robustez e um de medição:
+            · robustez: se o mp4 falhar (codec, rede, aba economizando dados) a
+              intro ainda tem imagem, em vez de cair pro fundo chapado;
+            · medição: MEDIDO com PerformanceObserver — poster de <video> não
+              entra como candidato a LCP no Chrome. Sem ele, o "maior elemento
+              contentful" virava o hero-bg ATRÁS da cortina, invisível pro
+              usuário, com o relógio correndo até o layout inteiro assentar
+              (~1,1s). Uma <img> de verdade, do tamanho da viewport, é o que a
+              pessoa realmente vê primeiro — e é o que a métrica passa a contar.
+
+            Precisa espelhar object-cover + o mesmo scale do Ken Burns, senão o
+            vídeo entra deslocado em cima dela e a troca aparece. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/loading-poster.webp"
+          alt=""
+          aria-hidden
+          fetchPriority="high"
+          decoding="async"
+          className="absolute inset-0 size-full object-cover"
+          style={{ transform: `scale(${kb})`, transformOrigin: "center" }}
+        />
         <video
           ref={videoRef}
-          className="size-full object-cover"
+          className="relative size-full object-cover"
           style={{ transform: `scale(${kb})`, transformOrigin: "center", willChange: "transform" }}
           muted
           playsInline

@@ -33,20 +33,50 @@ export default function ScrollPhoneDeferred() {
   useEffect(() => {
     let idleId: number | undefined;
     let timerId: ReturnType<typeof setTimeout> | undefined;
+    let tetoId: ReturnType<typeof setTimeout> | undefined;
     const go = () => setMontar(true);
 
+    // O idle sozinho disparava DENTRO da intro. Enquanto a cortina está no ar a
+    // thread fica ociosa de propósito (quem anima é o vídeo, no compositor), o
+    // requestIdleCallback lê isso como "pode carregar" e solta scene.glb (797KB)
+    // + o decoder Draco (87KB) no exato trecho em que a banda é do LCP. Medido:
+    // 884KB entrando antes do hero pintar, num orçamento de ~2,9MB até o LCP.
+    //
+    // O gatilho passa a ser o FIM da intro (evento da LoadingScreen), com os
+    // mesmos escapes de antes por baixo. O aparelho só aparece perto de y≈10000
+    // — mesmo o teto mais folgado chega muito antes de ser preciso.
+    const agendar = () => {
+      if ("requestIdleCallback" in window) {
+        idleId = window.requestIdleCallback(go, { timeout: 4000 });
+      } else {
+        timerId = setTimeout(go, 2000);
+      }
+    };
+
+    // Rolou = está indo pra lá; carrega já, sem esperar cortina nem idle.
     window.addEventListener("scroll", go, { once: true, passive: true });
-    if ("requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(go, { timeout: 4000 });
+
+    // Sem intro nesta navegação (sessão já viu, ou SPA): agenda direto.
+    const introJaFoi =
+      document.documentElement.dataset.introDone === "1" ||
+      sessionStorage.getItem("gaia-loading-done") === "1";
+
+    if (introJaFoi) {
+      agendar();
     } else {
-      timerId = setTimeout(go, 2000);
+      window.addEventListener("gaia:intro-done", agendar, { once: true });
+      // Rede de segurança: se o evento nunca vier (erro na intro, aba em
+      // background que não roda rAF), não dá pra deixar o aparelho fora do DOM.
+      tetoId = setTimeout(agendar, 8000);
     }
 
     return () => {
       window.removeEventListener("scroll", go);
+      window.removeEventListener("gaia:intro-done", agendar);
       if (idleId !== undefined && "cancelIdleCallback" in window)
         window.cancelIdleCallback(idleId);
       if (timerId) clearTimeout(timerId);
+      if (tetoId) clearTimeout(tetoId);
     };
   }, []);
 

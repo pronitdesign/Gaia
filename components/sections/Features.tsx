@@ -2455,7 +2455,14 @@ export default function Features() {
         // SplitText 3.15 é aria:"auto" — aplica aria-label com o texto
         // completo no elemento e aria-hidden nos chars fatiados, então
         // leitor de tela lê a frase inteira, tela normal vê os chars animar.
-        const badgeSplit = badge ? new SplitText(badge, { type: "lines" }) : null;
+        // aria:"none" SÓ no badge (o h2 acima mantém o default): o badge é um
+        // <span> sem role, e aria-label em span sem role é atributo proibido —
+        // axe reprova (aria-prohibited-attr) e derruba a nota de acessibilidade.
+        // Aqui não custa nada em leitura: este split é `type:"lines"` numa
+        // linha só, então o texto continua inteiro e na ordem dentro do DOM,
+        // sem chars fatiados pra esconder. É diferente do h2, que fatia em
+        // chars e por isso PRECISA do aria-label pra não ser lido letra a letra.
+        const badgeSplit = badge ? new SplitText(badge, { type: "lines", aria: "none" }) : null;
 
         splitsRef.current.push(headingSplit);
         if (badgeSplit) splitsRef.current.push(badgeSplit);

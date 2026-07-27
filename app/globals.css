@@ -653,6 +653,27 @@ html.scroll-locked body {
   overscroll-behavior: none;
 }
 
+/* Fundo do footer do CTA — o campo. Mora aqui e não numa classe `bg-[url()]`
+   porque `image-set()` precisa das três declarações em cascata: navegador antigo
+   para na primeira (a 2560 de sempre, comportamento anterior intacto), Safari
+   antigo pega a -webkit-, e o resto pega a padrão e escolhe pelo DPR. Tailwind
+   arbitrário só emite UMA declaração, então não dá pra ter fallback por lá.
+   Motivo: a 1920 sai 327KB e carrega no boot mesmo estando ~10 telas abaixo —
+   é fundo em CSS, `loading="lazy"` não existe. Em DPR 1 a 1280 resolve o mesmo
+   pixel por 140KB. O enquadramento (bg-cover / bg-[63%_50%] / bg-bottom no
+   landscape) continua nas classes do JSX: aqui só muda QUAL arquivo entra. */
+.cta-field-bg {
+  background-image: url("/video/cta-field-bg.webp");
+  background-image: -webkit-image-set(
+    url("/video/cta-field-bg-1280.webp") 1x,
+    url("/video/cta-field-bg.webp") 2x
+  );
+  background-image: image-set(
+    url("/video/cta-field-bg-1280.webp") 1x,
+    url("/video/cta-field-bg.webp") 2x
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
   .typing-dot {
     animation: none;

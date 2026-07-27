@@ -155,12 +155,28 @@ export default function HeroGrid() {
           ref={mediaRef}
           className="absolute inset-0 overflow-hidden will-change-transform"
         >
+          {/* O 2560 é DPR 2 numa tela de até 1280 CSS — e era o ÚNICO servido,
+              então um notebook comum baixava 368KB pra pintar ~1350px. Com `w` +
+              sizes o DPR decide: 1 pega 98KB, 2 segue nos 2560. Não é micro-
+              otimização — esta imagem É o LCP, e 270KB a menos saem exatamente
+              da janela de banda que ele disputa.
+              1600 e não 1280: `sizes="100vw"` num viewport de 1350 pede 1350w, e
+              o candidato de 1280 fica ABAIXO disso — o browser pularia direto
+              pro 2560 e a variante não serviria pra nada (medido: a primeira
+              tentativa, com 1280, baixou os 368KB de novo).
+              fetchPriority alto porque o preload scanner classifica <img> como
+              baixa até o layout provar o contrário; aqui já sabemos. */}
           <picture>
-            <source media="(min-width: 1024px)" srcSet="/figma/hero-bg.webp" />
+            <source
+              media="(min-width: 1024px)"
+              srcSet="/figma/hero-bg-1600.webp 1600w, /figma/hero-bg.webp 2560w"
+              sizes="100vw"
+            />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/figma/hero-bg-mobile.webp"
               alt="Nutricionista atendendo com a Gaia"
+              fetchPriority="high"
               className="absolute inset-0 size-full object-cover"
             />
           </picture>
