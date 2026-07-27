@@ -8,6 +8,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { useGSAP } from "@/lib/useGSAP";
+import { useArmOnApproach } from "@/lib/armOnApproach";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { IconArrowUpRight, IconCheck } from "@/components/ui/icons";
@@ -739,6 +740,21 @@ const CTA_JUSTIFY =
 
 export default function CTAFinal() {
   const root = useRef<HTMLElement>(null);
+  /**
+   * Esta é a ÚLTIMA seção da página (~20.000px de scroll) e a mais pesada em
+   * arte. Medido no waterfall com rede a 10Mbps: 395 KB dela baixavam na janela
+   * do LCP — `cta-field-bg-1280.webp` (140 KB, fundo CSS do footer),
+   * `cta-tablet-poster.webp` (81 KB) e `cta-field-poster.webp` (55 KB) (os dois
+   * `poster` de <video>) e `cta-roberta-cutout.webp` (119 KB).
+   *
+   * O `preload="none"` dos vídeos NÃO segura o `poster`: o atributo é buscado no
+   * render do elemento, independente da política de preload do vídeo. Mesmo
+   * furo do fundo em CSS, que o browser pede assim que a caixa existe no layout.
+   *
+   * Importa porque a nota usa o LCP SIMULADO pelo Lantern, não o observado —
+   * cada KB que compartilha a janela empurra o LCP mesmo chegando em 15ms aqui.
+   */
+  const mediaArmed = useArmOnApproach(root);
   const arch = useRef<SVGPathElement>(null); // o `d` é reescrito a cada frame
   const video = useRef<HTMLVideoElement>(null); // agulha do scrub (currentTime)
   const clipRoberta = useRef<HTMLDivElement>(null); // camada do recorte alpha
@@ -1453,7 +1469,8 @@ export default function CTAFinal() {
                 <video
                   ref={video}
                   src={sources.video}
-                  poster={CTA_POSTER}
+                  // Só depois que a seção se aproxima — ver `mediaArmed`.
+                  poster={mediaArmed ? CTA_POSTER : undefined}
                   onLoadedData={primeForSeek}
                   muted
                   playsInline
@@ -1878,6 +1895,9 @@ export default function CTAFinal() {
                   alt=""
                   aria-hidden
                   decoding="async"
+                  // Mesmo motivo do `lazy` do fieldEnd logo abaixo: 119 KB da
+                  // última section não disputam banda com o que está na dobra.
+                  loading="lazy"
                   className={MEDIA_SCENE}
                   // devolve o verde que o webp perdeu (ver filtro cta-cutout-tint)
                   style={{ filter: "url(#cta-cutout-tint)" }}
@@ -2022,7 +2042,8 @@ export default function CTAFinal() {
                 <video
                   ref={field}
                   src={sources.field}
-                  poster={CTA_FIELD_POSTER}
+                  // Idem vídeo 1 — ver `mediaArmed`.
+                  poster={mediaArmed ? CTA_FIELD_POSTER : undefined}
                   onLoadedData={primeForSeek}
                   muted
                   playsInline
@@ -2099,7 +2120,10 @@ export default function CTAFinal() {
           `bg-bottom` (lá a arte é obj 100%, primeiro plano de flores). */}
         <div
           aria-hidden
-          className="cta-field-bg pointer-events-none absolute inset-0 -z-20 bg-cover bg-[63%_50%] [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)] [@media(min-aspect-ratio:4/3)]:bg-bottom"
+          // A classe carrega o background-image (140 KB): só entra quando a
+          // seção se aproxima. Sem ela a caixa fica transparente e o que se vê
+          // é o #0A0714 do palco — nunca um buraco.
+          className={`${mediaArmed ? "cta-field-bg " : ""}pointer-events-none absolute inset-0 -z-20 bg-cover bg-[63%_50%] [mask-image:linear-gradient(to_bottom,transparent,#000_30vh)] [@media(min-aspect-ratio:4/3)]:bg-bottom`}
         />
         {/* SCRIM sutil — quase nada no topo (a cena segue à vista), subindo só
           o necessário pro texto no pé. É o único escurecimento; nada de placa
