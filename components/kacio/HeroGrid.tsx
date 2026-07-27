@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Navbar from "./Navbar";
@@ -11,15 +11,18 @@ gsap.registerPlugin(ScrollTrigger);
 const CANVAS_W = 1200;
 const CANVAS_H = 978;
 
+// As células nunca passam de ~340px de lado renderizado (medido: 342px no pior
+// caso, mobile 3x). Os originais eram PNG de até 1200px/2,3MB — 41x a área
+// necessária. Servem em WebP 512px, que cobre DPR 2 em telas até 2560.
 const gridCells = [
-  { x: -21, y: 83, w: 169, h: 169, img: "/figma/grid-6.png" },
-  { x: 364, y: 60, w: 133, h: 133, img: "/figma/grid-7.png" },
-  { x: 988, y: 93, w: 130, h: 129, img: "/figma/grid-5.png" },
-  { x: 708, y: 222, w: 113, h: 113, img: "/figma/grid-8.png" },
-  { x: 64, y: 548, w: 112, h: 112, img: "/figma/grid-1.png" },
-  { x: 1024, y: 478, w: 139, h: 139, img: "/figma/grid-4.png" },
-  { x: 176, y: 812, w: 128, h: 128, img: "/figma/grid-2.png" },
-  { x: 992, y: 797, w: 102, h: 102, img: "/figma/grid-3.png" },
+  { x: -21, y: 83, w: 169, h: 169, img: "/figma/grid-6.webp" },
+  { x: 364, y: 60, w: 133, h: 133, img: "/figma/grid-7.webp" },
+  { x: 988, y: 93, w: 130, h: 129, img: "/figma/grid-5.webp" },
+  { x: 708, y: 222, w: 113, h: 113, img: "/figma/grid-8.webp" },
+  { x: 64, y: 548, w: 112, h: 112, img: "/figma/grid-1.webp" },
+  { x: 1024, y: 478, w: 139, h: 139, img: "/figma/grid-4.webp" },
+  { x: 176, y: 812, w: 128, h: 128, img: "/figma/grid-2.webp" },
+  { x: 992, y: 797, w: 102, h: 102, img: "/figma/grid-3.webp" },
 ];
 
 const SLOT = { x: 516, y: 643, w: 169, h: 169 };
@@ -35,6 +38,19 @@ export default function HeroGrid() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
+
+  // A foto do slot só é VISTA em reduced-motion (fora dele a mídia da hero pousa
+  // por cima). Com `motion-safe:hidden` o browser continuava baixando o arquivo
+  // em todo carregamento — 3,7MB para pintar 0x0. Montar condicionalmente é o
+  // único jeito de não pagar a banda: `hidden`/`display:none` não cancela o GET.
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReducedMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useLayoutEffect(() => {
     const mm = gsap.matchMedia();
@@ -140,7 +156,7 @@ export default function HeroGrid() {
           className="absolute inset-0 overflow-hidden will-change-transform"
         >
           <picture>
-            <source media="(min-width: 1024px)" srcSet="/figma/hero-bg.png" />
+            <source media="(min-width: 1024px)" srcSet="/figma/hero-bg.webp" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/figma/hero-bg-mobile.webp"
@@ -192,8 +208,16 @@ export default function HeroGrid() {
           className="relative aspect-[1200/978] w-full overflow-hidden motion-safe:absolute motion-safe:inset-0 motion-safe:aspect-auto"
         >
           <div className="absolute inset-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/figma/grid-bg.png" alt="" className="size-full object-cover" />
+            <picture>
+              <source media="(min-width: 1024px)" srcSet="/figma/grid-bg.webp" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                loading="lazy"
+                src="/figma/grid-bg-mobile.webp"
+                alt=""
+                className="size-full object-cover"
+              />
+            </picture>
           </div>
 
           <h2
@@ -215,8 +239,18 @@ export default function HeroGrid() {
                 height: pct(cell.h, CANVAS_H),
               }}
             >
+              {/* lazy porque o React promove TODA <img> do SSR a
+                  <link rel="preload">: as 8 células (263KB) saíam na frente do
+                  JS e da intro, e nenhuma delas é vista antes do usuário rolar.
+                  Medido em 3G: preload delas custava ~1,3s no início da intro.
+                  O hero-bg logo acima NÃO leva lazy — aquele é o LCP. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cell.img} alt="" className="size-full object-cover" />
+              <img
+                loading="lazy"
+                src={cell.img}
+                alt=""
+                className="size-full object-cover"
+              />
             </div>
           ))}
 
@@ -231,12 +265,14 @@ export default function HeroGrid() {
             }}
           >
             {/* Visível quando a transição está desativada (reduced motion) */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/figma/grid-center.png"
-              alt=""
-              className="size-full rounded-[24px] object-cover motion-safe:hidden"
-            />
+            {reducedMotion && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src="/figma/grid-center.webp"
+                alt=""
+                className="size-full rounded-[24px] object-cover"
+              />
+            )}
           </div>
         </div>
       </section>

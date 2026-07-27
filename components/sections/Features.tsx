@@ -502,7 +502,7 @@ function Avatar({ person, className = "" }: { person: Person; className?: string
     return (
       <span className={"relative shrink-0 overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] " + className}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={person.photo} alt="" aria-hidden className="h-full w-full object-cover" />
+        <img loading="lazy" src={person.photo} alt="" aria-hidden className="h-full w-full object-cover" />
       </span>
     );
   }
@@ -777,7 +777,7 @@ function MealDeck({ front, dealt }: { front: number; dealt: boolean }) {
                 Véu próprio, com o mesmo rank — o do corpo não alcança aqui. */}
             <span className="absolute -top-3 bottom-0 right-0 w-[92px] overflow-hidden rounded-[14px] shadow-[0_14px_30px_-12px_rgba(0,0,0,0.9),inset_0_0_0_1px_rgba(255,255,255,0.12)] md:w-[104px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={m.img} alt="" aria-hidden className="h-full w-full object-cover" />
+              <img loading="lazy" src={m.img} alt="" aria-hidden className="h-full w-full object-cover" />
               <span
                 aria-hidden
                 className="pointer-events-none absolute inset-0 bg-[#0A0C11] transition-opacity duration-[700ms] ease-gaia"
@@ -3207,7 +3207,7 @@ export default function Features() {
           {/* azul-cinza da gradiente */}
           <article data-card className={CARD_HERO + " lg:col-start-1 lg:row-start-2"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/plano-cobalto.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-top" />
+            <img loading="lazy" src="/textures/plano-cobalto.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-top" />
             {/* object-top e não object-center: mesma lógica do Prontuário
                 (gradiente borrada não tem lado certo, então mover o enquadramento
                 não custa nada e paga contraste) aplicada via object-position em
@@ -3245,7 +3245,7 @@ export default function Features() {
             {/* sem textura — vidro sobre o azul-ardósia do CARD */}
             {/* CARD e não CARD_HERO, e isto é obrigatório, não estilo: CARD_HERO
                 não tem fundo NENHUM (só rounded + LIFT) porque quem pinta o card
-                é a textura. Tirar o <img> de um CARD_HERO não deixa o card
+                é a textura. Tirar o <img loading="lazy"> de um CARD_HERO não deixa o card
                 escuro — deixa o card TRANSPARENTE. O fundo próprio do CARD
                 (#1B2130 → #13171F) é o que assume o lugar da foto.
                 O véu também foi junto: ele existia pra domar a textura, e sem
@@ -3356,7 +3356,7 @@ export default function Features() {
               primeiro. */}
           <article data-card className={CARD_HERO + " lg:col-span-6"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/textures/prontuario-petala.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-[50%_40%]" />
+            <img loading="lazy" src="/textures/prontuario-petala.webp" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-[50%_40%]" />
             {/* object-[50%_40%]: enquadramento, não solução de contraste — a
                 pétala não tem Y nem espelho (X, Y, XY) que resolva sozinho (ver
                 o scrim logo abaixo). 40% foi onde o crop ficou melhor visualmente

@@ -268,6 +268,7 @@ function PhotoBg({ src, focus = "object-center" }: { src: string; focus?: string
           roxo-900 e não preto: a transição não passa por breu. */}
       <div className="absolute inset-0 bg-roxo-900 md:hidden" />
       <img
+        loading="lazy"
         data-parallax
         src={src}
         alt=""

@@ -137,7 +137,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
               </motion.div>
             )}
             <Image
-              src="/figma/faq-bot-avatar.png"
+              src="/figma/faq-bot-avatar.webp"
               alt="Gaia"
               width={55}
               height={56}
@@ -156,8 +156,11 @@ export default function Faq() {
   return (
     <section id="faq" className="relative overflow-hidden bg-k-ink">
       <div className="absolute inset-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/figma/faq-bg.png" alt="" className="size-full object-cover" />
+        <picture>
+          <source media="(min-width: 1024px)" srcSet="/figma/faq-bg.webp" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img loading="lazy" src="/figma/faq-bg-mobile.webp" alt="" className="size-full object-cover" />
+        </picture>
       </div>
 
       {/* Minimask de base — o hedge terminava num corte reto no pé da section e

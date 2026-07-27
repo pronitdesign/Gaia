@@ -54,8 +54,16 @@ export default function Benefits() {
         viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 1.4, ease: easeOut }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/figma/benefits-bg.png" alt="" className="size-full object-cover" />
+        <picture>
+          <source media="(min-width: 1024px)" srcSet="/figma/benefits-bg.webp" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            loading="lazy"
+            src="/figma/benefits-bg-mobile.webp"
+            alt=""
+            className="size-full object-cover"
+          />
+        </picture>
         <div className="absolute inset-0 bg-gradient-to-b from-k-cream to-transparent to-[27%]" />
       </motion.div>
 
@@ -94,12 +102,16 @@ export default function Benefits() {
                   }
             }
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/figma/mockup-app.png"
-              alt="Interface da Gaia: pacientes, agenda e prontuário"
-              className="absolute inset-0 size-full object-cover"
-            />
+            <picture>
+              <source media="(min-width: 1024px)" srcSet="/figma/mockup-app.webp" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                loading="lazy"
+                src="/figma/mockup-app-mobile.webp"
+                alt="Interface da Gaia: pacientes, agenda e prontuário"
+                className="absolute inset-0 size-full object-cover"
+              />
+            </picture>
           </motion.div>
         </div>
 

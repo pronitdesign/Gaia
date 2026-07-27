@@ -23,3 +23,6 @@ npm-debug.log*
 
 # brainstorm visual companion
 .superpowers/
+
+# Backup local dos assets substituidos/orfaos (nao vai pro deploy)
+.attic/

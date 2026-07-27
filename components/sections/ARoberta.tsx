@@ -123,7 +123,77 @@ const EYE_MESHY_ROSA = [
 const SEQ_FRAMES = 73;
 const SEQ_W = 2400;
 const SEQ_H = 1340;
-const seqSrc = (i: number) => `/olho-seq/olho-${String(i + 1).padStart(3, "0")}.webp`;
+type SeqExt = "avif" | "webp";
+/** `sd` = tiragem de 1280px (1,6MB no total) pra rede lenta; ver pickSeqVariant. */
+type SeqVariant = { ext: SeqExt; sd: boolean };
+const seqSrc = (i: number, v: SeqVariant) =>
+  `/olho-seq/olho-${String(i + 1).padStart(3, "0")}${v.sd ? "-sd" : ""}.${v.ext}`;
+
+// A sequência é o asset mais pesado da página inteira — 73 frames a 2400×1340.
+// Em WebP q84 são 11,3 MB; os MESMOS frames em AVIF q28 são 3,9 MB (-66%), com
+// SSIM 0,984 contra o webp. Não é troca de banda por CPU: medido com CPU 4×
+// (perfil de celular), o decode dos 73 AVIF sai em ~1270ms contra ~1580ms do
+// WebP — o formato menor também decodifica mais rápido. Resolução, qualidade
+// percebida e TODA a geometria calibrada (SEQ_W, DISC_*, eyeCxAt) seguem
+// idênticas: o que mudou foi só o container.
+//
+// O fallback existe porque este arquivo é a cena inteira desta section: se um
+// browser sem AVIF (iOS < 16.4) recebesse 404 em 73 frames, o olho não pintava.
+// O probe é um AVIF de 64×64 em data URI — resolve uma vez, sem tocar a rede.
+const AVIF_PROBE =
+  "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAAD5bWV0YQAAAAAAAAAvaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAFBpY3R1cmVIYW5kbGVyAAAAAA5waXRtAAAAAAABAAAAHmlsb2MAAAAARAAAAQABAAAAAQAAASEAAAAeAAAAKGlpbmYAAAAAAAEAAAAaaW5mZQIAAAAAAQAAYXYwMUNvbG9yAAAAAGppcHJwAAAAS2lwY28AAAAUaXNwZQAAAAAAAABAAAAAQAAAABBwaXhpAAAAAAMICAgAAAAMYXYxQ4EADAAAAAATY29scm5jbHgAAgACAAIAAAAAF2lwbWEAAAAAAAAAAQABBAECgwQAAAAmbWRhdAoKAAAAAq//jV8wCDIQEADXAhlkwwIAAAgBi0lIwA==";
+
+/**
+ * Rede lenta = a tiragem de 1280px (1,6MB) em vez da de 2400px (3,9MB).
+ *
+ * Isto NÃO é gate por tamanho de tela — a cena é a mesma em todo aparelho, e a
+ * geometria (SEQ_W/SEQ_H, DISC_*, eyeCxAt) não muda: o drawSeq desenha em
+ * dw/dh derivados das constantes NOMINAIS, então um bitmap menor só é esticado,
+ * sem deslocar um pixel do enquadramento. O que muda é o que a rede aguenta.
+ *
+ * Medido em 3G lento (1,6 Mbps): com os 3,9MB, a pessoa atravessava a section
+ * inteira com 20 de 73 frames decodificados. Faltando frame, o drawSeq cai no
+ * nearestLoaded e o push-in vira salto — o "travado no olho". Antes um olho um
+ * pouco mais mole do que 73 degraus faltando.
+ *
+ * Em wifi/4G (o caso normal, e o que a Laura vê ao revisar) nada muda: continua
+ * a tiragem de 2400px que ela pediu quando mandou aumentar a qualidade da intro.
+ */
+const redeLenta = (): boolean => {
+  const c = (
+    navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string; downlink?: number };
+    }
+  ).connection;
+  if (!c) return false; // Safari não expõe: assume rede boa e serve a 2400px
+  if (c.saveData) return true;
+  // Só o rótulo explícito, e só quando ele acusa rede ruim. NADA de `downlink`:
+  // medido, ele não discrimina — reportou 1.45 Mbps numa rede local rápida SEM
+  // emulação, 1.75 sob 9 Mbps e 1.45 sob 1,6 Mbps. É estimativa de histórico,
+  // não medida. Usá-lo como corte rebaixaria a tiragem pra quase todo mundo,
+  // inclusive em wifi — o oposto do que a intro pede. Quem decide de fato é a
+  // taxa OBSERVADA durante o próprio download (ver seqRate no loader).
+  return c.effectiveType === "slow-2g" || c.effectiveType === "2g" || c.effectiveType === "3g";
+};
+
+let seqVariantPromise: Promise<SeqVariant> | null = null;
+/** Resolve UMA vez qual tiragem da sequência este browser/rede usa. */
+const pickSeqVariant = (): Promise<SeqVariant> => {
+  seqVariantPromise ??= (async () => {
+    let ext: SeqExt = "webp";
+    try {
+      const bmp = await createImageBitmap(await (await fetch(AVIF_PROBE)).blob());
+      bmp.close();
+      ext = "avif";
+    } catch {
+      ext = "webp";
+    }
+    // A tiragem sd só existe em AVIF: sem AVIF (iOS < 16.4) o webp de 2400 é o
+    // único caminho, e ficar sem frame nenhum seria pior que ficar pesado.
+    return { ext, sd: ext === "avif" && redeLenta() };
+  })();
+  return seqVariantPromise;
+};
 
 // O centro da pupila usado pelo mergulho (ponto de fuga do dolly) vem das MESMAS
 // constantes DISC_* abaixo — uma medição só. Já foram duas (IRIS_*_FRAC, medidas no
@@ -348,6 +418,7 @@ function Portrait() {
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        loading="lazy"
         src={PORTRAIT}
         alt="Roberta Carbonari"
         className="absolute inset-0 h-full w-full object-cover"
@@ -384,6 +455,7 @@ function Afluente({
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        loading="lazy"
         src={BACKDROP}
         alt=""
         className={`absolute inset-0 h-full w-full object-cover ${portraitCrop ? `${EYE_PORTRAIT_BOX} ${EYE_BACKDROP_POS_PORTRAIT}` : ""}`}
@@ -402,12 +474,13 @@ function Afluente({
           ref={flowerRef}
           className="absolute inset-0 mix-blend-multiply"
         >
-          {/* A opacidade mora no <img>, não no wrapper: o GSAP anima autoAlpha do
+          {/* A opacidade mora no <img loading="lazy">, não no wrapper: o GSAP anima autoAlpha do
               wrapper (entra em 0→1, sai em →0) e sobrescreveria qualquer valor posto
               lá. Aqui ela fica constante e o multiply entra mais fraco — a orquídea
               vira chapa de fundo em vez de brigar com o display type por cima. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            loading="lazy"
             src={FLOWER}
             alt=""
             className="absolute inset-0 h-full w-full select-none object-cover"
@@ -853,7 +926,7 @@ export default function ARoberta() {
       // ── Sequência: decode, draw e scrub amortecido ───────────────────────────
       // Três peças que substituem o <video> scrubbado (ver o bloco do SEQ_FRAMES):
       //
-      // 1. DECODE — os 73 webp viram ImageBitmap em memória, em DUAS passadas com 4
+      // 1. DECODE — os 73 frames viram ImageBitmap em memória, em DUAS passadas com 4
       //    workers: primeiro frame sim/frame não (stride 6 — em segundos o scrub
       //    inteiro tem cobertura grossa), depois o preenchimento. Se o scroll chega
       //    num frame ainda não decodificado, drawSeq usa o vizinho carregado mais
@@ -878,11 +951,40 @@ export default function ARoberta() {
       let needsDraw = true;
       const aborter = new AbortController();
 
+      // Degrada a tiragem pela taxa MEDIDA, não por API de rede — `downlink`
+      // não discrimina (ver redeLenta). Começa em 2400px; depois de uma amostra
+      // de ~300KB (5 ou 6 frames, já com os 4 workers em regime) projeta quanto
+      // falta e, se não couber em ~8s, pede o resto em 1280px. Misturar as duas
+      // tiragens no mesmo scrub é seguro: o drawSeq desenha tudo em dw/dh
+      // derivados de SEQ_W/SEQ_H, então o enquadramento não move — muda só a
+      // nitidez de alguns frames, e um frame mais mole é MUITO melhor que um
+      // frame ausente (que vira salto no push-in).
+      const HD_TOTAL_BYTES = 3_900_000;
+      const ORCAMENTO_S = 8;
+      const seqRate = { bytes: 0, t0: 0, decidido: false, sd: false };
+
       const loadFrame = async (i: number) => {
         if (bitmaps[i] || seqDisposed) return;
         try {
-          const res = await fetch(seqSrc(i), { signal: aborter.signal });
-          const bmp = await createImageBitmap(await res.blob());
+          const base = await pickSeqVariant();
+          const v: SeqVariant = { ext: base.ext, sd: base.sd || seqRate.sd };
+          if (!seqRate.t0) seqRate.t0 = performance.now();
+
+          const res = await fetch(seqSrc(i, v), { signal: aborter.signal });
+          const blob = await res.blob();
+
+          // só mede enquanto está em HD e ainda não decidiu
+          if (!seqRate.decidido && !v.sd) {
+            seqRate.bytes += blob.size;
+            if (seqRate.bytes > 300_000) {
+              const s = (performance.now() - seqRate.t0) / 1000;
+              const bps = s > 0 ? seqRate.bytes / s : Infinity;
+              seqRate.sd = (HD_TOTAL_BYTES - seqRate.bytes) / bps > ORCAMENTO_S;
+              seqRate.decidido = true;
+            }
+          }
+
+          const bmp = await createImageBitmap(blob);
           if (seqDisposed) {
             bmp.close();
             return;
@@ -898,12 +1000,54 @@ export default function ARoberta() {
       for (let i = 0; i < SEQ_FRAMES; i++) if (i % 6 !== 0) loadOrder.push(i);
       if (!loadOrder.includes(SEQ_FRAMES - 1)) loadOrder.splice(1, 0, SEQ_FRAMES - 1);
       let loadCursor = 0;
-      for (let k = 0; k < 4; k++) {
-        (async () => {
-          while (loadCursor < loadOrder.length && !seqDisposed) {
-            await loadFrame(loadOrder[loadCursor++]);
-          }
-        })();
+      const startSeqLoad = () => {
+        for (let k = 0; k < 4; k++) {
+          (async () => {
+            while (loadCursor < loadOrder.length && !seqDisposed) {
+              await loadFrame(loadOrder[loadCursor++]);
+            }
+          })();
+        }
+      };
+
+      // Os 4 workers disparavam no MOUNT, e isso metia os 3,9MB desta section na
+      // fila do boot: a INTRO do topo (cujo play() só roda depois da hidratação)
+      // ficava esperando banda. Mas o gate não pode ser tarde: são 73 frames, e
+      // chegar atrasado é PIOR que chegar cedo — o drawSeq cai no nearestLoaded
+      // e o push-in vira salto, que lê como travamento. Medido com gate de 2
+      // viewports: em 3G a pessoa atravessava a section inteira com 20 de 73
+      // frames; em 4G entrava nela com 16.
+      //
+      // O gatilho certo é o PRIMEIRO SCROLL. A intro segura o scroll da página
+      // (`scroll-locked` no <html>, ver LoadingScreen), então o primeiro scroll
+      // só é possível DEPOIS que ela sai — ou seja, o download começa assim que
+      // o caminho crítico terminou, sem disputar com ele, e ainda com várias
+      // dobras de antecedência até esta section (fica por volta de y≈5300).
+      //
+      // O IntersectionObserver fica como rede de segurança, com margem larga,
+      // pra dois casos que o scroll não cobre: quem cai aqui já rolado (deep
+      // link/refresh no meio) e quem chega sem nunca ter disparado um scroll.
+      // Vale o primeiro que acontecer.
+      let seqIO: IntersectionObserver | null = null;
+      let seqIniciado = false;
+      const dispararSeqLoad = () => {
+        if (seqIniciado || seqDisposed) return;
+        seqIniciado = true;
+        seqIO?.disconnect();
+        seqIO = null;
+        window.removeEventListener("scroll", dispararSeqLoad);
+        startSeqLoad();
+      };
+
+      window.addEventListener("scroll", dispararSeqLoad, { passive: true });
+      if (root.current) {
+        seqIO = new IntersectionObserver(
+          (entries) => {
+            if (entries.some((e) => e.isIntersecting)) dispararSeqLoad();
+          },
+          { rootMargin: "400% 0px" },
+        );
+        seqIO.observe(root.current);
       }
 
       // Fonte única do "estamos na caixa retrato?" — o MESMO gate de aspecto do
@@ -1638,6 +1782,8 @@ export default function ARoberta() {
         // e devolve a memória dos bitmaps — 73 frames 1920px decodificados são
         // ~150MB de raster que o GC não recolhe sozinho enquanto o array viver.
         seqDisposed = true;
+        seqIO?.disconnect();
+        window.removeEventListener("scroll", dispararSeqLoad);
         aborter.abort();
         gsap.ticker.remove(tickSeq);
         bitmaps.forEach((b) => b?.close());
@@ -1770,6 +1916,7 @@ export default function ARoberta() {
                 object-position casados, no desktop E no retrato. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              loading="lazy"
               src={CUTOUT}
               alt="Roberta Carbonari"
               className={`absolute inset-0 h-full w-full select-none object-cover ${ROBERTA_CARD_BOX}`}
@@ -1908,6 +2055,7 @@ export default function ARoberta() {
             <div className="pointer-events-none absolute inset-0 z-[14]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
+                loading="lazy"
                 src={CUTOUT}
                 alt="Roberta Carbonari"
                 className="absolute inset-0 h-full w-full select-none object-cover"

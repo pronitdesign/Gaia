@@ -13,32 +13,32 @@ const testimonials = [
     handle: "@clarapereira.nutri",
     quote:
       "“A Gaia deixou minha alimentação muito mais simples. Consigo organizar minhas refeições, acompanhar minha evolução todo dia”",
-    photo: "/figma/t1-photo.png",
-    avatar: "/figma/t1-avatar.png",
+    photo: "/figma/t1-photo.webp",
+    avatar: "/figma/t1-avatar.webp",
   },
   {
     name: "Rafael Martins",
     handle: "@rafa.martins90",
     quote:
       "“O que mais gostei foi conseguir visualizar meu progresso e receber orientações de forma organizada todos os dias”",
-    photo: "/figma/t2-photo.png",
-    avatar: "/figma/t2-photo.png",
+    photo: "/figma/t2-photo.webp",
+    avatar: "/figma/t2-photo.webp",
   },
   {
     name: "Camila Andrade",
     handle: "@camiandrade.saude",
     quote:
       "“A Gaia deixou minha alimentação muito mais simples. Consigo organizar minhas refeições, acompanhar minha evolução e entender melhor minhas escolhas sem sentir que estou seguindo uma dieta impossível.”",
-    photo: "/figma/t4-photo.png",
-    avatar: "/figma/t4-avatar.png",
+    photo: "/figma/t4-photo.webp",
+    avatar: "/figma/t4-avatar.webp",
   },
   {
     name: "Junior Ferreira",
     handle: "@marilopes.fit",
     quote:
       "“A experiência é muito leve e intuitiva. Consigo acompanhar meu plano alimentar, registrar minha rotina e encontrar as informações”",
-    photo: "/figma/t3-photo.png",
-    avatar: "/figma/t3-avatar.png",
+    photo: "/figma/t3-photo.webp",
+    avatar: "/figma/t3-avatar.webp",
   },
 ];
 
@@ -71,7 +71,7 @@ export default function Testimonials() {
     <section id="depoimentos" className="relative overflow-hidden bg-[#fdf5ff]">
       <div className="absolute inset-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/figma/testimonials-bg.png" alt="" className="size-full object-cover" />
+        <img loading="lazy" src="/figma/testimonials-bg.webp" alt="" className="size-full object-cover" />
       </div>
 
       {/* Suaviza a emenda com a Pricing (que termina em creme): o topo do campo
@@ -131,6 +131,7 @@ export default function Testimonials() {
                   <div className="relative flex h-[520px] flex-col justify-between overflow-hidden rounded-[32px] px-6 py-8 lg:h-[600px]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
+                      loading="lazy"
                       src={t.photo}
                       alt={t.name}
                       className="absolute inset-0 size-full object-cover"
