@@ -20,9 +20,10 @@ import Faq from "@/components/kacio/Faq";
 
 /* iPhone 3D persistente que viaja Features → Manifesto → Pricing com o scroll.
    client-only (WebGL) e desktop-only por dentro. */
-const ScrollPhone = dynamic(() => import("@/components/iphone3d/ScrollPhone"), {
-  ssr: false,
-});
+const ScrollPhone = dynamic(
+  () => import("@/components/iphone3d/ScrollPhoneDeferred"),
+  { ssr: false },
+);
 
 export default function Home() {
   return (

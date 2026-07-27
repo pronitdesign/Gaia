@@ -7,7 +7,7 @@ export default function Hero() {
       <div className="absolute inset-0 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/figma/hero-bg.png"
+          src="/figma/hero-bg.webp"
           alt="Nutricionista atendendo com a Gaia"
           className="absolute inset-0 size-full object-cover"
         />

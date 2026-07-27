@@ -168,7 +168,7 @@ function InicioScreen() {
             {p.who.photo ? (
               <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.who.photo} alt="" aria-hidden className="h-full w-full object-cover" />
+                <img loading="lazy" src={p.who.photo} alt="" aria-hidden className="h-full w-full object-cover" />
               </span>
             ) : (
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-azul-100 font-title text-[13px] font-semibold text-azul-800">
@@ -371,12 +371,12 @@ function MealRow({ meal, i }: { meal: Meal; i: number }) {
       className="gaia-meal-rise flex items-center gap-3"
       style={{ animationDelay: `${i * 70}ms` }}
     >
-      {/* wrapper 40×40 carrega tamanho/raio/recorte/anel — o <img> por
+      {/* wrapper 40×40 carrega tamanho/raio/recorte/anel — o <img loading="lazy"> por
           dentro só preenche (object-cover h-full w-full). O inset ring
           separa a foto do vidro escuro em vez de deixá-la flutuar sem
           contorno, mesma lógica do avatar "MA" do card da paciente acima. */}
       <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[11px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]">
-        {/* <img> cru, NUNCA next/image: este DOM não é montado pelo App
+        {/* <img loading="lazy"> cru, NUNCA next/image: este DOM não é montado pelo App
             Router — é uma React root PARALELA criada pelo <Html transform>
             do drei dentro do canvas 3D (ver comentário detalhado em
             lib/useAutoCycle.ts sobre essa root remontar a cada render do
@@ -387,7 +387,7 @@ function MealRow({ meal, i }: { meal: Meal; i: number }) {
             economizar alguns KB numa thumb de 40px que nem é clicável.
             alt="" + aria-hidden: puramente decorativa, o nome da refeição ao
             lado já diz tudo que importa. */}
-        <img src={meal.img} alt="" aria-hidden className="h-full w-full object-cover" />
+        <img loading="lazy" src={meal.img} alt="" aria-hidden className="h-full w-full object-cover" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-title text-[13px] font-medium text-white/90">{meal.name}</p>
@@ -450,7 +450,7 @@ function ProntuarioScreen() {
               tela. Mesmo raio do avatar de iniciais que estava aqui antes. */}
           <span className="h-11 w-11 shrink-0 overflow-hidden rounded-[13px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={MARINA.photo} alt="" aria-hidden className="h-full w-full object-cover" />
+            <img loading="lazy" src={MARINA.photo} alt="" aria-hidden className="h-full w-full object-cover" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate font-title text-[15.5px] font-medium text-white">{MARINA.name}</p>

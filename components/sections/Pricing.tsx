@@ -529,6 +529,7 @@ export default function Pricing() {
               navy, invisível. */}
           <div aria-hidden className="absolute inset-x-0 -top-[2px] h-[45%] bg-[#151948]" />
           <img
+            loading="lazy"
             src="/pricing-campo-bg.webp"
             alt=""
             aria-hidden

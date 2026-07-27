@@ -835,7 +835,8 @@ export default function CTAFinal() {
     );
   }, []);
 
-  // Os dois vídeos (17,2 MB somados) nascem com preload="none" — ver a prop
+  // Os dois vídeos (8,0 MB somados no par 1920; 4,3 MB no par 1280) nascem com
+  // preload="none" — ver a prop
   // abaixo — pra não competir por banda com o que está ACIMA da dobra, já que
   // esta section é o PÉ da página. Aqui a gente adia o download até a pista
   // estar a ~1 viewport de distância: rootMargin "100% 0px" expande a área de

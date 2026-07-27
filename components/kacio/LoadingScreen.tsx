@@ -158,15 +158,32 @@ export default function LoadingScreen() {
         }}
       >
         {/* A flor — composição fechada 16:9 sobre k-ink, full-bleed, com Ken Burns */}
+        {/* Este vídeo é o PRIMEIRO pixel da página e o relógio da intro (o % vem do
+            currentTime dele), então ele é o caminho crítico inteiro: enquanto não
+            chega, a tela fica parada. Medido em 3G lento, num arquivo só de 1,2MB
+            disputando banda com o JS, a intro levava 17,4s pra começar a andar.
+            Daí a variante mobile de 275KB (1280×720) — o retrato já recorta as
+            laterais do 16:9 e amplia pela altura, então resolução de sobra ali só
+            atrasa a estreia.
+
+            A escolha vai por `<source media>` e NÃO por matchMedia+state (como faz
+            o CTAFinal): lá o custo de decidir no cliente é irrelevante porque
+            aqueles vídeos nascem com preload="none" e só carregam perto da section.
+            Aqui, decidir no cliente empurraria o download pra DEPOIS da hidratação
+            — ou seja, pra depois de 513KB de JS chegarem — que é exatamente o
+            atraso que estamos matando. O src precisa estar no HTML inicial.
+            VERIFICADO nos dois viewports: cada um baixa só o arquivo da sua faixa. */}
         <video
           ref={videoRef}
           className="size-full object-cover"
           style={{ transform: `scale(${kb})`, transformOrigin: "center", willChange: "transform" }}
-          src="/loading.mp4"
           muted
           playsInline
           preload="auto"
-        />
+        >
+          <source src="/loading.mp4" media="(min-width: 1024px)" type="video/mp4" />
+          <source src="/loading-mobile.mp4" type="video/mp4" />
+        </video>
 
         {/* Véu de escuro que levanta com o % — a flor emerge do breu */}
         <div className="pointer-events-none absolute inset-0 bg-k-ink" style={{ opacity: veil }} />
