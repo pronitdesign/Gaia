@@ -946,7 +946,45 @@ export default function ARoberta() {
       //    com inércia de câmera em vez de um degrau seco. Determinístico: mesmo
       //    scroll → mesmo caminho, ida e volta (nada de random, Armadilha do scrub
       //    reverso). O tremor do mergulho segue senoidal por d, inalterado.
+      // 4. JANELA — o que fica DECODIFICADO é limitado; o que fica guardado é o
+      //    blob comprimido.
+      //
+      //    Aqui os 73 ImageBitmap ficavam vivos do primeiro scroll até o unmount
+      //    (que numa sessão normal nunca acontece), e o cleanup estimava o custo
+      //    disso em "~150MB" — a conta tinha sido feita com o peso do ARQUIVO.
+      //    ImageBitmap não guarda arquivo, guarda RASTER: 2400×1340×4 = 12,9 MB
+      //    por frame, 939 MB nos 73. Medido em Chrome com viewport de iPhone 14
+      //    Pro: o renderer da página vai a 1660 MB de RSS com a sequência e a
+      //    682 MB com /olho-seq/* bloqueado — 978 MB de delta, e o número por
+      //    frame bate com a conta (13,4 MB medidos contra 12,9 nominais). O
+      //    WebContent do Safari no iOS é morto bem antes disso e a página volta
+      //    como "Um problema ocorreu repetidamente". Como o loader dispara no
+      //    PRIMEIRO SCROLL, o estouro chega com a pessoa ainda na dobra, muito
+      //    antes desta section entrar em quadro — era um celular que abria a
+      //    landing, rolava uma vez e morria.
+      //
+      //    NÃO dá pra resolver baixando a resolução: no retrato o cover escala
+      //    pela ALTURA (s = 1214/1340 = 0,91 num iPhone 14 Pro), então a tiragem
+      //    de 1280 seria upscale de 1,7× — a `sd` existe pra rede ruim, não pra
+      //    memória. O que sobra é não manter 73 frames vivos ao mesmo tempo.
+      //
+      //    O blob comprimido custa 26–53 KB (3,9 MB nos 73, e eles já estão no
+      //    cache HTTP de qualquer jeito): guardar TODOS é de graça. A rede segue
+      //    idêntica — mesmos 73 arquivos, mesma ordem, mesmos 4 workers — e só a
+      //    DECODIFICAÇÃO passa a ser sob demanda, numa janela em volta do
+      //    playhead. Decodificar de um blob já em memória é CPU pura, sem rede;
+      //    e se um flick correr na frente da janela, quem cobre é o mesmo
+      //    nearestLoaded de sempre: degrada pro passo maior, que é exatamente a
+      //    degradação que o loader já aceitava enquanto os frames chegavam.
       const bitmaps: (ImageBitmap | null)[] = new Array(SEQ_FRAMES).fill(null);
+      const blobs: (Blob | null)[] = new Array(SEQ_FRAMES).fill(null);
+      const decodificando = new Set<number>();
+      // Assimétrica: o scrub anda pra frente na maior parte do tempo, e o que
+      // custa caro é faltar o frame que ESTÁ CHEGANDO. 4 atrás cobrem o scroll
+      // reverso e o crossfade sub-frame; 12 à frente cobrem um flick. Teto de
+      // 17 frames residentes = ~219 MB no pior caso (contra 939 MB).
+      const JANELA_ATRAS = 4;
+      const JANELA_FRENTE = 12;
       let seqDisposed = false;
       let needsDraw = true;
       const aborter = new AbortController();
@@ -964,7 +1002,7 @@ export default function ARoberta() {
       const seqRate = { bytes: 0, t0: 0, decidido: false, sd: false };
 
       const loadFrame = async (i: number) => {
-        if (bitmaps[i] || seqDisposed) return;
+        if (blobs[i] || seqDisposed) return;
         try {
           const base = await pickSeqVariant();
           const v: SeqVariant = { ext: base.ext, sd: base.sd || seqRate.sd };
@@ -984,15 +1022,60 @@ export default function ARoberta() {
             }
           }
 
+          if (seqDisposed) return;
+          blobs[i] = blob;
+          // Só decodifica se este frame estiver na janela ATUAL. Os outros ficam
+          // como blob até o playhead chegar perto — é o download inteiro sem o
+          // raster inteiro.
+          garantirJanela();
+        } catch {
+          /* abort no cleanup ou rede: o nearest-loaded do drawSeq cobre o vão */
+        }
+      };
+
+      /** Decodifica `i` a partir do blob já baixado. Idempotente e sem rede. */
+      const decodificar = async (i: number) => {
+        if (bitmaps[i] || decodificando.has(i) || seqDisposed) return;
+        const blob = blobs[i];
+        if (!blob) return;
+        decodificando.add(i);
+        try {
           const bmp = await createImageBitmap(blob);
-          if (seqDisposed) {
+          // A janela pode ter andado enquanto isto decodificava: se `i` saiu
+          // dela, o próximo garantirJanela fecharia o bitmap logo depois — mas
+          // guardá-lo aqui e deixar ele fechar é mais simples que checar de
+          // novo, e o teto continua valendo.
+          if (seqDisposed || bitmaps[i]) {
             bmp.close();
             return;
           }
           bitmaps[i] = bmp;
           needsDraw = true; // o ticker redesenha — pode ser exatamente o frame em vista
         } catch {
-          /* abort no cleanup ou rede: o nearest-loaded do drawSeq cobre o vão */
+          /* decode falhou: o nearestLoaded cobre o vão */
+        } finally {
+          decodificando.delete(i);
+        }
+      };
+
+      /**
+       * Mantém decodificada só a vizinhança do playhead e FECHA o resto — é o
+       * `close()` que devolve o raster; deixar o array cair fora de escopo não
+       * devolve (foi por isso que o cleanup já chamava close em todos).
+       */
+      let janelaCentro = 0;
+      const garantirJanela = (centro = janelaCentro) => {
+        if (seqDisposed) return;
+        janelaCentro = centro;
+        const lo = Math.max(0, centro - JANELA_ATRAS);
+        const hi = Math.min(SEQ_FRAMES - 1, centro + JANELA_FRENTE);
+        for (let i = 0; i < SEQ_FRAMES; i++) {
+          if (i >= lo && i <= hi) {
+            void decodificar(i);
+          } else if (bitmaps[i]) {
+            bitmaps[i]!.close();
+            bitmaps[i] = null;
+          }
         }
       };
       const loadOrder: number[] = [];
@@ -1126,6 +1209,11 @@ export default function ARoberta() {
         if (cur !== seq.current || needsDraw) {
           seq.current = cur;
           needsDraw = false;
+          // A janela segue o playhead ANTES do draw: assim o frame que vai ser
+          // desenhado nunca é um que acabou de ser fechado. Fechar e desenhar
+          // acontecem no mesmo tick síncrono, sem await no meio.
+          const centro = Math.round(cur);
+          if (centro !== janelaCentro) garantirJanela(centro);
           drawSeq(cur);
           // O push-in do scrub mora no transform do canvas (ver applyDive) — anda
           // junto com o frame, senão a escala salta quando o damp ainda corre.
@@ -1779,14 +1867,18 @@ export default function ARoberta() {
         marquee.kill();
         gsap.ticker.remove(applyTransition);
         // Sequência: para os workers (o abort mata os fetch em voo), tira o ticker
-        // e devolve a memória dos bitmaps — 73 frames 1920px decodificados são
-        // ~150MB de raster que o GC não recolhe sozinho enquanto o array viver.
+        // e devolve a memória. Os bitmaps residentes agora são no máximo os 17 da
+        // janela (ver JANELA_ATRAS/FRENTE) em vez dos 73, mas o close() continua
+        // obrigatório: raster de ImageBitmap não é recolhido pelo GC junto com o
+        // array. Os blobs vão junto — 3,9 MB que ninguém mais vai decodificar.
         seqDisposed = true;
         seqIO?.disconnect();
         window.removeEventListener("scroll", dispararSeqLoad);
         aborter.abort();
         gsap.ticker.remove(tickSeq);
         bitmaps.forEach((b) => b?.close());
+        bitmaps.fill(null);
+        blobs.fill(null);
         // A cortina deixou de existir — o Features precisa saber, senão fica
         // preso lendo o último progresso publicado (um valor que ninguém mais
         // atualiza) e nunca cai no fallback. Mesma razão do clearProps abaixo:
