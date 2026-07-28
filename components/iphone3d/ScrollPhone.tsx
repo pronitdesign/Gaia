@@ -739,13 +739,58 @@ const quantize = (value: number, step: number) => Math.round(value / step) * ste
    mobile é a de desktop escondida (getClientRects vazio, rect 0,0) — e o phone
    miraria a origem. Este helper devolve a que está de fato renderizada; cai pra
    primeira se nenhuma tem caixa (estado de boot). No desktop só a lg:block tem
-   caixa, então devolve exatamente a âncora de sempre — retrocompatível. */
+   caixa, então devolve exatamente a âncora de sempre — retrocompatível.
+
+   ── O ELEMENTO fica em cache; o RECT continua vivo ──
+
+   Esta função roda no gsap.ticker: `update()` chama duas vezes e o `place()`
+   que vem logo atrás chama mais cinco (start, end, water, clip, end de novo),
+   mais dois querySelector soltos do [data-water-start]. São ~9 buscas no
+   documento e ~9 getClientRects POR FRAME — e getClientRects força o flush de
+   estilo/layout, então não é só o custo da busca.
+
+   Medido com o sampling profiler do V8 (varredura da página inteira, viewport de
+   iPhone, CPU 4×): querySelectorAll somava 458ms e getClientRects 205ms num
+   quadro de 12,5s. É trabalho de main thread que escala com a lentidão do
+   aparelho — de graça no desktop, caro exatamente onde a queixa nasceu.
+
+   O que se resolve por frame é o rect (a viagem é rect-vivo por construção — não
+   mexer nisso). QUAL elemento é a âncora, não: isso só muda quando o layout troca
+   de tiragem. Então o elemento entra em cache e a busca refaz quando:
+     · a janela muda de tamanho (o `lg:block`/`lg:hidden` troca de lado — é o
+       caso que o comentário abaixo descreve, e o único que troca a resposta);
+     · o nó cacheado saiu do documento (React remontou a seção);
+     · o nó cacheado deixou de ter caixa (a tiragem dele foi escondida).
+   Os três caem no mesmo re-resolve, então o cache nunca serve um nó errado.
+
+   BANDA_FOLGA mora aqui embaixo porque é a mesma dupla de âncoras que decide se
+   o aparelho está em quadro — ver o bloco "A BANDA" no update(). */
+const anchorCache = new Map<string, HTMLElement>();
+const limparAnchorCache = () => anchorCache.clear();
+
+/* Folga da banda em que o aparelho fica ligado, em viewports pra cada lado dos
+   âncoras [data-phone-start]/[data-phone-end]. 1 viewport é folga deliberada: a
+   conta de visibilidade real dependeria da projeção do glb (escala, tilt,
+   mergulho, clip da fita), e errar pra menos some com o aparelho em quadro.
+   Errar pra mais só paga um pouco do custo que o gate corta. */
+const BANDA_FOLGA = 1;
+
 const anchor = (sel: string): HTMLElement | null => {
+  const guardado = anchorCache.get(sel);
+  // isConnected pega a remontagem; getClientRects pega a troca de tiragem.
+  if (guardado && guardado.isConnected && guardado.getClientRects().length)
+    return guardado;
+
   const els = document.querySelectorAll<HTMLElement>(sel);
-  for (const el of els) if (el.getClientRects().length) return el;
+  for (const el of els)
+    if (el.getClientRects().length) {
+      anchorCache.set(sel, el);
+      return el;
+    }
   // Nenhuma renderizada → null (place() sai cedo). NÃO cai pra els[0]: no mobile
   // isso seria a âncora de desktop escondida (rect 0,0) e o phone miraria a
   // origem — um aparelho quebrado no canto em vez de nenhum.
+  anchorCache.delete(sel);
   return null;
 };
 
@@ -878,6 +923,27 @@ function CameraBridge({
   return null;
 }
 
+/* Entrega o setFrameloop do R3F pro gsap.ticker — mesmo motivo e mesma forma do
+   CameraBridge: quem sabe se o aparelho está em quadro é o update() que já lê os
+   âncoras por frame, e ele roda FORA do React. Passar por state re-renderizaria
+   a árvore do Canvas duas vezes por travessia de página sem necessidade nenhuma.
+
+   Ver BANDA_FOLGA pro que este interruptor desliga. */
+function FrameloopBridge({
+  setRef,
+}: {
+  setRef: React.MutableRefObject<((f?: "always" | "demand" | "never") => void) | null>;
+}) {
+  const setFrameloop = useThree((s) => s.setFrameloop);
+  useEffect(() => {
+    setRef.current = setFrameloop;
+    return () => {
+      setRef.current = null;
+    };
+  }, [setFrameloop, setRef]);
+  return null;
+}
+
 /* AQUECIMENTO DA GPU — compila os shaders e o envmap enquanto o usuário ainda
    está no topo da página, pra não pagar o custo no meio do scroll dele.
 
@@ -960,6 +1026,16 @@ export default function ScrollPhone() {
      que é o pedido — o phone emerge de trás da fita e some na base dela. Ref e
      escrita por frame no ticker (clipPhone), como screenEl/lensEl. */
   const overlay = useRef<HTMLDivElement>(null);
+  /* Interruptor do loop do R3F, entregue pelo FrameloopBridge. Ver BANDA_FOLGA. */
+  const setFrameloop = useRef<((f?: "always" | "demand" | "never") => void) | null>(null);
+  /* Estado ATUAL da banda. Começa `true` de propósito: o primeiro update() do
+     ticker decide, e enquanto ele não roda o aparelho fica ligado — nascer
+     desligado deixaria a cena sem um render inicial e o retorno à banda entraria
+     por pop em vez de já estar pronto. */
+  const emQuadro = useRef(true);
+  /* Último frameloop realmente ENTREGUE ao R3F. Separado de `emQuadro` porque o
+     bridge pode não existir ainda quando a banda muda — ver o uso no update(). */
+  const loopAplicado = useRef<"always" | "never" | null>(null);
   const [enabled, setEnabled] = useState(false);
   // Qual tela mostrar: false = prontuário (Features), true = Início (Pricing).
   const [showAlt, setShowAlt] = useState(false);
@@ -2173,6 +2249,63 @@ export default function ScrollPhone() {
       const b = end.getBoundingClientRect();
       const startC = a.top + a.height / 2;
       const endC = b.top + b.height / 2;
+
+      /* ═══ A BANDA — o aparelho só existe onde ele aparece ═══
+         O overlay é `fixed inset-0`: ele cobre a tela inteira da primeira à
+         última seção, e o Canvas dentro dele desenhava a página inteira. Só que
+         a viagem do phone acontece ENTRE os dois âncoras — fora dela ele está
+         parado atrás/à frente do quadro e o three descarta tudo por frustum.
+
+         Medido no build de produção, viewport de iPhone (390×844, dpr 3),
+         contando chamadas de desenho do WebGL por segundo ao longo da página:
+
+           y=0 … 11700 ......... 0 draws/s, 30 clears/s
+           y=13500 ............. 750 draws/s
+           y=15112 ............. 450 draws/s
+           y=16912 ............. 0 draws/s, 30 clears/s
+
+         Ou seja: em ~85% da página o Canvas limpava um buffer de 780×1688 e
+         compunha uma camada de tela cheia por frame pra desenhar NADA. E não é
+         só o canvas — no dump de camadas do compositor em y=10072 (fora da
+         banda) o overlay ainda respondia por ~8 camadas de viewport inteiro
+         empilhadas, uma delas `mix-blend-multiply`, que força leitura do
+         backdrop. No desktop isso se paga sozinho; num GPU de celular é
+         exatamente o que faz o scroll perder frame sem nada estar animando.
+
+         Fora da banda o overlay some do compositor (`visibility: hidden` não
+         pinta e não compõe) e o loop do R3F para. Nada disso é visível: não há
+         aparelho em quadro pra ver.
+
+         A folga é de um viewport de cada lado — o gate é conservador de
+         propósito. Ele desliga só quando o aparelho está claramente longe, e a
+         escala/posição dele é rect-vivo (recalculada no frame em que a banda
+         reabre), então voltar não tem transiente. */
+      const folga = window.innerHeight * BANDA_FOLGA;
+      const dentro = startC < window.innerHeight + folga && endC > -folga;
+      if (dentro !== emQuadro.current) {
+        emQuadro.current = dentro;
+        if (overlay.current) overlay.current.style.visibility = dentro ? "" : "hidden";
+      }
+      /* O frameloop se aplica por COMPARAÇÃO, não na aresta da transição.
+         O ScrollPhone é montado adiado (ver ScrollPhoneDeferred) e o Canvas
+         resolve os efeitos dele depois: quem carrega no topo já está fora da
+         banda, e a primeira (e única) aresta acontece com `setFrameloop.current`
+         ainda em null. Medido antes deste conserto — a visibilidade caía certo e
+         o loop seguia rodando a página inteira: 120 clears/s de um buffer de
+         780×1688 com o canvas `hidden`, que é justamente o custo que a banda
+         existe pra cortar. Comparar por frame custa uma igualdade e não tem
+         aresta pra perder. */
+      const alvo = dentro ? "always" : "never";
+      if (setFrameloop.current && loopAplicado.current !== alvo) {
+        loopAplicado.current = alvo;
+        setFrameloop.current(alvo);
+      }
+      /* place() SEGUE rodando fora da banda, de propósito. Ele não é o custo que
+         este gate ataca (o custo é compor camada e desenhar), e é ele que mantém
+         coerentes a histerese do `armed`, o showAlt e o clip — máquinas de estado
+         que leem p todo frame. Desligá-las junto seria trocar um problema de GPU
+         por um bug de estado na primeira reentrada. As escritas de estilo que ele
+         faz caem em subárvore `hidden`: não pintam e não compõem. */
       // Pouso (p=1) quando o centro do slot cruza 72% do viewport — não 50%
       // (centro), pra dar tempo do phone assentar visualmente no slot antes
       // que a seção termine de entrar no viewport.
@@ -2182,9 +2315,19 @@ export default function ScrollPhone() {
       place(p);
     };
 
+    /* Resize é o único evento que troca QUAL âncora responde (a tiragem
+       lg:block ↔ lg:hidden). O cache de `anchor()` sabe se defender sozinho
+       (isConnected + getClientRects), mas limpar na borda evita servir o nó
+       antigo pelo resto do frame em que a troca acontece. */
+    window.addEventListener("resize", limparAnchorCache);
+    window.addEventListener("orientationchange", limparAnchorCache);
+
     gsap.ticker.add(update);
     update();
     return () => {
+      window.removeEventListener("resize", limparAnchorCache);
+      window.removeEventListener("orientationchange", limparAnchorCache);
+      limparAnchorCache();
       gsap.ticker.remove(update);
       // sem isto, um resize/unmount no meio da entrega deixa a timeline
       // órfã mexendo em window.scrollTo depois que ninguém mais lê dive —
@@ -2252,6 +2395,7 @@ export default function ScrollPhone() {
         <ambientLight intensity={0.3} />
         <PerspectiveCamera makeDefault position={[0, 0, CAM_Z]} fov={CAM_FOV} />
         <CameraBridge camRef={cam} />
+        <FrameloopBridge setRef={setFrameloop} />
         <Lights />
         {/* Céu e água removidos do site (2026-07-17). O rig do phone e o seu
             trilho de duas pernas via [data-phone-water] seguem — só o cenário
