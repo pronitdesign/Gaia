@@ -1054,13 +1054,19 @@ export default function ARoberta() {
         const blob = blobs[i];
         if (!blob) return;
         decodificando.add(i);
+        const recorteDoDecode = recorte; // congela: o resize pode trocar no await
         try {
-          const bmp = await createImageBitmap(blob);
+          const bmp = recorteDoDecode
+            ? await createImageBitmap(blob, recorteDoDecode.x, 0, recorteDoDecode.w, SEQ_H)
+            : await createImageBitmap(blob);
           // A janela pode ter andado enquanto isto decodificava: se `i` saiu
           // dela, o próximo garantirJanela fecharia o bitmap logo depois — mas
           // guardá-lo aqui e deixar ele fechar é mais simples que checar de
           // novo, e o teto continua valendo.
-          if (seqDisposed || bitmaps[i]) {
+          // `recorteDoDecode !== recorte` = o viewport mudou no meio do await e
+          // este raster é de outra faixa. Guardá-lo desenharia o pedaço errado
+          // esticado na tela inteira.
+          if (seqDisposed || bitmaps[i] || recorteDoDecode !== recorte) {
             bmp.close();
             return;
           }
@@ -1097,10 +1103,11 @@ export default function ARoberta() {
          (aquilo o dbe499d resolveu), mas depois de algumas passadas.
 
          O PICO (~700 MB enquanto a sequência está em quadro) esta banda NÃO
-         resolve, e é ela que a janela existe pra sustentar. Encolher
-         JANELA_FRENTE de 12 pra 7 derruba o pico pra ~640 e o repouso pra ~490,
-         ao custo de um flick poder correr na frente do decode. Medido, não
-         adotado: é troca de craft, não de técnica.
+         resolve — quem resolve é o RECORTE NO DECODE, mais abaixo. Fica aqui a
+         alternativa que foi medida e NÃO adotada, pra não ser tentada de novo
+         sem motivo: encolher JANELA_FRENTE de 12 pra 7 leva o pico a ~640 e o
+         repouso a ~490, mas paga com um flick podendo correr na frente do
+         decode. O recorte entrega mais que isso e não custa frame nenhum.
 
          Fora da banda a janela inteira é fechada; ao voltar, `garantirJanela`
          redecodifica dos BLOBS que continuam em memória — CPU pura, sem rede.
@@ -1231,6 +1238,52 @@ export default function ARoberta() {
 
       const canvas = seqCanvas.current;
       const cctx = canvas?.getContext("2d");
+
+      /* RECORTE NO DECODE — o corte que faltava no PICO.
+         A banda (acima) devolve a janela fora de quadro, mas não muda o que ela
+         custa ENQUANTO a sequência está em cena: 17 × 12,9 MB = 219 MB. Medido
+         no build com a banda, RSS acima do piso por posição de scroll, segunda
+         passada: 398 MB em y=5000, 612 MB em y=7000, 497 MB em y=8000. O pico é
+         a janela em uso, e é ele que ainda mata a aba no iPhone.
+
+         Só que em RETRATO a gente decodifica três vezes mais pixel do que
+         desenha. O cover escala pela ALTURA (s = canvas.height/1340), então de
+         cada frame 2400×1340 só entram canvas.width/s colunas — ~618 num
+         iPhone 14 Pro Max — e a panorâmica varre meros 141 px
+         (EYE_CX_SRC_START 1520 → DISC_CX_SRC 1378,75). A união do que QUALQUER
+         frame pode mostrar cabe em ~760 colunas de 2400.
+
+         `createImageBitmap` aceita retângulo de origem, então o raster que a
+         gente guarda passa a ser só essa faixa. Não é chute: o intervalo sai da
+         MESMA fórmula do `dx` do drawSeq, avaliada nos dois extremos do pan —
+         e `dx` é monotônico em cx (os dois clamps preservam a monotonia), então
+         os extremos limitam o percurso inteiro.
+
+         Um bitmap cortado só serve para o viewport que o cortou. Trocar de
+         tamanho ou sair do retrato invalida TODOS — daí o recorte ser
+         recalculado dentro do resizeCanvas, que já é quem responde a
+         resize/rotate (via onRefresh do ScrollTrigger). */
+      const MARGEM_RECORTE = 64; // sub-pixel do damp + arredondamento do backing
+      let recorte: { x: number; w: number } | null = null;
+      const calcularRecorte = () => {
+        if (!canvas || !canvas.width || !portraitMQ.matches) return null;
+        const s = Math.max(canvas.width / SEQ_W, canvas.height / SEQ_H);
+        const dxDe = (cx: number) =>
+          Math.min(0, Math.max(canvas.width - SEQ_W * s, canvas.width / 2 - cx * s));
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const cx of [EYE_CX_SRC_START, DISC_CX_SRC]) {
+          const dx = dxDe(cx);
+          lo = Math.min(lo, -dx / s);
+          hi = Math.max(hi, (-dx + canvas.width) / s);
+        }
+        const x = Math.max(0, Math.floor(lo - MARGEM_RECORTE));
+        const w = Math.min(SEQ_W - x, Math.ceil(hi + MARGEM_RECORTE) - x);
+        // Abaixo de 20% de economia não vale a complexidade nem o risco de um
+        // viewport de borda pedir coluna que não foi decodificada.
+        return w > 0 && w < SEQ_W * 0.8 ? { x, w } : null;
+      };
+
       const resizeCanvas = () => {
         if (!canvas) return;
         const cw = canvas.clientWidth || window.innerWidth;
@@ -1238,6 +1291,14 @@ export default function ARoberta() {
         const dpr = Math.min(window.devicePixelRatio || 1, 2, SEQ_W / Math.max(1, cw));
         canvas.width = Math.round(cw * dpr);
         canvas.height = Math.round(ch * dpr);
+        const novo = calcularRecorte();
+        if (novo?.x !== recorte?.x || novo?.w !== recorte?.w) {
+          // Atômico: solta o que foi decodificado com o recorte VELHO antes de
+          // trocar, senão o drawSeq desenharia a faixa errada esticada.
+          soltarJanela();
+          recorte = novo;
+          garantirJanela();
+        }
         needsDraw = true;
       };
       resizeCanvas();
@@ -1274,14 +1335,22 @@ export default function ARoberta() {
           ? Math.min(0, Math.max(canvas.width - dw, canvas.width / 2 - eyeCxAt(f) * s))
           : (canvas.width - dw) / 2;
         const dy = (canvas.height - dh) / 2;
+        /* O bitmap pode ser uma FAIXA do frame (ver calcularRecorte), e nesse
+           caso ele não começa na coluna 0: o destino anda `recorte.x * s` pra
+           direita e a largura vira `recorte.w * s`. Sem esse deslocamento a
+           faixa seria esticada sobre o frame inteiro — o `dx` continua sendo o
+           mesmo, calculado sobre a imagem COMPLETA, porque é ele que carrega a
+           panorâmica. */
+        const px = recorte ? dx + recorte.x * s : dx;
+        const pw = recorte ? recorte.w * s : dw;
         cctx.globalAlpha = 1;
-        cctx.drawImage(bitmaps[a]!, dx, dy, dw, dh);
+        cctx.drawImage(bitmaps[a]!, px, dy, pw, dh);
         // Crossfade sub-frame — só quando o frame base é o certo (não um vizinho
         // de fallback) e o próximo já decodificou.
         const mix = f - i0;
         if (mix > 0.001 && a === i0 && bitmaps[i1]) {
           cctx.globalAlpha = mix;
-          cctx.drawImage(bitmaps[i1]!, dx, dy, dw, dh);
+          cctx.drawImage(bitmaps[i1]!, px, dy, pw, dh);
           cctx.globalAlpha = 1;
         }
       };
