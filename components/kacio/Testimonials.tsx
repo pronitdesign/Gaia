@@ -129,14 +129,22 @@ export default function Testimonials() {
                     transition={{ duration: 0.7, delay: (i % 4) * 0.09, ease: easeOut }}
                   >
                   <div className="relative flex h-[520px] flex-col justify-between overflow-hidden rounded-[32px] px-6 py-8 lg:h-[600px]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      loading="lazy"
-                      src={t.photo}
-                      alt={t.name}
-                      className="absolute inset-0 size-full object-cover"
-                      draggable={false}
-                    />
+                    {/* O carrossel duplica a lista pro loop do embla, então cada
+                        foto existe DUAS vezes no DOM. Uma URL só = um decode só,
+                        mas a 900×1350 são 4,9 MB de bitmap por foto pra um card
+                        de 342×520 — a -700 é o 2× do card e corta pela metade.
+                        O desktop (card de 465px) segue na original. */}
+                    <picture className="contents">
+                      <source media="(min-width: 1024px)" srcSet={t.photo} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        loading="lazy"
+                        src={t.photo.replace(/\.webp$/, "-700.webp")}
+                        alt={t.name}
+                        className="absolute inset-0 size-full object-cover"
+                        draggable={false}
+                      />
+                    </picture>
                     <div
                       className="absolute inset-0"
                       style={{

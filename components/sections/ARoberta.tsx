@@ -289,6 +289,8 @@ const FLOWER_FILTER = "none";
 // Foto da Roberta — soltar o arquivo em /public e trocar aqui.
 // Se falhar, o placeholder (gradiente Bruma + monograma) aparece por baixo.
 const PORTRAIT = "/roberta.webp";
+// Mesma foto a 1920 de largura, para <lg. Ver o <picture> em Portrait().
+const PORTRAIT_SM = "/roberta-1920.webp";
 
 // A foto é landscape (2560×1429) e a Roberta está no meio-esquerda; o card do p=0 é
 // retrato (260×320), então o object-cover corta ~55% da largura fora. Sem reposicionar,
@@ -416,17 +418,30 @@ function Portrait() {
           RC
         </span>
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        loading="lazy"
-        src={PORTRAIT}
-        alt="Roberta Carbonari"
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ objectPosition: PORTRAIT_POS }}
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.display = "none";
-        }}
-      />
+      {/* A fonte é PAISAGEM 2560×1429 pintando uma caixa retrato — o cover corta
+          pela largura e joga fora mais da metade dos pixels. Num celular isso
+          são 14,6 MB de bitmap decodificado (largura×altura×4) pra um box de
+          430×538; a -1920 é o 2× exato dessa caixa (538 × 1,792 = 964 → 1928) e
+          derruba pra 8,2 MB sem tocar em nada que se veja. O desktop segue na
+          original. */}
+      {/* `contents` em todo <picture> desta leva: sem ele o elemento entra como
+          caixa inline no layout e o que era filho direto do container deixa de
+          ser. Com display:contents a árvore de layout fica byte-idêntica à de
+          antes — o <picture> só existe pro browser escolher a fonte. */}
+      <picture className="contents">
+        <source media="(min-width: 1024px)" srcSet={PORTRAIT} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          loading="lazy"
+          src={PORTRAIT_SM}
+          alt="Roberta Carbonari"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ objectPosition: PORTRAIT_POS }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </picture>
       {/* leve wash frio/lavanda por cima — tratamento de marca */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-roxo-900/20 via-transparent to-transparent" />
     </div>
@@ -1058,15 +1073,67 @@ export default function ARoberta() {
         }
       };
 
+      /* A JANELA TAMBÉM TEM BANDA — e sem ela a janela nunca era devolvida.
+         `garantirJanela` fecha o que sai da vizinhança do playhead, mas os 17
+         frames em volta dele ficavam vivos pro resto da sessão: passada a
+         section, o playhead para onde parou e ninguém mais chama close(). São
+         ~220 MB de raster (17 × 2400×1340×4) presos numa seção que já saiu de
+         quadro há dez telas.
+
+         Medido em Chrome com viewport de iPhone 14 Pro Max (430×932, dpr 3),
+         RSS dos processos `--type=renderer` DA ÁRVORE do browser lançado (casar
+         por nome conta o Chrome do playwright-MCP e o da pessoa junto), acima do
+         piso de about:blank (209 MB). Três passadas de scroll pela página
+         inteira, medindo no TOPO ao fim de cada uma:
+
+           página completa .......... 619 → 699 → 749 MB   (sobe e não devolve)
+           /olho-seq/* bloqueado .... 417 → 452 → 435 MB   (para de crescer)
+           *.mp4 bloqueado .......... 671 → 683 → 686 MB   (não muda nada)
+           com a banda deste commit . 472 → 537 → 516 MB
+
+         Ou seja: os vídeos não são o problema, e a sequência responde por ~300
+         MB residentes. O WebContent do iOS é morto MUITO antes disso, e é o que
+         a Laura vê como "trava e recarrega sozinho" — não no primeiro scroll
+         (aquilo o dbe499d resolveu), mas depois de algumas passadas.
+
+         O PICO (~700 MB enquanto a sequência está em quadro) esta banda NÃO
+         resolve, e é ela que a janela existe pra sustentar. Encolher
+         JANELA_FRENTE de 12 pra 7 derruba o pico pra ~640 e o repouso pra ~490,
+         ao custo de um flick poder correr na frente do decode. Medido, não
+         adotado: é troca de craft, não de técnica.
+
+         Fora da banda a janela inteira é fechada; ao voltar, `garantirJanela`
+         redecodifica dos BLOBS que continuam em memória — CPU pura, sem rede.
+         A folga é de um viewport de cada lado (mesma escolha do Canvas em
+         ScrollPhone): vir de tão longe dá tempo de sobra pro decode, e enquanto
+         nenhum frame existir o `nearestLoaded` devolve -1, o `drawSeq` sai
+         cedo e o canvas fica com o último quadro pintado — que é o mesmo do
+         BACKDROP por baixo. Não há flash pra ver. */
+      let seqEmBanda = true;
+      let janelaCentro = 0;
+      const soltarJanela = () => {
+        for (let i = 0; i < SEQ_FRAMES; i++) {
+          if (bitmaps[i]) {
+            bitmaps[i]!.close();
+            bitmaps[i] = null;
+          }
+        }
+      };
       /**
        * Mantém decodificada só a vizinhança do playhead e FECHA o resto — é o
        * `close()` que devolve o raster; deixar o array cair fora de escopo não
-       * devolve (foi por isso que o cleanup já chamava close em todos).
+       * devolve (foi por isso que o cleanup já chamava close em todos). Fora da
+       * banda não decodifica nada — ver o bloco acima.
        */
-      let janelaCentro = 0;
       const garantirJanela = (centro = janelaCentro) => {
         if (seqDisposed) return;
+        // O centro é anotado MESMO fora da banda: o scrub continua correndo com a
+        // section fora de quadro, e sair sem anotar deixaria `janelaCentro`
+        // velho — a reentrada decodificaria 17 frames no lugar errado e o tick
+        // seguinte fecharia os 17 pra abrir os certos. Anotar aqui custa uma
+        // atribuição e evita o dobro de decode em toda volta.
         janelaCentro = centro;
+        if (!seqEmBanda) return;
         const lo = Math.max(0, centro - JANELA_ATRAS);
         const hi = Math.min(SEQ_FRAMES - 1, centro + JANELA_FRENTE);
         for (let i = 0; i < SEQ_FRAMES; i++) {
@@ -1078,6 +1145,30 @@ export default function ARoberta() {
           }
         }
       };
+      /* Quem abre e fecha a banda. Margem de 100% = um viewport de folga de cada
+         lado. Não confundir com o `seqIO` acima: aquele é de 400% e dispara o
+         DOWNLOAD uma vez só; este fica vivo a sessão inteira e governa só o
+         DECODE. Os blobs baixados nunca são soltos — são 3,9 MB nos 73 e já
+         estariam no cache HTTP de qualquer jeito. */
+      let bandaIO: IntersectionObserver | null = null;
+      if (root.current) {
+        bandaIO = new IntersectionObserver(
+          (entries) => {
+            const dentro = entries.some((e) => e.isIntersecting);
+            if (dentro === seqEmBanda || seqDisposed) return;
+            seqEmBanda = dentro;
+            if (dentro) {
+              needsDraw = true; // o tickSeq redesenha assim que o primeiro frame voltar
+              garantirJanela(janelaCentro);
+            } else {
+              soltarJanela();
+            }
+          },
+          { rootMargin: "100% 0px" },
+        );
+        bandaIO.observe(root.current);
+      }
+
       const loadOrder: number[] = [];
       for (let i = 0; i < SEQ_FRAMES; i += 6) loadOrder.push(i);
       for (let i = 0; i < SEQ_FRAMES; i++) if (i % 6 !== 0) loadOrder.push(i);
@@ -1873,6 +1964,7 @@ export default function ARoberta() {
         // array. Os blobs vão junto — 3,9 MB que ninguém mais vai decodificar.
         seqDisposed = true;
         seqIO?.disconnect();
+        bandaIO?.disconnect();
         window.removeEventListener("scroll", dispararSeqLoad);
         aborter.abort();
         gsap.ticker.remove(tickSeq);

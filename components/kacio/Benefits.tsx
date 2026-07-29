@@ -115,10 +115,13 @@ export default function Benefits() {
           >
             <picture>
               <source media="(min-width: 1024px)" srcSet="/figma/mockup-app.webp" />
+              {/* -760 e não -mobile: o arquivo "mobile" era 1200×716 pintando
+                  uma caixa de 366×212 — 3,4 MB de bitmap decodificado por 1,4.
+                  760 é o 2× da caixa. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 loading="lazy"
-                src="/figma/mockup-app-mobile.webp"
+                src="/figma/mockup-app-mobile-760.webp"
                 alt="Interface da Gaia: pacientes, agenda e prontuário"
                 className="absolute inset-0 size-full object-cover"
               />

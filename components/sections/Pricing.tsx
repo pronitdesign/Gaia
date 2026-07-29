@@ -321,16 +321,30 @@ export default function Pricing() {
               que só é vista depois de ~10 telas de scroll. Quando o mp4 chegar,
               volta o <video> com poster={CAMPO_STILL} e preload="none".
               Visualmente idêntico: o poster JÁ era esta webp. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            data-campo
-            aria-hidden
-            alt=""
-            loading="lazy"
-            decoding="async"
-            src="/pricing-campo-bg.webp"
-            className="aspect-[775/624] w-full rounded-b-card object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
-          />
+          {/* <picture> e não <img> por DUAS razões, e a segunda é a que pesa.
+              (1) 2400×1934 num celular é 18,6 MB de bitmap DECODIFICADO pra
+              pintar uma caixa de 430×541 — o arquivo tem 412 KB, mas o que o
+              iOS guarda é largura×altura×4, e é isso que mata a aba. A -1400
+              cobre 2× o box no maior iPhone (58svh de 956 = 554 CSS, e
+              554×1,241 = 688 → 1376) e é indistinguível na tela.
+              (2) Esta montagem e a do bloco mobile (lg:hidden) coexistem no
+              DOM — a escondida BAIXA do mesmo jeito. Com as duas resolvendo
+              pela MESMA media query, os dois <img> pedem a mesma URL no mesmo
+              viewport: o segundo vira cache hit e o download duplo some.
+              Se mexer no breakpoint aqui, mexa no de lá no mesmo commit. */}
+          <picture className="contents">
+            <source media="(min-width: 1024px)" srcSet="/pricing-campo-bg.webp" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              data-campo
+              aria-hidden
+              alt=""
+              loading="lazy"
+              decoding="async"
+              src="/pricing-campo-bg-1400.webp"
+              className="aspect-[775/624] w-full rounded-b-card object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
+            />
+          </picture>
         </div>
 
         {/* TAB do phone ([data-phone-clip]) — o funil que o phone atravessa.
@@ -524,22 +538,30 @@ export default function Pricing() {
               #3c406f = lavanda⊕navy). O slab sobe 2px sobre o Mergulho — mesmo
               navy, invisível. */}
           <div aria-hidden className="absolute inset-x-0 -top-[2px] h-[45%] bg-[#151948]" />
-          <img
-            loading="lazy"
-            src="/pricing-campo-bg.webp"
-            alt=""
-            aria-hidden
-            decoding="async"
-            /* h-[58svh] (era 70svh, 2026-07-21 — a Pronit pediu a seção mais
-               baixa e o phone pousando SOBRE a grama, não numa faixa preta
-               abaixo dela): a altura fixa o recorte e a largura da tela
-               decide o quanto sobra dos lados — no phone vira o retrato do
-               mock (~0.64), no md alarga sozinho. O cover por altura nunca
-               corta o eixo vertical, então o contexto topo→pé está sempre
-               inteiro nos dois valores — só encolhe junto. Mask no topo
-               (12%) = o mesmo derretimento na lavanda do desktop. */
-            className="relative h-[58svh] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_12%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_12%)]"
-          />
+          {/* Mesma media query do bloco desktop, de propósito — ver o comentário
+              do <picture> de lá. O md: alarga a caixa mas o cover é por ALTURA,
+              então a fonte necessária não cresce com a largura: 1400 cobre 2×
+              até o maior iPhone. */}
+          <picture className="contents">
+            <source media="(min-width: 1024px)" srcSet="/pricing-campo-bg.webp" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              loading="lazy"
+              src="/pricing-campo-bg-1400.webp"
+              alt=""
+              aria-hidden
+              decoding="async"
+              /* h-[58svh] (era 70svh, 2026-07-21 — a Pronit pediu a seção mais
+                 baixa e o phone pousando SOBRE a grama, não numa faixa preta
+                 abaixo dela): a altura fixa o recorte e a largura da tela
+                 decide o quanto sobra dos lados — no phone vira o retrato do
+                 mock (~0.64), no md alarga sozinho. O cover por altura nunca
+                 corta o eixo vertical, então o contexto topo→pé está sempre
+                 inteiro nos dois valores — só encolhe junto. Mask no topo
+                 (12%) = o mesmo derretimento na lavanda do desktop. */
+              className="relative h-[58svh] w-full object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_12%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_12%)]"
+            />
+          </picture>
           {/* costura imagem→banda: força os últimos px a fecharem EXATO no ink
               da banda — a grama já é quase preta, o degradê é invisível. */}
           <div
