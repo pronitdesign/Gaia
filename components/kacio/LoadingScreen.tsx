@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 import { Logo } from "@/components/ui/Logo";
@@ -46,6 +46,7 @@ export default function LoadingScreen() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const doneRef = useRef(false); // trava o gatilho do reveal
+  const revelouRef = useRef(false); // trava o destrave (ver onRevealComplete)
   const countRef = useRef(0); // último inteiro pintado (evita setState por frame)
   const reduce = useReducedMotion();
 
@@ -127,12 +128,37 @@ export default function LoadingScreen() {
     };
   }, [reduce]);
 
-  // A cortina terminou de subir: solta o scroll e desmonta.
-  const onRevealComplete = () => {
+  // A cortina terminou de subir: solta o scroll e desmonta. IDEMPOTENTE — há
+  // duas fontes chamando (o relógio abaixo e o onAnimationComplete), de
+  // propósito.
+  const onRevealComplete = useCallback(() => {
+    if (revelouRef.current) return;
+    revelouRef.current = true;
     document.documentElement.classList.remove("scroll-locked");
     setMounted(false);
     anunciarFim();
-  };
+  }, []);
+
+  /* O DESTRAVE NÃO PODE DEPENDER DE UMA ANIMAÇÃO ACONTECER.
+     Ele morava só no `onAnimationComplete` do lift da cortina. Em
+     `prefers-reduced-motion` o alvo do `y` é "0%" nos DOIS estados (ver o
+     `animate` lá embaixo): quando `revealing` vira true não há valor mudando, o
+     framer-motion não tem o que animar e o callback NUNCA dispara. O sumiço por
+     `opacity` é transição CSS no style inline — também não gera evento.
+     Medido em Chrome com reducedMotion=reduce: `scroll-locked` ficava no
+     <html>, `overflow: hidden`, `gaia:intro-done` nunca saía e a roda do mouse
+     não movia um pixel. A landing inteira inacessível pra quem liga Reduzir
+     Movimento no aparelho — que é gente com enjoo de movimento, exatamente
+     quem a opção existe pra proteger.
+     Agora quem manda é o relógio, pela duração que a própria cortina declara.
+     O `onAnimationComplete` fica como caminho rápido: se a animação correr, ela
+     destrava antes; se não correr, o timeout destrava do mesmo jeito. */
+  useEffect(() => {
+    if (!revealing) return;
+    const ms = reduce ? 450 : (WINDUP_S + REVEAL_S) * 1000 + 80;
+    const id = setTimeout(onRevealComplete, ms);
+    return () => clearTimeout(id);
+  }, [revealing, reduce, onRevealComplete]);
 
   if (skipped || !mounted) return null;
 

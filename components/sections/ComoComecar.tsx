@@ -323,9 +323,14 @@ export default function ComoComecar() {
 
   return (
     <section ref={root} id="como-comecar" className="relative overflow-hidden bg-neutro-50">
+      {/* Mesma troca de blur→gradiente das outras seções (ver Manifesto pro
+          racional e os números). O `bg-afluente` é um linear-gradient de três
+          tons quase brancos que, a 40% e borrado 64px, virava um lavado pálido
+          — o tom médio (#E6DBE2) sozinho fecha a mesma leitura. Caixa cresce
+          4× o raio (900+256 × 560+256) e o centro fica onde estava. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-afluente opacity-40 blur-3xl"
+        className="pointer-events-none absolute left-1/2 -top-32 h-[816px] w-[1156px] -translate-x-1/2 bg-[radial-gradient(closest-side,rgba(230,219,226,0.40)_0%,rgba(230,219,226,0.40)_55%,rgba(230,219,226,0.34)_67%,rgba(230,219,226,0.20)_80%,rgba(230,219,226,0.08)_90%,transparent_100%)]"
       />
 
       {mode === "pinned" ? (

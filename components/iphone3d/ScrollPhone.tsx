@@ -2385,6 +2385,23 @@ export default function ScrollPhone() {
            stack de render dela que nos faltava — o resto (DOF, vignette, bloom)
            eles têm praticamente desligado.
            alpha:true preservado — o Canvas é overlay sobre o DOM. */
+        /* O CUSTO DO APARELHO É ~100 MB E NÃO SE SABE DE QUÊ.
+           Medido por ablação (bloqueando o glb, com o CenaOpcional segurando a
+           falha): o pico de RSS do bento cai de 533 pra 435 MB sem o aparelho —
+           e a queda é uniforme ao longo de toda a faixa, não um pico isolado,
+           então é alocação e não transiente. É o maior item que sobrou depois
+           do olho e dos borrões.
+
+           `antialias: false` foi a primeira suspeita — MSAA num buffer de
+           860×1864 daria quase exatamente esses 100 MB. TESTADO E NÃO
+           CONFIRMADO: duas rodadas do MESMO build com MSAA desligado deram 485
+           e 549 MB, ou seja o ruído do harness (±60 MB) é maior que o efeito.
+           Ficou como está, porque trocar a silhueta do aparelho por um ganho
+           que não se prova é pagar craft por nada. Quem for atacar isto de novo
+           precisa de número do aparelho, não de Chrome no desktop: os outros
+           suspeitos são a camada CSS3D do <Html transform> (a tela do phone é
+           DOM real dentro de um matrix3d reescrito por frame) e as texturas do
+           glb. */
         gl={{
           alpha: true,
           antialias: true,

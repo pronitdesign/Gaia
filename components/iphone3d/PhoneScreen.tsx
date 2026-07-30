@@ -425,8 +425,16 @@ function ProntuarioScreen() {
   const tab = TABS[active];
   return (
     <div ref={ref} className="relative flex h-full w-full flex-col overflow-hidden bg-[#0A0C11]">
-      {/* glow de marca atrás do vidro — mesmo recurso visual do resto do Features */}
-      <div aria-hidden className="pointer-events-none absolute -top-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-[#8A69D8]/20 blur-[80px]" />
+      {/* glow de marca atrás do vidro — mesmo recurso visual do resto do Features.
+          Gradiente e não `blur-[80px]`: este glow vive DENTRO do <Html transform>
+          do drei, ou seja numa camada CSS3D que já é cara por si; um disco
+          borrado ali obriga mais um buffer fora de tela (a camada media
+          1274×1272 pra um disco de 256). Caixa 4× o raio maior, centro no mesmo
+          lugar: era 256 centrado em y=64, agora 576 centrado em y=64. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-56 left-1/2 h-[576px] w-[576px] -translate-x-1/2 bg-[radial-gradient(closest-side,rgba(138,105,216,0.20)_0%,rgba(138,105,216,0.20)_17%,rgba(138,105,216,0.17)_36%,rgba(138,105,216,0.10)_58%,rgba(138,105,216,0.04)_79%,transparent_100%)]"
+      />
 
       {/* flex-1 + flex-col: o wrapper preenche os 844px inteiros da tela (só
           filho não-absolute do root, que já é flex-col h-full — ver default

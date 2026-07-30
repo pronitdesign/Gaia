@@ -235,10 +235,24 @@ export default function Manifesto() {
         style={{ background: SKY, WebkitMaskImage: SKY_MASK, maskImage: SKY_MASK }}
       />
 
-      {/* halo de aurora no crossover — mesma família do Pricing, costura a luz */}
+      {/* halo de aurora no crossover — mesma família do Pricing, costura a luz.
+
+          GRADIENTE E NÃO `blur-[150px]`: um disco sólido borrado obriga o
+          compositor a guardar um buffer fora de tela do tamanho da forma MAIS
+          ~2× o raio de cada lado — aqui a camada media 1720×1420, que na DPR 3
+          do iPhone é 88 MB pra pintar uma mancha. Medido por ablação no bento:
+          desligar todo `filter: blur()` derrubou o pico de RSS de 584 pra 471 MB,
+          o maior efeito isolado da página (olho-seq foi 67, backdrop 50,
+          textura 18, canvas 0). Blur é barato POR QUADRO e caro em RAM — não
+          confundir com a nota do blur animado, que é o oposto.
+
+          A caixa cresce 4× o raio (820+600 × 520+600) porque é até onde a luz
+          borrada chegava; o centro não se move. Os stops aproximam a queda
+          gaussiana do blur: cheio até a borda do disco original (57%), meia luz
+          a +1 raio, apagado a +2. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand/20 blur-[150px]"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[1120px] w-[1420px] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(closest-side,rgba(138,105,216,0.20)_0%,rgba(138,105,216,0.20)_50%,rgba(138,105,216,0.17)_64%,rgba(138,105,216,0.10)_78%,rgba(138,105,216,0.04)_89%,transparent_100%)]"
       />
 
       {/* grão sobre o gradiente inteiro — quebra o banding das faixas longas.

@@ -12,6 +12,7 @@ import CTAFinal from "@/components/sections/CTAFinal";
 // Grotesk escopada no wrapper. A HeroGrid já inclui a Navbar. Topo:
 // LoadingScreen → HeroGrid → Benefits. Testimonials e Faq saíram daqui e foram
 // pra baixo da Pricing (bloco de fechamento antes do CTA), a pedido da Pronit.
+import CenaOpcional from "@/components/iphone3d/CenaOpcional";
 import LoadingScreen from "@/components/kacio/LoadingScreen";
 import HeroGrid from "@/components/kacio/HeroGrid";
 import Benefits from "@/components/kacio/Benefits";
@@ -59,8 +60,14 @@ export default function Home() {
       {/* CTA Final — fecha a página com o footer embutido sobre a imagem */}
       <CTAFinal />
 
-      {/* Overlay fixo — o aparelho que atravessa as três seções */}
-      <ScrollPhone />
+      {/* Overlay fixo — o aparelho que atravessa as três seções.
+          Dentro do CenaOpcional porque um erro aqui (o glb não chegar, o WebGL
+          não inicializar) subia pelo Suspense do Canvas e desmontava a página
+          inteira: medido, o documento caía de 18746px para 932 e o scroll
+          morria. Decorativo não pode derrubar conteúdo. */}
+      <CenaOpcional>
+        <ScrollPhone />
+      </CenaOpcional>
     </main>
   );
 }
