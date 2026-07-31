@@ -5,6 +5,7 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { setLenis } from "@/lib/lenis";
+import { ligarMonitorDeFrame } from "@/lib/gpu";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -14,6 +15,15 @@ gsap.registerPlugin(ScrollTrigger);
  */
 export default function SmoothScroll() {
   useEffect(() => {
+    /* O monitor de frame mora AQUI e não dentro do Canvas: quem trava esta
+       página quase nunca é o WebGL. O aparelho 3D é um dos itens do orçamento;
+       o resto é raster de foto, borrão decorativo, camada de blend e refresh de
+       ScrollTrigger — trabalho que acontece com ou sem cena 3D montada. Um
+       monitor pendurado no Canvas só enxergaria a fatia que ele mesmo custa, e
+       ainda por cima só depois que o Canvas montasse (~10.000px abaixo).
+       Pendurado no scroll global ele vê o frame inteiro, desde o primeiro. */
+    ligarMonitorDeFrame();
+
     const prefersReduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;

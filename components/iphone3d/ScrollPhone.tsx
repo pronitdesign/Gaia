@@ -35,10 +35,30 @@ import { getLenis } from "@/lib/lenis";
 import IPhoneModel from "@/components/iphone3d/IPhoneModel";
 import Lights from "@/components/iphone3d/Lights";
 import PhoneScreen, { SCREEN_RADIUS } from "@/components/iphone3d/PhoneScreen";
-// Sky3D + WaterScene desmontados (água removida do site 2026-07-17) — o rig
-// mantém WATER_Y/WaterState só como constantes inertes do piso já achatado.
-import { WATER_Y, type WaterState } from "@/components/iphone3d/WaterScene";
 import { DIVE_STOPS, SKY_STOPS, sampleStops } from "@/lib/sky";
+import { DPR_TETO, guardarContexto, refinarComGPU, type Tier } from "@/lib/gpu";
+
+/* Sky3D + WaterScene desmontados (água removida do site 2026-07-17). Até
+   2026-07-31 este arquivo ainda IMPORTAVA WATER_Y de WaterScene.tsx — duas
+   constantes vindas de um módulo que arrastava junto WaterSurfaceComplex,
+   RippleFX, use-shader-fx e o Reflector/Refractor do three-stdlib. O webpack
+   não tem como saber que nada daquilo roda: import é import, e a água morta
+   viajava no grafo do chunk do aparelho (medido: 44KB só de Reflector +
+   Refractor, mais o peso do use-shader-fx). Agora as duas constantes moram
+   aqui, que é onde elas são lidas, e a árvore da água saiu do repositório.
+
+   Altura da superfície no mundo — FIXA, quem se movia era a câmera. Com
+   y = -1.2, CAM_Z = 4 e fov 50° a linha d'água cruzava a profundidade do
+   phone a ~74% da tela. O piso segue achatado aqui, mas o rig do mergulho lê
+   este número em ~20 lugares (clamp da origem do group, cálculo de `depth`,
+   gate do floorGrip), então ele continua sendo a referência do chão. */
+const WATER_Y = -1.2;
+type WaterState = {
+  /** 0→1: quanto da água mostrar. 0 = ausente. */
+  amount: number;
+  /** 1 = mar correndo, 0 = parado. */
+  flow: number;
+};
 
 const TWO_PI = Math.PI * 2;
 // Yaw nas duas pontas: Features reto de frente (Math.PI), Pricing em 3/4 mais
@@ -923,24 +943,44 @@ function CameraBridge({
   return null;
 }
 
-/* Entrega o setFrameloop do R3F pro gsap.ticker — mesmo motivo e mesma forma do
+/* Entrega o `invalidate` do R3F pro gsap.ticker — mesmo motivo e mesma forma do
    CameraBridge: quem sabe se o aparelho está em quadro é o update() que já lê os
-   âncoras por frame, e ele roda FORA do React. Passar por state re-renderizaria
-   a árvore do Canvas duas vezes por travessia de página sem necessidade nenhuma.
+   âncoras por frame, e ele roda FORA do React.
 
-   Ver BANDA_FOLGA pro que este interruptor desliga. */
-function FrameloopBridge({
+   Ver BANDA_FOLGA pro que a banda desliga.
+
+   PEDIR FRAME, NÃO TROCAR DE MODO.
+ *
+ * Este bridge entregava `setFrameloop` e a banda alternava o Canvas entre
+ * "always" e "never". Funcionava, e custava caro: `setFrameloop` escreve no
+ * store do R3F, todo mundo que lê o store re-renderiza, e dentro dessa árvore
+ * mora o <Html transform> do drei — que, a cada re-render seu, chama
+ * `root.render()` de novo numa React root SEPARADA com a árvore inteira do
+ * PhoneScreen.
+ *
+ * Medido em produção (LoAF, iPhone 390×844 dpr 3, CPU 4×): 234ms e 215ms em
+ * dois frames consecutivos em y≈12.350, que é exatamente onde a banda fecha
+ * ao descer. Mesma coisa ao subir, e mais uma vez em cada travessia — dois
+ * dos três piores frames da página inteira eram a cena sendo DESLIGADA.
+ *
+ * `frameloop="demand"` + `invalidate()` faz o mesmo trabalho sem tocar em
+ * estado do React: quem quer um frame pede um frame. Dentro da banda o ticker
+ * pede um por tick (equivalente ao "always"); fora dela ninguém pede e o loop
+ * simplesmente não roda (equivalente ao "never"). Zero re-render nas duas
+ * arestas.
+ */
+function InvalidateBridge({
   setRef,
 }: {
-  setRef: React.MutableRefObject<((f?: "always" | "demand" | "never") => void) | null>;
+  setRef: React.MutableRefObject<(() => void) | null>;
 }) {
-  const setFrameloop = useThree((s) => s.setFrameloop);
+  const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
-    setRef.current = setFrameloop;
+    setRef.current = invalidate;
     return () => {
       setRef.current = null;
     };
-  }, [setFrameloop, setRef]);
+  }, [invalidate, setRef]);
   return null;
 }
 
@@ -1007,9 +1047,19 @@ function GpuWarmup() {
       }
     };
 
+    /* O `timeout` não é enfeite — sem ele este aquecimento pode nunca
+       acontecer no momento em que ele existe pra proteger.
+       `requestIdleCallback` sem prazo espera uma folga de verdade, e quem rola
+       a página sem parar não dá folga nenhuma: medido em LoAF, o warm-up caía
+       em y≈14.400 — quatro seções DEPOIS do aparelho já ter aparecido — e
+       entregava os 19 programas de shader mais o PMREM num único frame de
+       691ms, que é exatamente o travamento que ele foi escrito pra evitar,
+       só que mais tarde e mais concentrado.
+       Com prazo, o browser cumpre em até 2s. O aparelho só entra em quadro
+       perto de y≈10.000; 2s de scroll não chegam lá partindo do topo. */
     const idle: (cb: () => void) => void =
       typeof window.requestIdleCallback === "function"
-        ? (cb) => window.requestIdleCallback(cb)
+        ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
         : (cb) => window.setTimeout(cb, 1);
     idle(run);
   }, [gl, scene, camera]);
@@ -1026,17 +1076,29 @@ export default function ScrollPhone() {
      que é o pedido — o phone emerge de trás da fita e some na base dela. Ref e
      escrita por frame no ticker (clipPhone), como screenEl/lensEl. */
   const overlay = useRef<HTMLDivElement>(null);
-  /* Interruptor do loop do R3F, entregue pelo FrameloopBridge. Ver BANDA_FOLGA. */
-  const setFrameloop = useRef<((f?: "always" | "demand" | "never") => void) | null>(null);
+  /* Pedido de frame do R3F, entregue pelo InvalidateBridge. Ver BANDA_FOLGA. */
+  const pedirFrame = useRef<(() => void) | null>(null);
   /* Estado ATUAL da banda. Começa `true` de propósito: o primeiro update() do
      ticker decide, e enquanto ele não roda o aparelho fica ligado — nascer
      desligado deixaria a cena sem um render inicial e o retorno à banda entraria
      por pop em vez de já estar pronto. */
   const emQuadro = useRef(true);
-  /* Último frameloop realmente ENTREGUE ao R3F. Separado de `emQuadro` porque o
-     bridge pode não existir ainda quando a banda muda — ver o uso no update(). */
-  const loopAplicado = useRef<"always" | "never" | null>(null);
   const [enabled, setEnabled] = useState(false);
+  /* Teto de DPR do buffer, decidido pelo orçamento de GPU (ver lib/gpu.ts).
+     Era `dpr={[1, 2]}` fixo pra todo mundo: num aparelho de dpr 3 isso pede um
+     buffer de 780×1688 com MSAA por cima, e o mesmo fator em toda render target
+     que o three criar. O aparelho ocupa cerca de um terço da altura da tela —
+     acima de 1.5 a nitidez extra não se vê nele, mas o custo aparece inteiro no
+     orçamento de quem tem menos.
+
+     Estado e não constante porque o tier DESCE ao vivo: o monitor de frame
+     rebaixa quem não está dando conta, e a cena tem que responder a isso sem
+     recarregar. Ver `gaia:tier`. */
+  const [dprTeto, setDprTeto] = useState(2);
+  /* Contexto WebGL vivo? Fica false entre `webglcontextlost` e
+     `webglcontextrestored`. É o estado que impede o ticker de continuar
+     escrevendo pose num renderer que não tem mais pra onde desenhar. */
+  const contextoVivo = useRef(true);
   // Qual tela mostrar: false = prontuário (Features), true = Início (Pricing).
   const [showAlt, setShowAlt] = useState(false);
   // Água montada? Estado (não ref) porque montar/desmontar é o que evita pagar
@@ -1126,12 +1188,37 @@ export default function ScrollPhone() {
   const bodyHalf = useRef(0);
 
   useEffect(() => {
+    /* O sinal de capacidade vem antes do Canvas existir. `refinarComGPU` cria
+       um contexto WebGL descartável pra ler o renderer desmascarado — custa
+       5–15ms, e este efeito já roda muito depois da janela do LCP (o
+       ScrollPhoneDeferred só monta este componente no fim da intro ou no
+       primeiro scroll). Se a resposta for tier 0 — rasterizador de software,
+       driver bloqueado, WebGL indisponível — a cena simplesmente não monta: o
+       aparelho é decoração, e decoração desenhada pela CPU é o caminho mais
+       curto pro travamento que esta seção inteira existe pra evitar. */
+    const tier = refinarComGPU();
+    if (tier === 0) return;
+    setDprTeto(DPR_TETO[tier]);
+
+    /* O tier DESCE ao vivo. Um aparelho que passou nos dois primeiros testes e
+       mesmo assim não sustenta o frame (bateria baixa, térmico, outras abas)
+       rebaixa pelo monitor, e o buffer encolhe junto — sem recarregar, sem
+       trocar de cena, sem gate de viewport. É a mesma cena, com menos pixel
+       por pixel. */
+    const aoMudarTier = (e: Event) => {
+      const t = (e as CustomEvent<{ tier: Tier }>).detail?.tier ?? 2;
+      if (t === 0) setEnabled(false);
+      else setDprTeto(DPR_TETO[t]);
+    };
+    window.addEventListener("gaia:tier", aoMudarTier);
+
     // Ligado em TODA largura (pedido da Pronit: "cadê o phone" no mobile). Era
     // gated em ≥1024px; agora o phone viaja também no mobile, mirando as âncoras
     // mobile (lg:hidden) que Features/Pricing passam a expor. O posicionamento é
     // rect-vivo (responsivo por construção), então a mesma viagem serve as duas
     // larguras — o tuning fino do mobile é iterado sobre o render.
     setEnabled(true);
+    return () => window.removeEventListener("gaia:tier", aoMudarTier);
   }, []);
 
   useEffect(() => {
@@ -2242,6 +2329,10 @@ export default function ScrollPhone() {
     }
 
     const update = () => {
+      /* Contexto fora do ar (ver guardarContexto no onCreated): não há pra onde
+         desenhar, então ler dois rects e escrever pose por frame é trabalho
+         puro. Volta sozinho quando o browser restaurar. */
+      if (!contextoVivo.current) return;
       const start = anchor("[data-phone-start]");
       const end = anchor("[data-phone-end]");
       if (!start || !end) return;
@@ -2286,20 +2377,12 @@ export default function ScrollPhone() {
         emQuadro.current = dentro;
         if (overlay.current) overlay.current.style.visibility = dentro ? "" : "hidden";
       }
-      /* O frameloop se aplica por COMPARAÇÃO, não na aresta da transição.
-         O ScrollPhone é montado adiado (ver ScrollPhoneDeferred) e o Canvas
-         resolve os efeitos dele depois: quem carrega no topo já está fora da
-         banda, e a primeira (e única) aresta acontece com `setFrameloop.current`
-         ainda em null. Medido antes deste conserto — a visibilidade caía certo e
-         o loop seguia rodando a página inteira: 120 clears/s de um buffer de
-         780×1688 com o canvas `hidden`, que é justamente o custo que a banda
-         existe pra cortar. Comparar por frame custa uma igualdade e não tem
-         aresta pra perder. */
-      const alvo = dentro ? "always" : "never";
-      if (setFrameloop.current && loopAplicado.current !== alvo) {
-        loopAplicado.current = alvo;
-        setFrameloop.current(alvo);
-      }
+      /* O loop se aplica por COMPARAÇÃO, não na aresta da transição — e agora
+         a comparação é trivial: dentro da banda, pede frame; fora, não pede.
+         Nada de estado, nada de aresta pra perder. O bridge pode ainda não ter
+         chegado (o Canvas resolve os efeitos dele depois do primeiro tick do
+         ticker), e nesse caso o `?.` engole o tick — o próximo já acha. */
+      if (dentro) pedirFrame.current?.();
       /* place() SEGUE rodando fora da banda, de propósito. Ele não é o custo que
          este gate ataca (o custo é compor camada e desenhar), e é ele que mantém
          coerentes a histerese do `armed`, o showAlt e o clip — máquinas de estado
@@ -2406,13 +2489,54 @@ export default function ScrollPhone() {
           alpha: true,
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
+          /* `default` e não `high-performance`: num laptop com GPU dupla o
+             high-performance acorda a placa discreta pra desenhar UM aparelho
+             decorativo, e o custo disso é bateria e calor — que voltam como
+             throttling térmico, ou seja, como travamento, alguns minutos
+             depois. A cena é pequena; a integrada dá conta. */
+          powerPreference: "default",
         }}
-        dpr={[1, 2]}
+        /* Teto vindo do orçamento de GPU, não mais fixo em 2. Ver `dprTeto`. */
+        dpr={[1, dprTeto]}
+        onCreated={({ gl }) => {
+          /* PERDA DE CONTEXTO — o "crash" real de uma cena WebGL no celular.
+             Não é exceção de JS: é o SO recolhendo a GPU (outra aba pesada,
+             câmera, chamada de vídeo, pressão de memória) e o contexto sumindo
+             por baixo do renderer. Sem tratamento o canvas congela no último
+             frame ou fica preto — pra sempre, sem uma linha no console.
+
+             `preventDefault()` no evento de perda é o que compra o direito ao
+             `webglcontextrestored`. Quem não chama, não recebe: o contrato do
+             browser é esse, e é a diferença entre a cena voltar sozinha e a
+             página ficar com um retângulo morto no meio.
+
+             Enquanto o contexto está fora, `contextoVivo` desliga as escritas
+             de pose do ticker: mexer em matriz de um renderer sem contexto não
+             quebra nada visível, mas é trabalho de frame gasto num aparelho
+             que acabou de dizer que não tem folga.
+
+             Sem cleanup de propósito: os dois listeners moram no canvas que o
+             R3F criou, e ele morre junto com o Canvas. Guardar o descarte aqui
+             só criaria um caminho a mais pra ele não ser chamado. */
+          guardarContexto(
+            gl.domElement,
+            () => {
+              contextoVivo.current = false;
+            },
+            () => {
+              contextoVivo.current = true;
+            },
+          );
+        }}
+        /* "demand" e não "always": quem manda um frame acontecer é o
+           `update()` do gsap.ticker, que já roda por frame e já sabe se o
+           aparelho está na banda. Ver InvalidateBridge pro que isso conserta. */
+        frameloop="demand"
       >
         <ambientLight intensity={0.3} />
         <PerspectiveCamera makeDefault position={[0, 0, CAM_Z]} fov={CAM_FOV} />
         <CameraBridge camRef={cam} />
-        <FrameloopBridge setRef={setFrameloop} />
+        <InvalidateBridge setRef={pedirFrame} />
         <Lights />
         {/* Céu e água removidos do site (2026-07-17). O rig do phone e o seu
             trilho de duas pernas via [data-phone-water] seguem — só o cenário

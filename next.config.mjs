@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Sessões paralelas no mesmo repo compartilhavam o mesmo .next e corrompiam o
+  // build uma da outra. Com GAIA_DIST cada sessão constrói e serve o seu próprio
+  // diretório, sem tocar no da outra. Sem a variável, nada muda.
+  distDir: process.env.GAIA_DIST || ".next",
+
   images: {
     // Os <Image> do bloco do Kácio (ícones, avatares) passam a sair em AVIF
     // quando o browser aceita, com WebP de fallback. As fotos servidas por <img>

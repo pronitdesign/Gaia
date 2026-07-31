@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useGSAP } from "@/lib/useGSAP";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -10,10 +9,12 @@ import PhoneScreen from "@/components/iphone3d/PhoneScreen";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* iPhone 15 Pro Max 3D (R3F) — client-only: usa WebGL, nunca renderiza no server */
-const IPhone3D = dynamic(() => import("@/components/iphone3d/IPhone3D"), {
-  ssr: false,
-});
+/* O <IPhone3D> declarado aqui foi removido em 2026-07-31: era um SEGUNDO
+   Canvas WebGL, com Lights e IPhoneModel próprios, que nunca chegou ao JSX —
+   o aparelho desta seção é o ScrollPhone, que pousa no slot [data-phone-end].
+   Um `dynamic()` só baixa o chunk quando é renderizado, então ele não custava
+   rede; custava um módulo vivo no grafo e um segundo contexto WebGL sempre a
+   um render de distância. */
 
 /* ── Pricing ────────────────────────────────────────────────────────────────
    Layout 2026-07-19 (mockup da Pronit): o campo florido vira o HERO da seção —

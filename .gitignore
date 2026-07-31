@@ -26,3 +26,4 @@ npm-debug.log*
 
 # Backup local dos assets substituidos/orfaos (nao vai pro deploy)
 .attic/
+/.next-audit
