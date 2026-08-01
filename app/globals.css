@@ -261,6 +261,42 @@
   content-visibility: auto;
 }
 
+/* ── Borrão decorativo que não muda vira textura, não conta ────────────────
+   As luzes do Features (campos de cor do card hero, mottle claro e escuro,
+   núcleo de bloom, Hotspot de cada card) são `filter: blur()` de raio grande
+   sobre caixas enormes: só no card hero são três camadas de 518×757 com raios
+   46/30/36, e em DPR 3 isso dá ~12,6 milhões de pixels de gaussiana. Nenhuma
+   delas ANIMA — são gradientes parados. Mas sem camada própria elas voltam a
+   ser borradas a cada repaint do card, e o card repinta o tempo todo (o
+   useAutoCycle troca conteúdo, o .gaia-parallax move na entrada, o scroll
+   passa por cima).
+
+   Medido no WebKit (motor do Safari, iPhone 393×852 dpr 3, travessia de
+   7300→9300 três vezes intercaladas):
+
+       base ............ 9,07 / 8,55 s de CPU · 12–13 frames >50ms · p95 285ms
+       filter: none .... 1,97 s ............... 1 frame ........... p95  34ms
+       ESTA classe ..... 1,71 s ............... ZERO frames ....... p95  35ms
+
+   Ou seja: promover é melhor que apagar o efeito, porque o custo nunca foi o
+   borrão — era recalculá-lo 60 vezes por segundo. A camada é rasterizada uma
+   vez e depois só composta.
+
+   `translateZ(0)` e não `will-change: transform`: o will-change é uma DICA que
+   o WebKit descarta quando quer, e num elemento com `filter` ele não garante
+   camada. O translateZ é promoção declarada. `backface-visibility: hidden`
+   acompanha porque foi assim que a medição acima foi feita.
+
+   O preço é memória de camada (larg × alt × dpr² × 4 B): ~14 MB por campo do
+   card hero, ~55 MB somando as luzes do Features. É por isso que a classe é
+   aplicada A DEDO nas peças medidas, e não numa regra genérica pra qualquer
+   `filter` da página — promover as nove camadas borradas da landing inteira
+   custaria 78 MB, e este é o projeto onde o iOS já matou a aba por raster. */
+.gaia-blur-static {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
 /* ── Parallax por cursor + montagem no scroll (Features) ─────────────
    Uma única transform carrega TUDO por CSS var: profundidade que segue o
    cursor (--mx/--my × --depth, setados por JS no card), a inclinação de

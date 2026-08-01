@@ -619,6 +619,12 @@ function Hotspot({ className = "", rgb = "255,255,255" }: { className?: string; 
   return (
     <div
       aria-hidden
+      /* NÃO leva `gaia-blur-static`, e é a única peça borrada do Features que
+         não leva: promover um elemento com `mix-blend-mode` muda o resultado
+         da mistura — medido por diff de pixel, a elipse inteira do Hotspot
+         mudava de valor (delta médio 21/255 na área da luz). O ganho dela era
+         o menor da lista (8,69 → 6,71 s de CPU contra 8,69 → 1,74 com os
+         campos), então sai da otimização e fica como está. */
       className={"pointer-events-none absolute mix-blend-plus-lighter " + className}
       style={{
         background: `radial-gradient(ellipse closest-side, rgba(${rgb},0.4) 0%, rgba(${rgb},0.22) 26%, rgba(${rgb},0.07) 52%, transparent 76%)`,
@@ -2988,7 +2994,7 @@ export default function Features() {
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-10 lg:px-16">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 hidden md:block"
+          className="gaia-blur-static pointer-events-none absolute inset-0 hidden md:block"
           style={{
             filter: "blur(38px)",
             background: [
@@ -3106,7 +3112,7 @@ export default function Features() {
                     claros que vêm depois dela na lista. */}
             <div
               aria-hidden
-              className="pointer-events-none absolute -inset-[25%]"
+              className="gaia-blur-static pointer-events-none absolute -inset-[25%]"
               style={{
                 filter: "blur(46px)",
                 background: [
@@ -3161,7 +3167,7 @@ export default function Features() {
                 vertical some. */}
             <div
               aria-hidden
-              className="pointer-events-none absolute -inset-[25%] opacity-[0.66]"
+              className="gaia-blur-static pointer-events-none absolute -inset-[25%] opacity-[0.66]"
               style={{
                 filter: "blur(30px)",
                 background:
@@ -3189,7 +3195,7 @@ export default function Features() {
                 nota do CLOUD_DEEP. */}
             <div
               aria-hidden
-              className="pointer-events-none absolute -inset-[25%] opacity-[0.72]"
+              className="gaia-blur-static pointer-events-none absolute -inset-[25%] opacity-[0.72]"
               style={{
                 filter: "blur(36px)",
                 background:
@@ -3209,7 +3215,7 @@ export default function Features() {
                 backdrop-blur do vidro refrata: sem ele o painel ficaria cinza
                 sobre verde; com ele, o verde atravessa o vidro e vira o coração
                 da peça. Fica atrás do conteúdo (o wrapper relative abaixo sobe). */}
-            <div aria-hidden className="pointer-events-none absolute inset-x-2 bottom-0 top-28 rounded-[28px] bg-[radial-gradient(110%_82%_at_50%_104%,rgba(140,236,188,0.17),transparent_74%)] blur-3xl" />
+            <div aria-hidden className="gaia-blur-static pointer-events-none absolute inset-x-2 bottom-0 top-28 rounded-[28px] bg-[radial-gradient(110%_82%_at_50%_104%,rgba(140,236,188,0.17),transparent_74%)] blur-3xl" />
             {/* Rig de luz ESPELHADO do card A, de propósito: mesma família de
                 superfície pede a mesma lâmpada. A primeira tentativa pôs o
                 Hotspot em left-[18%] pra "seguir o holofote do mock" e virou um
