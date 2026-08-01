@@ -2928,8 +2928,26 @@ export default function Features() {
     };
   }, []);
 
+  /* O pb NÃO é simétrico ao pt abaixo de lg (2026-08-01). Em lg+ quem recebe o
+     fim desta seção é o Manifesto — um interstitial inteiro, e 128px de ar antes
+     dele é respiro. Abaixo de lg o Manifesto é `hidden` (ver lá) e o próximo
+     vizinho é o Mergulho, que no mobile não carrega água nenhuma: é só a rampa
+     #0A0C11 → #151948 de ~93px que abre o campo do Pricing.
+     Somados, o pb-24 (96px) e o primeiro terço quase preto da rampa (~31px)
+     davam ~127px de PRETO CHAPADO entre o último card do Prontuário e o céu —
+     medido no render @430×932: card em doc y 11892, navy legível só em ~12019.
+     A Pronit marcou exatamente essa faixa (Image #3) como vão a cortar, pela
+     mesma razão que já cortou o vão do Mergulho de 42→10vh: sem animação nenhuma
+     passando por ali, o preto é vestigial.
+     pb-8 (32px) mantém o card sem encostar na rampa e devolve 64px. A rampa NÃO
+     encolhe junto: os stops eased dela são o que evita a banda de Mach contra o
+     preto chapado (ver Mergulho), e ela já lê como céu abrindo, não como vão. */
   return (
-    <section ref={root} id="features" className="relative overflow-hidden bg-[#0A0C11] py-24 md:py-32">
+    <section
+      ref={root}
+      id="features"
+      className="relative overflow-hidden bg-[#0A0C11] pt-24 pb-8 md:pt-32 md:pb-10 lg:pb-32"
+    >
       {/* Luz ambiente — um feixe frouxo descendo do canto superior esquerdo.
           Minimalista de propósito: radial largo e fraco direto sobre o #0A0C11
           (sem blend-mode, que a esta luminância ~12 mal moveria o pixel), com um

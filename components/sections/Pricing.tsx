@@ -625,8 +625,9 @@ export default function Pricing() {
               ScrollPhone). O que se perde no mobile é o giro e o mergulho; o
               enquadramento do pouso fica.
 
-              A geometria é a mesma da âncora que saiu: -top-[240px], centrada,
-              240px sobrepondo a grama.
+              A geometria nasceu igual à da âncora que saiu (-top-[240px],
+              centrada, 240px sobrepondo a grama) e desceu pra -109 em
+              2026-08-01 — a conta está no bloco imediatamente acima do <div>.
 
               O CORTE NA ARESTA DO CARD CONTINUA SENDO OBRIGATÓRIO, e a primeira
               versão em DOM errou nisso. O raciocínio errado foi "o card é z-[70]
@@ -641,9 +642,10 @@ export default function Pricing() {
               ser funda.
               Então o aparelho é CORTADO na aresta, como o [data-phone-clip]
               fazia no 3D — só que aqui por altura de caixa em vez de recorte por
-              frame. 428px é a medida, não a estimativa: card.top − phone.top
-              (121 − (−307)) no render. +4px de sobra tuck pra o corte cair
-              debaixo da borda do card e não rente a ela.
+              frame. A medida é card.top − phone.top lido no render (428 quando o
+              topo era −240), +4px de sobra tuck pra o corte cair debaixo da
+              borda do card e não rente a ela. Não é estimativa, e não é
+              constante: mexeu no -top, refaz a altura pela mesma conta.
 
               Por isso o bisel arredonda SÓ EM CIMA (`rounded-t-`) e não tem
               padding embaixo: a base do aparelho não existe nesta composição —
@@ -657,9 +659,32 @@ export default function Pricing() {
               o mesmo k: SCREEN_RADIUS 56 × 0.6410 = 36 na tela, +5 do bisel = 41
               na moldura. `origin-top-left` porque scale a partir do centro
               deixaria o topo do aparelho fora dos -240 combinados. */}
+          {/* O POUSO DESCEU 131px (2026-08-01). A Pronit marcou uma linha
+              horizontal na tela (Image #2) e pediu o aparelho "exatamente" ali.
+              A linha foi medida no PNG dela, não estimada: escala de 1.7116 px
+              de imagem por px de CSS (aferida por dois pontos conhecidos — topo
+              da tela branca em y=283 e topo do card em y=1007, que o código diz
+              distarem 423px), aresta superior do bisel em y≈274.5, centro do
+              traço verde em y=499 ⇒ (499−274.5)/1.7116 = 131px abaixo do topo
+              atual. Logo -240 + 131 = -109.
+
+              A ALTURA TEM QUE DESCER JUNTO, e essa é a parte fácil de errar: os
+              432px não eram folga, eram a conta do corte na aresta do card
+              (240 de sobreposição + 188 de pt da banda + 4 de tuck). O card é
+              VIDRO com backdrop-blur — o que sobrar de aparelho DEBAIXO dele não
+              fica escondido, ele acende o painel por dentro (a ablação está
+              documentada no bloco acima: +37,5 de luminância nos primeiros
+              120px). Manter 432 com o topo em -109 deixaria 135px de tela branca
+              sob o vidro. A conta refeita: 109 + 188 + 4 = 301.
+
+              O que se perde no enquadramento é a lista de pacientes indo até o
+              "Pedro Lima"; o que fica é status bar + "Início" + o card roxo da
+              próxima consulta, com o corte caindo no meio da lista — que é o
+              vocabulário certo de um aparelho MERGULHANDO no card, e não de um
+              aparelho inteiro apoiado nele. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute -top-[240px] left-1/2 h-[432px] w-[260px] -translate-x-1/2"
+            className="pointer-events-none absolute -top-[109px] left-1/2 h-[301px] w-[260px] -translate-x-1/2"
           >
             {/* Bisel — o glb trazia a carcaça junto com a tela; em DOM a tela
                 sozinha seria um retângulo flutuando. Uma moldura escura de 5px
