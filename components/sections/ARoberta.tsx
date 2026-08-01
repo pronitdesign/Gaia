@@ -371,15 +371,16 @@ const BIO =
 // segura a legibilidade do editorial sobre a foto. Ele acompanha o `p` do retrato
 // (ver applyP): em p=0 o retrato ainda é um card e o scrim só lavaria o fundo do
 // Figma à toa, então ele entra junto com a foto crescendo.
-// Pinned: escuro (ink) — a foto dissolve num fundo cinematográfico, texto claro por cima.
+// Escuro (ink) — a foto dissolve num fundo cinematográfico, texto claro por cima.
+// AGORA NOS DOIS MODOS: o stacked tinha um par claro (PORTRAIT_SCRIM_LIGHT,
+// #FAF9F5) porque lá a foto emendava no off-white do editorial; desde
+// 2026-07-31 o campo do stacked é o MESMO ink (ver o ramo stacked no JSX), e
+// um scrim creme sobre campo escuro seria uma névoa branca no meio da foto.
 const PORTRAIT_SCRIM_DARK =
   "linear-gradient(to top, #05080F 0%, rgba(5,8,15,0.94) 24%, rgba(7,11,22,0.55) 52%, transparent 100%)";
 // (Houve uma rodada com scrim magenta profundo no retrato — a Pronit trocou na
 // 3ª rodada: "o bg da mask será escuro nessa parte". O campo ink mora no
 // wrapper `portrait`; este scrim segue reforçando a base pro editorial.)
-// Stacked (mobile): claro — a foto emenda no off-white do editorial embaixo.
-const PORTRAIT_SCRIM_LIGHT =
-  "linear-gradient(to top, #FAF9F5 0%, rgba(250,249,245,0.94) 26%, rgba(250,249,245,0.58) 54%, transparent 100%)";
 
 // ── Double-bezel (Doppelrand) ────────────────────────────────────────────────
 // Casca externa (bandeja) + núcleo interno (placa) com raios concêntricos: p-1.5
@@ -459,6 +460,7 @@ function Afluente({
   veil = true,
   portraitCrop = false,
   eye = true,
+  field = "bg-neutro-50",
 }: {
   flowerRef?: RefObject<HTMLDivElement>;
   veil?: boolean;
@@ -470,11 +472,15 @@ function Afluente({
    *  cima, esta foto PAISAGEM cobrindo um bloco em pé não é mais o primeiro
    *  frame de nada — é um cílio ampliado atrás do editorial, que é exatamente o
    *  defeito que a remoção do gate de largura tinha ido consertar. Sem ela o
-   *  fundo é o neutro-50 do root, que é onde o editorial já pousa. */
+   *  fundo é o `field` — no stacked, o campo ink (ver abaixo). */
   eye?: boolean;
+  /** Cor do campo atrás de tudo. `bg-neutro-50` (creme) é o repouso do modo
+   *  pinned; o stacked passa o ink #05080F desde 2026-07-31 — a section da
+   *  Roberta no mobile é ESCURA (pedido da Pronit), não mais creme. */
+  field?: string;
 }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
+    <div aria-hidden className={`pointer-events-none absolute inset-0 z-0 overflow-hidden ${field}`}>
       {eye && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
@@ -2321,8 +2327,22 @@ export default function ARoberta() {
         // `eye={false}`: a seção abre no retrato da Roberta e desce direto pro
         // "Feita por quem atende". O olho é do modo pinned, onde ele é a
         // sequência; aqui ele seria só a foto por baixo do texto.
+        //
+        // CAMPO ESCURO (2026-07-31, pedido da Pronit: "section da roberta deve
+        // ter bg dark, não light"). Era creme: campo neutro-50 + véu de
+        // legibilidade + scrim claro na base da foto + editorial em tinta.
+        // Três peças mudam JUNTAS, senão sobra ilha clara: o campo (field), o
+        // scrim da base da foto (DARK) e o editorial (onDark).
+        //
+        // O campo é #0A0C11 e NÃO o #05080F do modo pinned, e a diferença é
+        // medida: o Features começa logo abaixo no DOM e o pixel do topo dele é
+        // #0A0C11. Com o ink do pinned a emenda dava um degrau de 8/255 no meio
+        // da tela — invisível em monitor, uma linha em OLED de celular. Com o
+        // mesmo preto o degrau cai pra ~3 e some. (O scrim da foto ainda resolve
+        // em #05080F; contra este campo a diferença é 5/255, dentro do próprio
+        // grão da foto.)
         <div className="relative overflow-hidden pb-16">
-          <Afluente eye={false} />
+          <Afluente eye={false} veil={false} field="bg-[#0A0C11]" />
           {/* foto full-bleed, ocupando o topo inteiro da section */}
           <div className="relative z-10 mb-12 h-[70vh] max-h-[560px] w-full overflow-hidden">
             <Portrait />
@@ -2345,7 +2365,7 @@ export default function ARoberta() {
             <div
               aria-hidden
               className="pointer-events-none absolute inset-x-0 bottom-0 z-[16] h-1/2"
-              style={{ background: PORTRAIT_SCRIM_LIGHT }}
+              style={{ background: PORTRAIT_SCRIM_DARK }}
             />
             {/* cards de prova, empilhados no alto-esquerda da foto */}
             <div className="pointer-events-none absolute left-4 top-[26%] z-[18] flex flex-col gap-3">
@@ -2354,7 +2374,7 @@ export default function ARoberta() {
             </div>
           </div>
           <div ref={editorial} className="relative z-10">
-            <Editorial />
+            <Editorial onDark />
           </div>
         </div>
       )}

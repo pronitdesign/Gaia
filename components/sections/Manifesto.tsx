@@ -39,6 +39,10 @@ const CURVE_2 = "M 0 96 Q 250 154 500 100 Q 750 52 1000 116";
    a fonte mobile, APERTE o TRAVEL_MOBILE na mesma conta (e confira no render — a
    medida do textLen tem ruído de kerning). */
 const TRAVEL_DESKTOP = { from: 36, to: 64 };
+/* PARADO desde 2026-07-31: abaixo de lg a section não existe (ver o `hidden
+   lg:flex` na <section> e o bail em matchMedia). Fica aqui com a conta acima
+   porque ela é a regra, não um número — se o Manifesto voltar ao mobile, é este
+   par (e o text-[80px]) que volta junto. */
 const TRAVEL_MOBILE = { from: 43, to: 57 };
 
 /* Range de scroll em que cada frase resolve o blur. A de cima já está em tela
@@ -111,7 +115,16 @@ export default function Manifesto() {
             mobile: boolean;
             desktop: boolean;
           };
-          const travel = mobile ? TRAVEL_MOBILE : TRAVEL_DESKTOP;
+          /* Abaixo de lg a section é display:none (ver o `hidden lg:flex` na
+             <section>). Sem este bail o matchMedia seguiria criando os quatro
+             ScrollTriggers (blur + startOffset das duas frases) sobre um
+             elemento que não pinta — scrub por frame de scroll, no aparelho em
+             que ele mais custa, pra animar o que ninguém vê. O bail mora AQUI
+             e não num early-return do useGSAP de propósito: cruzar o 1024 (só
+             resize/rotate) re-roda o matchMedia e o desktop ganha a animação
+             de volta. */
+          if (mobile) return;
+          const travel = TRAVEL_DESKTOP;
 
           // cada linha: blur alto → 0 conforme cruza o centro do viewport
           ([1, 2] as const).forEach((n) => {
@@ -198,28 +211,24 @@ export default function Manifesto() {
          essa entrada não mudou. A caixa deixou de ser simétrica porque as duas
          pontas deixaram de fazer a mesma coisa — a de cima abre um capítulo, a
          de baixo agora encosta noutro. */
-      /* COMPACTAÇÃO MOBILE/TABLET (<lg, 2026-07-22) — a Pronit mandou tirar "esse
-         espaço" entre "A Gaia cuida do resto." e o campo do Pricing (Image #4: o
-         phone boiando num vão navy vazio). O vão era pb-30vh(280px) + Mergulho
-         42vh(391px) ≈ 670px de navy morto.
-
-         POR QUE min-h CAI JUNTO COM O pb, e não só o pb. O gradiente do céu
-         (background: SKY) é mapeado sobre a ALTURA da section, e "A Gaia cuida"
-         (text-ink, escuro) só se lê sobre o pico lavanda do gradiente — os stops
-         até 0.72 (ver sky.ts). Com justify-between, cortar SÓ o pb empurra a
-         frase pra baixo, pro navy escuro do fim do gradiente (medido: fraction
-         0.56→0.78), e o ink some. Cortando min-h JUNTO (90→74vh) o content-box
-         fica igual ao original (~261px), então: (1) as duas frases NÃO se afastam
-         e (2) a frase de baixo cai no MESMO pixel de antes (~473px do topo),
-         agora em fraction ~0.69 — ainda dentro da faixa ≤0.72 calibrada. Contraste
-         conferido no render, não na conta.
-
-         lg: devolve os 130/42/24vh do desktop intactos (lá o pb é a distância da
-         frase à água, calibração do Mergulho). Antes esses valores moravam em
-         md:; migraram pra lg: pra o TABLET (768–1024, que usa o Pricing mobile)
-         compactar junto. pt base intacto: a entrada da 1ª frase do escuro do
-         Features não mudou. */
-      className="relative flex min-h-[74vh] flex-col justify-between overflow-hidden pt-[32vh] pb-[14vh] lg:min-h-[130vh] lg:pt-[42vh] lg:pb-[24vh]"
+      /* (HISTÓRICO — a compactação mobile/tablet de 2026-07-22 morava aqui:
+         min-h 90→74vh e pb 30→14vh, porque cortar SÓ o pb empurrava "A Gaia
+         cuida" (text-ink) pro navy do fim do gradiente e o escuro sumia. Os
+         números saíram com a section do mobile; a regra que os gerou — o
+         gradiente é mapeado sobre a ALTURA da section, então mexer no padding
+         sem mexer no min-h desloca a frase DENTRO do céu — vale pra qualquer
+         retorno.) */
+      /* FORA DO MOBILE (2026-07-31, pedido da Pronit: "a parte dos textos você
+         cuida da pessoa não pode ter"). Abaixo de lg a section inteira sai —
+         não só as frases: sem elas sobrava uma faixa de gradiente de ~390px sem
+         conteúdo, que é o mesmo "esse espaço" (vão vazio antes do campo do
+         Pricing) que ela já tinha mandado cortar duas vezes. O Features (preto
+         #0A0C11) passa a emendar direto no Mergulho, e a costura de cor que
+         morava aqui foi pra lá (ver o gradiente mobile em Mergulho.tsx).
+         Os números de compactação mobile que moravam neste className (min-h
+         74vh / pt 32vh / pb 14vh) saíram junto — não há mais mobile pra
+         compactar. O lg: era o desktop e virou o valor base. */
+      className="relative hidden min-h-[130vh] flex-col justify-between overflow-hidden pt-[42vh] pb-[24vh] lg:flex"
       /* Fundo SÓLIDO = o navy exato em que o vídeo do campo abre. O céu (gradiente)
          vem numa camada por cima com mask bottom, e ao desmanchar entrega este
          navy — a section acaba no mesmo tom em que o vídeo começa. */

@@ -111,6 +111,32 @@ export default function Mergulho() {
       className="relative -mt-px min-h-[10vh] overflow-hidden lg:min-h-[6vh]"
       style={{ background: DIVE_SKY }}
     >
+      {/* COSTURA MOBILE (2026-07-31). O Manifesto saiu do mobile (ver o `hidden
+          lg:flex` lá) e levou junto o gradiente que descia do preto do Features
+          (#0A0C11) até o navy em que o campo do Pricing abre. Sem ele, o preto
+          encostava no #151948 chapado desta seção numa linha reta full-width —
+          vista no render, não deduzida. Esta camada é a rampa que faltou, e ela
+          mora aqui porque esta seção JÁ É o respiro entre as duas: nenhum pixel
+          de altura foi somado, só o navy chapado virou descida.
+
+          Stops eased (não dois pontos): a rampa nasce quase preta e só abre
+          depois de um terço, então a quina com o preto CHAPADO do Features não
+          tem quebra de segunda derivada — é a mesma armadilha de banda de Mach
+          documentada em lib/sky.ts, agora numa faixa de ~84px, curta demais pra
+          perdoar slope no topo.
+
+          `lg:hidden`: em lg+ o Manifesto continua no ar entregando o navy, e o
+          DIVE_SKY chapado é o que a ÁGUA reflete (DIVE_STOPS é fonte única com
+          o skydome do Sky3D — cobrir isso no desktop mudaria o reflexo). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 lg:hidden"
+        style={{
+          background:
+            "linear-gradient(to bottom, #0A0C11 0%, #0B0E1B 34%, #0F1330 68%, #151948 100%)",
+        }}
+      />
+
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-soft-light"
