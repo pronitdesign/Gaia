@@ -3451,20 +3451,16 @@ export default function Features() {
                 <CardBody tone="hero">Cada paciente em oito abas: anamnese, avaliação, plano, exames e mais. Tudo numa tela.</CardBody>
               </div>
 
-              {/* mobile/tablet — o phone 3D AGORA viaja também no mobile (ver
-                  ScrollPhone, gate liberado). Âncora de início ABAIXO da
-                  colagem de satélites (mock 2026-07-20, bloco vermelho):
-                  centrada, em FLUXO — é ela que estica o card — e com -mb-28
-                  pra o aparelho atravessar a borda de baixo do card, o mesmo
-                  motivo do tab do Pricing. Centrada sobre a pilha ela punha o
-                  overlay (z-60) POR CIMA dos três cards, tampando tudo. */}
+              {/* mobile/tablet — sem aparelho 3D desde 2026-07-31 (ver
+                  ScrollPhoneDeferred: abaixo de lg ele não monta, por peso).
+                  Aqui vivia a âncora [data-phone-start], 448px em FLUXO com
+                  -mb-28 — ela não marcava só o centro como a irmã do desktop,
+                  ela ESTICAVA o card pra abrir o vão do aparelho. Sem aparelho
+                  o vão é um buraco: o card fecha na altura do próprio conteúdo
+                  (título + corpo + a pilha de mocks) e ponto.
+                  A âncora do desktop segue logo abaixo, intacta. */}
               <div className="relative lg:hidden">
                 <ProntuarioStacked />
-                <div
-                  data-phone-start
-                  aria-hidden
-                  className="pointer-events-none relative mx-auto -mb-28 mt-3 h-[448px] w-[260px]"
-                />
               </div>
 
               {/* palco lg+ — clusters flanqueiam e o phone overlay pousa no centro */}

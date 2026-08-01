@@ -92,12 +92,17 @@ export default function Mergulho() {
          entre o Manifesto e o campo do Pricing. Foi 70vh, depois 42vh, e a Pronit
          ainda via "esse espaço" — o phone boiando num vão navy vazio antes do
          campo entrar (Image #4, 2026-07-22). No mobile o Mergulho não carrega
-         água nenhuma (o phone viaja mas a cena da água é desktop), então o vão
-         era 100% vestigial: DIVE_STOPS é #151948 chapado e o topo do campo tem o
-         mesmo slab #151948, então encurtar de 42→10vh é só cortar navy contra
-         navy, sem emenda de cor. O phone lê [data-phone-end] vivo no Pricing, o
-         pouso segue pixel-exato — só a viagem comprime. O pb do Manifesto caiu
-         junto (30→10vh); os dois somados eram os ~670px do vão. */
+         água nenhuma, então o vão era 100% vestigial: DIVE_STOPS é #151948
+         chapado e o topo do campo tem o mesmo slab #151948, então encurtar de
+         42→10vh é só cortar navy contra navy, sem emenda de cor. O pb do
+         Manifesto caiu junto (30→10vh); os dois somados eram os ~670px do vão.
+
+         Desde 2026-07-31 não passa aparelho nenhum por aqui no mobile: o
+         ScrollPhone só monta em lg+ (ver ScrollPhoneDeferred). O
+         [data-phone-water] abaixo continua declarado porque é a montagem ÚNICA
+         desta seção — não há ramo lg:hidden pra podar — e no mobile ele é uma
+         caixa vazia que ninguém consulta. Em lg+ ele segue sendo o ponto em que
+         o phone cruza a superfície, e é aí que ele precisa estar. */
       /* -mt-px: fecha a fresta de 1px em que o creme do <body> vazava entre o
          Manifesto e esta seção (alturas em vh dão px fracionário → gap de
          subpixel). Puxa o Mergulho 1px pra cima, sobre a borda do Manifesto —

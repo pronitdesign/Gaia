@@ -27,8 +27,45 @@ const ScrollPhone = dynamic(() => import("./ScrollPhone"), { ssr: false });
  * 0, abaixo dos pins de HeroGrid/ComoComecar/ARoberta, que são quem manda na
  * ordem de refresh).
  */
+/* ── O APARELHO 3D NÃO EXISTE ABAIXO DE lg ─────────────────────────────────
+ *
+ * Decisão de 2026-07-31, e ela REVERTE a régua "mobile recebe a mesma cena".
+ * O motivo é peso, não viewport: no celular o aparelho custa o chunk do three
+ * (164KB, 659KB descomprimidos) + scene.glb (868KB) + o decoder Draco (87KB) +
+ * um contexto WebGL com render targets vivos durante toda a travessia — e ele
+ * é decoração. É o maior item isolado do orçamento numa faixa de aparelhos que
+ * já apanha do resto da página.
+ *
+ * O gate é `lg` (1024px) porque é a MESMA aresta que o DOM das três seções já
+ * usa pra trocar de montagem (Features: `lg:hidden`/`lg:block` no card do
+ * Prontuário; Pricing: idem no bloco de preço). Um gate diferente aqui criaria
+ * uma faixa onde o overlay procura âncora que a montagem daquele breakpoint não
+ * declara — o aparelho pousando no vazio.
+ *
+ * O que substitui: no Prontuário, nada (o card fecha na altura do conteúdo); no
+ * Pricing, o mesmo <PhoneScreen> em DOM, que é HTML puro e não pede GPU.
+ *
+ * Nada aqui é fallback por reduced-motion — esse contrato continua sendo do
+ * ScrollPhone por dentro. */
+const DESKTOP_MQ = "(min-width: 1024px)";
+
 export default function ScrollPhoneDeferred() {
   const [montar, setMontar] = useState(false);
+  // Começa `false` e não `matchMedia(...)` de propósito: o componente é
+  // ssr:false, mas ler a MQ no corpo do render ainda faria o primeiro render do
+  // cliente depender de layout. O efeito abaixo resolve antes de qualquer
+  // gatilho de montagem chegar a importar.
+  const [desktop, setDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_MQ);
+    const decide = () => setDesktop(mq.matches);
+    decide();
+    // Rotacionar tablet ou redimensionar janela atravessa a aresta: o overlay
+    // some/volta junto com a montagem DOM que ele lê, sem recarregar.
+    mq.addEventListener("change", decide);
+    return () => mq.removeEventListener("change", decide);
+  }, []);
 
   useEffect(() => {
     let idleId: number | undefined;
@@ -80,5 +117,7 @@ export default function ScrollPhoneDeferred() {
     };
   }, []);
 
-  return montar ? <ScrollPhone /> : null;
+  // `desktop` primeiro: os gatilhos acima podem já ter armado `montar` antes de
+  // a MQ resolver, e o que decide o import do chunk é este return.
+  return desktop && montar ? <ScrollPhone /> : null;
 }

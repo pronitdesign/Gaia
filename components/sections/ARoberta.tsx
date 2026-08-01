@@ -458,6 +458,7 @@ function Afluente({
   flowerRef,
   veil = true,
   portraitCrop = false,
+  eye = true,
 }: {
   flowerRef?: RefObject<HTMLDivElement>;
   veil?: boolean;
@@ -465,16 +466,24 @@ function Afluente({
    *  do canvas da sequência (EYE_PORTRAIT_BOX) — os dois têm que coincidir pixel a
    *  pixel pra troca backdrop→canvas seguir invisível. Stacked não usa. */
   portraitCrop?: boolean;
+  /** O olho de fundo. `false` no stacked desde 2026-07-31: sem a sequência por
+   *  cima, esta foto PAISAGEM cobrindo um bloco em pé não é mais o primeiro
+   *  frame de nada — é um cílio ampliado atrás do editorial, que é exatamente o
+   *  defeito que a remoção do gate de largura tinha ido consertar. Sem ela o
+   *  fundo é o neutro-50 do root, que é onde o editorial já pousa. */
+  eye?: boolean;
 }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutro-50">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        loading="lazy"
-        src={BACKDROP}
-        alt=""
-        className={`absolute inset-0 h-full w-full object-cover ${portraitCrop ? `${EYE_PORTRAIT_BOX} ${EYE_BACKDROP_POS_PORTRAIT}` : ""}`}
-      />
+      {eye && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          loading="lazy"
+          src={BACKDROP}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-cover ${portraitCrop ? `${EYE_PORTRAIT_BOX} ${EYE_BACKDROP_POS_PORTRAIT}` : ""}`}
+        />
+      )}
 
       {/* Full-bleed com o mesmo object-cover do gradiente: no Figma a orquídea é uma
           chapa do tamanho do frame e as pétalas das pontas saem cortadas na borda. Se
@@ -866,24 +875,39 @@ export default function ARoberta() {
 
   const [mode, setMode] = useState<"pinned" | "stacked">("stacked");
 
-  // A CENA NÃO DEPENDE DE LARGURA DE TELA. Aqui havia um gate de
-  // `min-width: 1024px`: abaixo dele o celular caía no `stacked` e não via nada
-  // do push-in nem do mergulho — recebia um retrato parado com a foto do olho
-  // esticada de fundo. Não era degradação planejada, era a cena inteira faltando
-  // justo onde está a maior parte do tráfego (e, de quebra, a foto deitada
-  // preenchendo uma caixa em pé virava um cílio ampliado 5,5× atrás do texto).
-  // O que muda no retrato é GEOMETRIA — enquadramento, âncora, altura de pista —
-  // e isso está adaptado no JSX/timeline, não trocado por outra cena.
+  // O GATE DE LARGURA VOLTOU (2026-07-31) — e o histórico importa, porque a
+  // razão de agora não é a razão de antes.
   //
-  // `stacked` continua existindo pra UM caso só: prefers-reduced-motion. Esse é
-  // contrato de acessibilidade, não tamanho de tela — quem pediu menos movimento
-  // recebe a mesma informação sem o scrub.
+  // Ele existiu, foi removido, e o motivo da remoção está registrado assim: o
+  // celular caía no `stacked` e não via nada do push-in nem do mergulho —
+  // recebia um retrato parado com a foto do olho esticada de fundo, um cílio
+  // ampliado 5,5× atrás do texto. Aquilo era degradação por acidente.
+  //
+  // O que muda agora é que a saída do olho no mobile é PEDIDO, não sobra: a
+  // seção vai direto ao "Feita por quem atende". E o custo que ela evita foi
+  // medido — a sequência são 73 frames que, decodificados, é o caso que já
+  // matou a aba no iOS. `stacked` deixa de ser "a cena faltando" e passa a ser
+  // a montagem certa pra esse viewport: retrato da Roberta em quadro cheio,
+  // ticker, cards de prova e o editorial logo abaixo. O cílio de fundo sai
+  // junto (ver `eye={false}` no <Afluente /> do ramo stacked) — ele era
+  // justamente o resto do olho que sobrava sem enquadramento.
+  //
+  // `lg` (1024px) é a mesma aresta do resto da página. E `stacked` continua
+  // atendendo o segundo caso, que é contrato e não tamanho de tela:
+  // prefers-reduced-motion — quem pediu menos movimento recebe a mesma
+  // informação sem o scrub.
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const decide = () => setMode(reduce.matches ? "stacked" : "pinned");
+    const abaixoDeLg = window.matchMedia("(max-width: 1023.98px)");
+    const decide = () =>
+      setMode(reduce.matches || abaixoDeLg.matches ? "stacked" : "pinned");
     decide();
     reduce.addEventListener("change", decide);
-    return () => reduce.removeEventListener("change", decide);
+    abaixoDeLg.addEventListener("change", decide);
+    return () => {
+      reduce.removeEventListener("change", decide);
+      abaixoDeLg.removeEventListener("change", decide);
+    };
   }, []);
 
   useGSAP(
@@ -2293,9 +2317,12 @@ export default function ARoberta() {
         </div>
         </div>
       ) : (
-        // Fallback estático — mobile / prefers-reduced-motion
+        // Montagem sem scrub — mobile (< lg) e prefers-reduced-motion.
+        // `eye={false}`: a seção abre no retrato da Roberta e desce direto pro
+        // "Feita por quem atende". O olho é do modo pinned, onde ele é a
+        // sequência; aqui ele seria só a foto por baixo do texto.
         <div className="relative overflow-hidden pb-16">
-          <Afluente />
+          <Afluente eye={false} />
           {/* foto full-bleed, ocupando o topo inteiro da section */}
           <div className="relative z-10 mb-12 h-[70vh] max-h-[560px] w-full overflow-hidden">
             <Portrait />

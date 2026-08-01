@@ -575,11 +575,10 @@ export default function Pricing() {
             continua a grama do campo, segura o pouso do phone e o card, e
             fecha em rounded-b-card sobre o creme da section. */}
         <div className="relative mx-auto -mt-px w-full max-w-3xl rounded-b-card bg-[#05070E] px-6 pt-[188px] pb-14 md:px-10">
-          {/* Pouso mobile do ScrollPhone viajante: o aparelho estático saiu — é o
-              MESMO phone que desceu do Features (ver [data-phone-start] mobile lá
-              e o gate liberado no ScrollPhone). A âncora só reserva a caixa; o
-              aparelho vive no overlay fixo. */}
           {/* O PHONE SAIU DO FLUXO (2026-07-21) — armadilha de margin collapse.
+              Vale igual pro aparelho em DOM que ocupou o lugar em 2026-07-31:
+              o que não pode voltar pro fluxo é a CAIXA, seja ela âncora vazia
+              ou aparelho de verdade.
 
               Tentativa anterior subia o pouso do phone pro campo com um
               `-mt-[210px]` num filho EM FLUXO desta banda. Não funcionou: a
@@ -613,36 +612,79 @@ export default function Pricing() {
               phone (endG = rect.height/PHONE_FILL/900, ver ScrollPhone) e já
               mediu bem no render. left-1/2 -translate-x-1/2 centraliza (era
               mx-auto, que só funciona em fluxo). */}
-          <div className="pointer-events-none absolute -top-[240px] left-1/2 h-[570px] w-[340px] -translate-x-1/2">
-            <div data-phone-end aria-hidden className="absolute inset-0" />
+          {/* O POUSO VOLTOU A SER DOM (2026-07-31). O aparelho 3D não monta
+              abaixo de lg (ver ScrollPhoneDeferred: three + glb + contexto
+              WebGL por uma decoração), então aqui não pousa mais ninguém — e
+              uma âncora vazia deixaria o card de preço encostando na grama, sem
+              o objeto que a composição inteira desta banda existe pra receber.
+
+              Quem ocupa o lugar é o MESMO <PhoneScreen> que rodava dentro do
+              <Html transform> da cena: HTML puro, sem three, sem GPU. Variante
+              "inicio" porque é a tela que o aparelho mostrava AO POUSAR aqui —
+              ele troca de face no giro do Manifesto (ver showAlt no
+              ScrollPhone). O que se perde no mobile é o giro e o mergulho; o
+              enquadramento do pouso fica.
+
+              A geometria é a mesma da âncora que saiu: -top-[240px], centrada,
+              240px sobrepondo a grama.
+
+              O CORTE NA ARESTA DO CARD CONTINUA SENDO OBRIGATÓRIO, e a primeira
+              versão em DOM errou nisso. O raciocínio errado foi "o card é z-[70]
+              e o aparelho não declara z, então o card cobre" — cobre, mas o card
+              é VIDRO: `rgba(0,10,26,0.8)` com `blur(16px)`. Ablação (visibility
+              hidden no aparelho, mesma rolagem, mesmo frame): os primeiros 120px
+              do card subiam de luminância 8,45 para ~46 — +37,5 de média — com a
+              tela branca do "Início" vazando borrada por dentro do vidro, e
+              apagando de volta ao longo de ~23px. Sem degrau duro, mas com a
+              superfície sob o painel ACESA justamente onde mora o toggle
+              Anual/Mensal. A régua da casa é o contrário: cor sob vidro tem que
+              ser funda.
+              Então o aparelho é CORTADO na aresta, como o [data-phone-clip]
+              fazia no 3D — só que aqui por altura de caixa em vez de recorte por
+              frame. 428px é a medida, não a estimativa: card.top − phone.top
+              (121 − (−307)) no render. +4px de sobra tuck pra o corte cair
+              debaixo da borda do card e não rente a ela.
+
+              Por isso o bisel arredonda SÓ EM CIMA (`rounded-t-`) e não tem
+              padding embaixo: a base do aparelho não existe nesta composição —
+              ela está dentro do card. Arredondar embaixo desenharia o fim do
+              objeto 37px ANTES do card, e o aparelho passaria a flutuar em vez
+              de mergulhar.
+
+              A CONTA DA ESCALA — o PhoneScreen é um frame FIXO de 390×844 (W/H
+              no módulo dele), então quem encolhe é um transform, não o CSS do
+              filho. Alvo: 250px de tela ⇒ k = 250/390 = 0.6410. O raio acompanha
+              o mesmo k: SCREEN_RADIUS 56 × 0.6410 = 36 na tela, +5 do bisel = 41
+              na moldura. `origin-top-left` porque scale a partir do centro
+              deixaria o topo do aparelho fora dos -240 combinados. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-[240px] left-1/2 h-[432px] w-[260px] -translate-x-1/2"
+          >
+            {/* Bisel — o glb trazia a carcaça junto com a tela; em DOM a tela
+                sozinha seria um retângulo flutuando. Uma moldura escura de 5px
+                com o raio do display + 5 é o mínimo que faz o objeto ler como
+                aparelho. A sombra é a mesma família da do card de preço. */}
+            <div className="h-full w-full overflow-hidden rounded-t-[41px] bg-[#0A0C11] px-[5px] pt-[5px] shadow-[0_40px_90px_-30px_rgba(0,10,26,0.7)] ring-1 ring-inset ring-white/10">
+              <div className="h-full w-full overflow-hidden rounded-t-[36px]">
+                <div className="origin-top-left scale-[0.6410]">
+                  <PhoneScreen variant="inicio" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* wrapper SÓ pra hospedar o [data-phone-clip] (2026-07-21) — o
-              card de preço em si não mudou. Precisa de caixa própria porque
-              o clip lê r.bottom do [data-phone-clip], e um filho absolute
-              não tem rect sem um ancestral relative que comece exatamente
-              onde o card começa (senão inset-x-0 top-0 mediria a partir do
-              wrapper errado). */}
+          {/* O [data-phone-clip] mobile SAIU em 2026-07-31, junto com o
+              aparelho 3D daqui. Ele existia por uma razão que deixou de valer:
+              o overlay era `fixed` z-[60] e o card z-[70] NUNCA ganhava dele —
+              "o phone termina atrás do card" só era possível recortando o
+              desenho numa aresta lida do DOM (CLIP_GATE/clipPhone no
+              ScrollPhone). O aparelho em DOM que ocupou o lugar está na mesma
+              árvore que o card, então a mesma frase agora é só ordem de
+              pintura. O do desktop (dentro de `hidden lg:block`) segue.
+              O wrapper `relative` fica: é o ancestral posicionado do sheen e do
+              inset shadow do card. */}
           <div className="relative">
-            {/* [data-phone-clip] mobile — mesma mecânica do TAB desktop
-                (~linha 335): h-px encostado no topo deste wrapper (= topo do
-                card, já que o card é o único filho abaixo dele), então
-                r.bottom do elemento é exatamente o topo do card. O
-                ScrollPhone recorta o overlay fixed z-[60] nessa aresta
-                (CLIP_GATE, clipPhone()) — é assim que "o phone deve terminar
-                atrás do card" vira geometria em vez de torcida de z-index: o
-                z-[70] do card nunca ganhava do overlay (ver o comentário
-                acima da âncora), e agora não precisa ganhar, porque o phone
-                deixa de ser desenhado abaixo desta linha. anchor() em
-                ScrollPhone devolve o PRIMEIRO [data-phone-clip] COM caixa;
-                este só existe aqui dentro do lg:hidden, então não compete
-                com o do desktop (dentro de hidden lg:block) — mesmo padrão
-                de [data-phone-end]/[data-phone-start] documentado lá. */}
-            <div
-              data-phone-clip
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-0 h-px"
-            />
             <div
               data-glass
               className={`relative z-[70] overflow-hidden rounded-[2.25rem] border border-white/15 p-2.5 shadow-[0_40px_90px_-30px_rgba(0,10,26,0.55)] ${GLASS_MOBILE}`}
