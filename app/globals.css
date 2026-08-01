@@ -221,6 +221,46 @@
   animation: gaia-scan 3.4s ease-in-out infinite;
 }
 
+/* ── Painel fora de quadro não anima ─────────────────────────────────
+   A tira do "Como funciona" mantém os três painéis montados o tempo todo
+   (é uma tira que desliza sob um pin), mas só um cabe na tela. As
+   micro-animações infinitas de dentro deles — waveform, sheen, shimmer,
+   halo, caret, scan, ping/pulse/spin — seguiam rodando e REPINTANDO nos
+   dois que ninguém vê. Medido no trace (celular emulado, CPU 4×, uma
+   travessia do pin): toda animação desligada tirava ~1900ms dos ~5000ms
+   de main thread da passada; só a waveform de 27 barras valia ~840ms.
+
+   `animation-play-state: paused` e não `animation: none`: pausar preserva
+   a fase, então o painel volta de onde parou em vez de dar um salto
+   quando entra em quadro. O ComoComecar liga/desliga o data-live por
+   painel (|cont - pos| >= 1 é literalmente "fora da viewport"); sem o
+   atributo — modo stacked, reduced-motion — nada casa e tudo anima como
+   antes. */
+[data-panel][data-live="0"],
+[data-panel][data-live="0"] *,
+[data-panel][data-live="0"] *::before,
+[data-panel][data-live="0"] *::after {
+  animation-play-state: paused;
+}
+
+/* Painel fora de quadro sai do render inteiro — não só das animações. Estilo,
+   layout, paint e camadas dos dois painéis invisíveis seguiam ativos enquanto a
+   tira translada por cima deles; pular o render deles tira mais ~1000ms de main
+   thread da mesma passada.
+
+   `auto` E NÃO `hidden`, com 220ms de diferença medida a favor do hidden e a
+   escolha ainda assim é o auto: `hidden` tira a subárvore do a11y tree e do
+   find-in-page, e os painéis 2 e 3 carregam a cópia dos passos ("O que você
+   cobriu, o que falta"). Numa tira que só se atravessa rolando, leitor de tela
+   e busca da página seriam a ÚNICA forma de chegar naquele texto — e o hidden
+   fecharia essa porta pra economizar 4% de uma passada. Com `auto` quem decide
+   é o browser pela interseção com a viewport, o texto continua indexável e
+   alcançável, e a caixa não muda de tamanho (a contenção é do conteúdo; a
+   largura vem do w-screen do próprio painel). */
+[data-panel] {
+  content-visibility: auto;
+}
+
 /* ── Parallax por cursor + montagem no scroll (Features) ─────────────
    Uma única transform carrega TUDO por CSS var: profundidade que segue o
    cursor (--mx/--my × --depth, setados por JS no card), a inclinação de

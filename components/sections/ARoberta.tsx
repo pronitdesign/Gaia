@@ -2367,10 +2367,21 @@ export default function ARoberta() {
               className="pointer-events-none absolute inset-x-0 bottom-0 z-[16] h-1/2"
               style={{ background: PORTRAIT_SCRIM_DARK }}
             />
-            {/* cards de prova, empilhados no alto-esquerda da foto */}
-            <div className="pointer-events-none absolute left-4 top-[26%] z-[18] flex flex-col gap-3">
-              <ProofCard mark big="Mestre" sub="em Nutrição" className="w-[158px]" />
-              <ProofCard big="+20" sub="profissionais formados" className="w-[166px]" />
+            {/* Cards de prova — LADO A LADO NO RODAPÉ DA FOTO (2026-07-31, a
+                Pronit circulou a faixa: "os cards devem ficar onde selecionei").
+                Eram dois empilhados no alto-esquerda (left-4 top-26%), e ali
+                cobriam o ombro e metade do tronco dela — a coluna de vidro
+                dividia o retrato ao meio. A faixa de baixo é o lugar certo por
+                construção: é onde o scrim já apagou a foto, então o vidro pousa
+                sobre preto em vez de competir com o rosto, e ela fica inteira em
+                quadro. Em linha (não empilhados) porque a faixa é larga e baixa
+                — dois cards de ~100px cabem lado a lado; empilhados subiriam
+                200px e voltariam pro rosto. `flex-1` divide a largura em vez de
+                w-[158px]/w-[166px] fixos: a faixa é inset-x-4, então os dois
+                acompanham qualquer viewport sem sobra assimétrica. */}
+            <div className="pointer-events-none absolute inset-x-4 bottom-5 z-[18] flex items-stretch gap-3">
+              <ProofCard mark big="Mestre" sub="em Nutrição" className="flex-1" />
+              <ProofCard big="+20" sub="profissionais formados" className="flex-1" />
             </div>
           </div>
           <div ref={editorial} className="relative z-10">

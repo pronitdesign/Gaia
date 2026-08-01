@@ -83,11 +83,44 @@ export default function ComoComecar() {
     };
   }, []);
 
+  // ── Cache de nós + último valor escrito ────────────────────────────────────
+  // Os três apply* rodavam um querySelectorAll CADA um, a CADA tick de scroll —
+  // seis varreduras de árvore por frame num pin de 3 viewports. Os nós são
+  // estáveis (as keys `r-${pos}` não mudam), então a lista se resolve uma vez no
+  // layout()/onRefresh e o guarda `isConnected` recompõe se o React trocar a
+  // árvore. `last` guarda o texto exato já escrito: escrever uma custom property
+  // com o MESMO valor ainda invalida o estilo da subárvore, e no pan o --reveal
+  // de um painel fica cravado em 0 por centenas de frames.
+  const nodes = useRef<{ panels: HTMLElement[]; photos: HTMLElement[] }>({
+    panels: [],
+    photos: [],
+  });
+  const last = useRef<{ reveal: string[]; parallax: string[] }>({ reveal: [], parallax: [] });
+  // O --parallax só é consumido pelo `md:[transform:...]` do PhotoBg. Abaixo de
+  // md ninguém lê a var — escrevê-la é invalidação de estilo por frame comprando
+  // nada. Resolvido no refresh (não por frame) porque é o resize que muda.
+  const wide = useRef(false);
+
+  const collect = () => {
+    const t = track.current;
+    if (!t) return nodes.current;
+    const n = nodes.current;
+    if (!n.panels.length || !n.panels[0].isConnected) {
+      n.panels = Array.from(t.querySelectorAll<HTMLElement>("[data-panel]"));
+      n.photos = Array.from(t.querySelectorAll<HTMLElement>("[data-parallax]"));
+      last.current = { reveal: [], parallax: [] };
+    }
+    return n;
+  };
+
   const layout = () => {
     const first = track.current?.querySelector<HTMLElement>("[data-panel]") ?? undefined;
     if (!first || !track.current) return;
     const w = first.offsetWidth;
     metrics.current.w = w;
+    nodes.current.panels = [];
+    collect();
+    wide.current = window.matchMedia("(min-width: 768px)").matches;
     // sem padding de centragem: as pontas ancoram nas bordas (ver trackX)
     track.current.style.paddingLeft = "0px";
   };
@@ -117,16 +150,48 @@ export default function ComoComecar() {
       se desmonta, coerente com o Overlay/Float que também somem por `active`. */
   const applyReveal = (cont: number) => {
     if (!track.current) return;
-    track.current
-      .querySelectorAll<HTMLElement>("[data-panel]")
-      .forEach((el, pos) => {
-        const dist = Math.abs(cont - pos);
-        // FOCUS*0.6 no denominador → chega a 1 um pouco antes do centro e faz
-        // platô na zona do passo (não pisca ao cruzar o ponto exato)
-        const p = Math.max(0, Math.min(1, (FOCUS - dist) / (FOCUS * 0.6)));
-        const r = p * p * (3 - 2 * p);
-        el.style.setProperty("--reveal", r.toFixed(3));
-      });
+    const { panels } = collect();
+    panels.forEach((el, pos) => {
+      const dist = Math.abs(cont - pos);
+      // FOCUS*0.6 no denominador → chega a 1 um pouco antes do centro e faz
+      // platô na zona do passo (não pisca ao cruzar o ponto exato)
+      const p = Math.max(0, Math.min(1, (FOCUS - dist) / (FOCUS * 0.6)));
+      const r = p * p * (3 - 2 * p);
+      const v = r.toFixed(3);
+      if (last.current.reveal[pos] !== v) {
+        el.style.setProperty("--reveal", v);
+        last.current.reveal[pos] = v;
+      }
+      // ── data-live: painel sem conteúdo em quadro não anima ────────────────
+      // Os três painéis ficam montados o tempo todo (é uma tira que desliza sob
+      // um pin), e as micro-animações infinitas de dentro deles — waveform de 27
+      // barras, sheen do vidro, shimmer, halo do badge, caret, scan, ping —
+      // seguiam animando e REPINTANDO nos que ninguém vê. Medido no trace
+      // (celular emulado, CPU 4×, uma travessia do pin): desligar TODA animação
+      // tirava ~1900ms dos ~5000ms de main thread da passada; só a waveform
+      // valia ~840ms.
+      //
+      // O CORTE É 0.5 E NÃO 1. O reflexo é usar "fora da viewport" (dist >= 1,
+      // já que cada painel tem a largura da tela), e foi o que a primeira
+      // rodada fez: rendeu só 12% porque nas transições DOIS painéis ficam com
+      // dist < 1 e só o distante pausava. Mas o conteúdo animado não vive até a
+      // borda do painel: ele é justamente o que o --reveal acima apaga, e o
+      // reveal já é ZERO em dist >= FOCUS (0.3). Ou seja, entre 0.3 e 1 o
+      // painel está em quadro com os cards invisíveis — animando nada que se
+      // veja. 0.5 fica com folga sobre o 0.3 (meia tela de margem) e garante um
+      // único painel vivo por vez.
+      //
+      // O CSS mora em globals.css ([data-live="0"]); aqui só o atributo, e só
+      // quando MUDA — data-attr é seletor, escrever igual reinvalidaria a
+      // subárvore toda por frame.
+      const live = dist < 0.5 ? "1" : "0";
+      if (el.dataset.live !== live) el.dataset.live = live;
+      // (O outro metade da conta — pular o RENDER do painel fora de quadro, não
+      // só a animação — não mora aqui: é o `content-visibility: auto` em
+      // globals.css, onde quem decide é o browser pela interseção com a
+      // viewport. Chegou a ser um data-off escrito daqui com corte em 1.15;
+      // saiu porque o browser faz a mesma conta sem um atributo por frame.)
+    });
   };
 
   /** Parallax de galeria: cada foto contra-desliza em proporção à posição REAL
@@ -136,19 +201,22 @@ export default function ComoComecar() {
       contínuo, a foto nunca congela. Sem reflow. `offset` espelha o applyTranslate
       (tira sem clones): o frame de RENDER[pos] fica centralizado quando pos === cont. */
   const applyParallax = (cont: number) => {
-    if (!track.current) return;
+    if (!track.current || !wide.current) return;
     const w = metrics.current.w + GAP;
     const W = window.innerWidth;
     const T = trackX(cont); // mesma geometria ancorada do pan
     const span = W * PARALLAX_SPAN; // menor = drift satura antes → aparece mais
-    track.current
-      .querySelectorAll<HTMLElement>("[data-parallax]")
-      .forEach((img, pos) => {
-        const center = T + pos * w + w / 2; // centro do frame na viewport
-        const offset = center - W / 2; // px do centro do frame ao centro da viewport
-        const t = Math.max(-1, Math.min(1, offset / span)); // -1..1
-        img.style.setProperty("--parallax", (-t * PARALLAX_MAX).toFixed(2) + "%");
-      });
+    const { photos } = collect();
+    photos.forEach((img, pos) => {
+      const center = T + pos * w + w / 2; // centro do frame na viewport
+      const offset = center - W / 2; // px do centro do frame ao centro da viewport
+      const t = Math.max(-1, Math.min(1, offset / span)); // -1..1
+      const v = (-t * PARALLAX_MAX).toFixed(2) + "%";
+      if (last.current.parallax[pos] !== v) {
+        img.style.setProperty("--parallax", v);
+        last.current.parallax[pos] = v;
+      }
+    });
   };
 
   useGSAP(

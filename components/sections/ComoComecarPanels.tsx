@@ -318,6 +318,10 @@ const WAVE = [
   7, 12, 20, 30, 22, 14, 26, 34, 24, 16, 10, 18, 28, 36, 26, 18, 12, 22, 32, 24,
   15, 9, 14, 24, 30, 20, 12,
 ];
+/** Altura mínima (px) pra uma barra da waveform PULSAR — ver o bloco no JSX.
+ *  26 deixa 8 das 27 animando; baixar isso devolve custo de main thread na
+ *  proporção direta do número de barras que passam a animar. */
+const EQ_LIVE_MIN = 26;
 
 /* ── Passo 01 · Grave ────────────────────────────────────────── */
 export function Panel1({ active, reduced, step }: PanelProps) {
@@ -363,7 +367,19 @@ export function Panel1({ active, reduced, step }: PanelProps) {
                 </span>
               </span>
             </div>
-            {/* waveform ao vivo — cada barra pulsa como áudio entrando */}
+            {/* waveform ao vivo — os PICOS pulsam como áudio entrando.
+                Pulsavam as 27, e era o item mais caro da página inteira: medido
+                no trace (celular emulado, CPU 4×, uma travessia do pin),
+                desligar só esta waveform tirava ~760ms de main thread de uma
+                passada de ~4400ms — e ela só anima enquanto o painel 1 está em
+                quadro, ou seja, esse custo inteiro cai no primeiro quarto da
+                seção, que é exatamente onde a trava aparecia. Não é o número de
+                barras que custa (elas continuam 27, o desenho é o mesmo): é
+                quantas TRANSFORMS o compositor recalcula por frame.
+                O corte é por altura e não por índice (`i % 3` viraria pente
+                regular): as barras altas são as que a voz levantou, então são
+                elas que respiram — as baixas ficam paradas, como forma de onda
+                já gravada. Oito de 27 animando, mesma leitura de "ao vivo". */}
             <div className="mb-4 flex h-10 items-center gap-[3px]">
               {WAVE.map((h, i) => (
                 <span
@@ -376,7 +392,7 @@ export function Panel1({ active, reduced, step }: PanelProps) {
                     // Barras acendem da esquerda pra direita conforme o scroll entra.
                     opacity: `clamp(0, calc((var(--reveal, 1) - ${((i / WAVE.length) * 0.55).toFixed(3)}) / 0.4), 1)` as unknown as number,
                   }}
-                  className="gaia-eq-bar w-[3px] shrink-0 rounded-full bg-white/40"
+                  className={`w-[3px] shrink-0 rounded-full bg-white/40 ${h >= EQ_LIVE_MIN ? "gaia-eq-bar" : ""}`}
                 />
               ))}
             </div>
