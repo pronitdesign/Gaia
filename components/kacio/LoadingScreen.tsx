@@ -7,8 +7,14 @@ import { Logo } from "@/components/ui/Logo";
 
 const SESSION_KEY = "gaia-loading-done";
 const FALLBACK_TIMEOUT_MS = 6000;
-const END_EPSILON_S = 0.04; // considera a flor "fechada" quando falta isto pro fim
-const HOLD_AT_100_MS = 650; // segura no 100 pro cartão de marca respirar antes da cortina
+/* A cortina começa a subir com o vídeo AINDA fechando por baixo (auditoria
+   Felix 1.3, autorizado pela Pronit em 2026-08-02): o gatilho sai de
+   duration−0.04 pra duration−1.5. A animação toca INTEIRA — o lift de 1,07s
+   sobrepõe o final da flor, e a página fica disponível ~2s mais cedo (a
+   espera de entrada era ~5,9s; vira ~4,0s). O contador NÃO salta pra 100:
+   o rAF continua lendo currentTime durante a sobreposição. */
+const EXIT_LEAD_S = 1.5;
+const HOLD_AT_100_MS = 150; // respiro mínimo do cartão de marca antes do lift (era 650)
 const BRAND_AT = 70; // % em que o vídeo desfoca e a marca em DOM começa a entrar
 const WINDUP_S = 0.12; // antecipação antes do lift
 const REVEAL_S = 0.95; // duração do lift da cortina
@@ -70,13 +76,22 @@ export default function LoadingScreen() {
     let rafId = 0;
     let holdId: ReturnType<typeof setTimeout>;
 
-    // Dispara a cortina: garante 100 pintado, segura no branding, depois sobe.
+    // Dispara a cortina. Com o exit antecipado o rAF NÃO é cancelado aqui: o
+    // contador continua subindo pelo currentTime real durante a sobreposição
+    // (cancelar + setCount(100) fazia o número saltar ~70→100 — era o design
+    // antigo, de quando o gatilho era o FIM do vídeo). O 100 forçado só entra
+    // nos caminhos sem vídeo andando (erro, fallback, ended), onde não há
+    // relógio pra seguir.
     const startReveal = () => {
       if (doneRef.current) return;
       doneRef.current = true;
       sessionStorage.setItem(SESSION_KEY, "1");
-      cancelAnimationFrame(rafId);
-      setCount(100);
+      const v = videoRef.current;
+      if (!v || v.error || v.ended || v.readyState < 2) {
+        cancelAnimationFrame(rafId);
+        countRef.current = 100;
+        setCount(100);
+      }
       holdId = setTimeout(() => setRevealing(true), reduce ? 0 : HOLD_AT_100_MS);
     };
 
@@ -95,6 +110,8 @@ export default function LoadingScreen() {
     }, FALLBACK_TIMEOUT_MS);
 
     // O % é coreografia: currentTime/duration → 0..100, casado com a flor.
+    // O loop vive ATÉ o vídeo fechar (ou o unmount) — o gatilho do reveal é só
+    // um evento no meio dele, não o fim do relógio.
     const tick = () => {
       const d = video.duration;
       if (d && isFinite(d)) {
@@ -104,10 +121,8 @@ export default function LoadingScreen() {
           countRef.current = next;
           setCount(next);
         }
-        if (video.currentTime >= d - END_EPSILON_S) {
-          startReveal();
-          return;
-        }
+        if (video.currentTime >= d - EXIT_LEAD_S) startReveal();
+        if (p >= 1) return; // flor fechada de verdade: o loop se aposenta
       }
       rafId = requestAnimationFrame(tick);
     };
