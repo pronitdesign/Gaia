@@ -294,7 +294,7 @@ function primeForSeek(e: SyntheticEvent<HTMLVideoElement>) {
    movimento. `rgba(0,10,26,...)` é o token `ink` (#000A1A) em rgb — mesmo
    literal que o GLASS_MOBILE usa, ver tailwind.config.ts. */
 const CARD_GLASS =
-  "border border-white/15 bg-[rgba(0,10,26,0.55)] backdrop-blur-[20px] backdrop-saturate-[1.4]";
+  "border border-white/15 bg-[rgba(0,10,26,0.55)] backdrop-blur-[12px] lg:backdrop-blur-[20px] backdrop-saturate-[1.4]";
 
 /* Highlight de 1px na quina de cima — camada própria, não empilhada dentro da
    sombra externa (mesma separação que o card fumê do Pricing usa). */

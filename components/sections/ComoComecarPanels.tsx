@@ -157,7 +157,7 @@ function Overlay({
    float), matando a "trava" de 1 frame que o backdrop-filter causa quando a
    camada é criada no meio da animação de ativação. */
 const glassBase =
-  "backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+  "backdrop-blur-lg lg:backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
 
 /* Escuro: fill preto denso o bastante pra NUNCA lavar sobre foto clara
    (bug do #18) — refração branca no topo, sombra funda. Texto branco por cima. */

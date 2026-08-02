@@ -32,10 +32,22 @@ export default function Home() {
       {/* ═══ Parte do Kácio — topo da página, na ordem original dele. A fonte
           de corpo (Clash Grotesk) fica escopada neste wrapper pra não tocar no
           corpo da Pronit (Clash Display via --font-body). A Navbar vem dentro da
-          HeroGrid; a LoadingScreen é overlay fixo que some após o vídeo. */}
+          HeroGrid; a LoadingScreen é overlay fixo que some após o vídeo.
+
+          A ORDEM hero → splash é medida, não estética (auditoria Felix
+          2026-08-01): com o splash como primeiro filho, o H1 do hero só entrava
+          num frame DEPOIS da hidratação — LCP mobile de 5,28s sendo 88% render
+          delay. O Chrome registra candidato a LCP mesmo coberto por overlay
+          opaco, então com o hero primeiro o H1 pinta cedo POR BAIXO do splash e
+          o LCP destrava (~1,3–1,6s projetado). O splash fica IMEDIATAMENTE
+          depois — a menos de ~25KB do início do HTML — pra chegar no mesmo voo
+          de rede e nunca existir frame do hero sem a cortina por cima; movê-lo
+          pro fim do main reabriria exatamente esse flash. O visual não muda:
+          fixed inset-0 z-[100] independe de ordem no DOM. Preço aceito: na
+          ordem de leitura/tab o progressbar vem depois do hero. */}
       <div className="font-grotesk">
-        <LoadingScreen />
         <HeroGrid />
+        <LoadingScreen />
         <Benefits />
       </div>
 

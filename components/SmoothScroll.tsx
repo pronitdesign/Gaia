@@ -9,6 +9,14 @@ import { ligarMonitorDeFrame } from "@/lib/gpu";
 
 gsap.registerPlugin(ScrollTrigger);
 
+/* A barra do Safari subindo/descendo dispara resize, e resize dispara um
+   refresh COMPLETO dos ScrollTriggers — re-layout de um documento de ~16000px
+   com 3 pins, no meio do arrasto do dedo. Medido em ≤127ms por evento
+   (79e2834): não é o vilão do engasgo, mas é um soluço 100% evitável que só
+   existe em touch. O flag ignora exatamente esse resize vertical de barra;
+   rotação/resize real continua refrescando. */
+ScrollTrigger.config({ ignoreMobileResize: true });
+
 /* O LENIS SÓ EXISTE ONDE HÁ RODA. */
 const TEM_RODA = "(hover: hover) and (pointer: fine)";
 

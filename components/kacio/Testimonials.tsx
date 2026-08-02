@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import useEmblaCarousel from "embla-carousel-react";
@@ -46,8 +46,14 @@ const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export default function Testimonials() {
   const reduced = useReducedMotion();
+  const sectionRef = useRef<HTMLElement>(null);
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", loop: true }, [
     AutoScroll({
+      // A esteira NÃO nasce andando: com playOnInit ela rodava rAF desde o
+      // load, movendo um strip de 8 cards de foto que ninguém estava vendo —
+      // medido por ablação no rig de celular, ~120MB do pico de memória da
+      // página eram dela. Quem dá o play é o IntersectionObserver abaixo.
+      playOnInit: false,
       speed: 0.5,
       startDelay: 0,
       stopOnInteraction: false,
@@ -55,6 +61,24 @@ export default function Testimonials() {
       stopOnFocusIn: false,
     }),
   ]);
+
+  // Esteira só anda com a section na tela (com 100px de antecedência pra não
+  // nascer parada no primeiro pixel visível). Fora da viewport ela PARA — o
+  // visual é idêntico porque um loop infinito não tem "posição perdida".
+  useEffect(() => {
+    const el = sectionRef.current;
+    const autoScroll = emblaApi?.plugins()?.autoScroll;
+    if (!el || !autoScroll) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) autoScroll.play();
+        else autoScroll.stop();
+      },
+      { rootMargin: "100px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [emblaApi]);
 
   // Pausa o ticker no hover de um card e retoma ao sair
   const toggleTicker = useCallback(
@@ -68,7 +92,7 @@ export default function Testimonials() {
   );
 
   return (
-    <section id="depoimentos" className="relative overflow-hidden bg-[#fdf5ff]">
+    <section ref={sectionRef} id="depoimentos" className="relative overflow-hidden bg-[#fdf5ff]">
       <div className="absolute inset-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img loading="lazy" src="/figma/testimonials-bg.webp" alt="" className="size-full object-cover" />

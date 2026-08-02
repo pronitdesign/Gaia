@@ -243,19 +243,33 @@ export default function LoadingScreen() {
             Precisa espelhar object-cover + o mesmo scale do Ken Burns, senão o
             vídeo entra deslocado em cima dela e a troca aparece. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* decoding SYNC e não async: o poster já está preloaded aos ~142ms,
+            mas com decode assíncrono o primeiro frame do splash saía PRETO
+            (~509ms de k-ink puro medidos no trace) — decode síncrono de um WebP
+            de 21KB custa ~ nada e garante flor no primeiro paint. É o mesmo
+            veto de transição por breu, agora no frame zero. */}
         <img
           src="/loading-poster.webp"
           alt=""
           aria-hidden
           fetchPriority="high"
-          decoding="async"
+          decoding="sync"
           className="absolute inset-0 size-full object-cover"
           style={{ transform: `scale(${kb})`, transformOrigin: "center" }}
         />
+        {/* autoPlay NATIVO além do play() do effect: sem o atributo, o playback
+            só começava quando a hidratação chegasse no useEffect (~1,4s de
+            vídeo parado medidos — chunk de 477ms + long task de 340ms na
+            frente). Com o atributo no SSR o browser dá o play sozinho, pré-JS;
+            o effect vira retry pra autoplay bloqueado (Low Power Mode) e o tick
+            já lê currentTime real, então entrar num vídeo que já anda não
+            desloca nada — só o playbackRate 1.2 que chega junto da hidratação
+            (drift de ~0,2s, absorvido pelo mesmo tick). */}
         <video
           ref={videoRef}
           className="relative size-full object-cover"
           style={{ transform: `scale(${kb})`, transformOrigin: "center", willChange: "transform" }}
+          autoPlay
           muted
           playsInline
           preload="auto"

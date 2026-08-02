@@ -101,7 +101,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="w-fit cursor-pointer rounded-2xl border border-white/10 bg-k-ink/80 px-6 py-4 text-left backdrop-blur-2xl transition-colors hover:bg-k-ink/60"
+        className="w-fit cursor-pointer rounded-2xl border border-white/10 bg-k-ink/80 px-6 py-4 text-left backdrop-blur-lg lg:backdrop-blur-2xl transition-colors hover:bg-k-ink/60"
       >
         <span className="text-[16px] font-medium leading-[1.5] text-white">{q}</span>
       </button>
@@ -117,7 +117,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           >
             {typing ? (
-              <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/10 px-6 py-5 backdrop-blur-2xl">
+              <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/10 px-6 py-5 backdrop-blur-lg lg:backdrop-blur-2xl">
                 {[0, 1, 2].map((d) => (
                   <span
                     key={d}
@@ -128,7 +128,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
               </div>
             ) : (
               <motion.div
-                className="max-w-[705px] rounded-2xl border border-white/10 bg-white/10 px-6 py-4 backdrop-blur-2xl"
+                className="max-w-[705px] rounded-2xl border border-white/10 bg-white/10 px-6 py-4 backdrop-blur-lg lg:backdrop-blur-2xl"
                 initial={reduced ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4 }}

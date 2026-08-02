@@ -172,7 +172,7 @@ export default function Footer({ embedded = false }: { embedded?: boolean }) {
               // inset highlight dão a quina de luz do vidro; `overflow-hidden`
               // segura o raio. Se faltar contraste, sobe a tinta (0.42), não
               // some com o campo.
-              "relative mx-auto w-full max-w-7xl overflow-hidden rounded-card border border-white/10 bg-[rgba(14,16,22,0.42)] px-6 py-10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] backdrop-blur-2xl backdrop-saturate-[1.2] md:px-12 md:py-12"
+              "relative mx-auto w-full max-w-7xl overflow-hidden rounded-card border border-white/10 bg-[rgba(14,16,22,0.42)] px-6 py-10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] backdrop-blur-lg lg:backdrop-blur-2xl backdrop-saturate-[1.2] md:px-12 md:py-12"
             : "mx-auto w-full max-w-6xl px-6 py-20 md:px-10 md:py-24 lg:px-16"
         }
       >

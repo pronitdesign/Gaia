@@ -110,9 +110,12 @@ const TAB_PATH_XL =
   "path('M0,0 H500 V152 L466.4,196.8 Q458,208 444,208 L56,208 Q42,208 33.6,196.8 L0,152 Z')";
 
 /* vidro fumê — versão MOBILE: card alto e estreito, single column. Tint
-   uniforme e denso (sem gradiente) pro texto branco não lavar. */
+   uniforme e denso (sem gradiente) pro texto branco não lavar.
+   10px e não 16: com 0.80 de tinta o backdrop mal aparece, e no rasterizador
+   de celular a banda do Pricing pagava o raio cheio — mesma dieta de raio do
+   GLASS do Features (raio é ângulo; a tela de 6" está a 30cm). */
 const GLASS_MOBILE =
-  "bg-[rgba(0,10,26,0.80)] backdrop-blur-[16px] backdrop-saturate-[1.6]";
+  "bg-[rgba(0,10,26,0.80)] backdrop-blur-[10px] backdrop-saturate-[1.6]";
 
 export default function Pricing() {
   const root = useRef<HTMLElement>(null);

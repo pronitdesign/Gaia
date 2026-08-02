@@ -172,9 +172,20 @@ export default function HeroGrid() {
               srcSet="/figma/hero-bg-1600.webp 1600w, /figma/hero-bg.webp 2560w"
               sizes="100vw"
             />
+            {/* No celular a MESMA foto sai pelo optimizer: o arquivo cru são
+                176KB de WebP disputando o voo de rede do poster e do vídeo da
+                intro; via /_next/image ela vira 33,7KB de AVIF (medido em
+                produção — w=640 cobre, o original tem 563px de largura; se
+                aparecer banding no gradiente, subir pra q=80). URL fixa e não
+                getImageProps porque w=640/q=75 é um par verificado contra a
+                allowlist do next.config — e é 1 arquivo, não um srcset.
+                fetchPriority segue HIGH, divergindo da auditoria: o atributo é
+                um só pro <picture> inteiro e no desktop (source acima) esta
+                imagem É o LCP; a 34KB a contenção que o rebaixamento evitaria
+                já não existe. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/figma/hero-bg-mobile.webp"
+              src="/_next/image?url=%2Ffigma%2Fhero-bg-mobile.webp&w=640&q=75"
               alt="Nutricionista atendendo com a Gaia"
               fetchPriority="high"
               className="absolute inset-0 size-full object-cover"
