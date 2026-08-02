@@ -52,6 +52,29 @@ export default function HeroGrid() {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
+  /* PRÉ-DECODE na banda ociosa da intro — medido no vídeo do aparelho da
+     Pronit (2026-08-02): as células do grid e o grid-bg são lazy e aterrissavam
+     TODAS no meio do primeiro gesto de scroll (freeze de ~600ms com flash
+     branco, duas vezes, dentro da transição hero→grid). A intro tem ~6s de
+     banda e thread ociosas de propósito; é ali que esse decode cabe inteiro.
+     `loading` vira eager via JS (só depois do intro-done, então não disputa
+     com o LCP) e o decode() tira o raster do caminho do gesto. Falha de
+     decode() é ignorada: é otimização, o lazy original segue de rede. */
+  useEffect(() => {
+    const aquecer = () => {
+      for (const img of rootRef.current?.querySelectorAll<HTMLImageElement>("img[loading=lazy]") ?? []) {
+        img.loading = "eager";
+        img.decode().catch(() => {});
+      }
+    };
+    if (document.documentElement.dataset.introDone === "1") {
+      aquecer();
+      return;
+    }
+    window.addEventListener("gaia:intro-done", aquecer, { once: true });
+    return () => window.removeEventListener("gaia:intro-done", aquecer);
+  }, []);
+
   useLayoutEffect(() => {
     const mm = gsap.matchMedia();
 
@@ -60,15 +83,25 @@ export default function HeroGrid() {
       const hero = heroRef.current!;
       const canvas = canvasRef.current!;
       const slot = slotRef.current!;
+      const media = mediaRef.current!;
+      const foto = media.querySelector("img")!;
       const cells = root.querySelectorAll<HTMLElement>("[data-grid-cell]");
 
       // Medidas via offset* (imunes a transforms durante o refresh)
-      const target = { x: 0, y: 0, w: 0, h: 0 };
+      const target = { x: 0, y: 0, w: 0, h: 0, W0: 1, H0: 1, iw: 563, ih: 1218 };
       const measure = () => {
         target.x = canvas.offsetLeft + slot.offsetLeft;
         target.y = slot.offsetTop;
         target.w = slot.offsetWidth;
         target.h = slot.offsetHeight;
+        target.W0 = hero.offsetWidth || 1;
+        target.H0 = hero.offsetHeight || 1;
+        // O aspecto da foto muda com o breakpoint (o <picture> troca a fonte);
+        // 0 enquanto não decodificou → mantém o chute anterior.
+        if (foto.naturalWidth) {
+          target.iw = foto.naturalWidth;
+          target.ih = foto.naturalHeight;
+        }
       };
       measure();
       const onRefreshInit = () => measure();
@@ -101,22 +134,85 @@ export default function HeroGrid() {
         { autoAlpha: 0, y: -40, scale: 0.96, duration: 0.18 },
         0
       );
-      // Mídia encolhe até o slot do grid animando o box real:
-      // o object-cover reenquadra a foto a cada frame, sem distorcer
-      tl.to(
-        mediaRef.current,
-        {
-          x: () => target.x,
-          y: () => target.y,
-          width: () => target.w,
-          height: () => target.h,
-          duration: 0.9,
-        },
-        0.1
-      );
-      // Bordas arredondam logo no início do scroll e assentam em 24px (raio das células)
-      tl.to(mediaRef.current, { borderRadius: "48px", duration: 0.2 }, 0.1);
-      tl.to(mediaRef.current, { borderRadius: "24px", duration: 0.25 }, 0.75);
+      /* Mídia encolhe até o slot SEM TOCAR EM LAYOUT — reescrito em 2026-08-02.
+         A versão anterior animava width/height do box real e deixava o
+         object-cover reenquadrar por frame: cada frame era layout + repaint de
+         uma imagem full-viewport, e no vídeo do aparelho da Pronit o PRIMEIRO
+         gesto de scroll congelava ~600ms duas vezes exatamente nesta
+         transição (o rig de celular já tinha marcado 743ms/1567ms nas faixas
+         deste pin). Agora é o FLIP clássico com cover emulado:
+
+         · o CONTAINER (W0×H0 de layout, imutável) leva translate+scale(sx,sy);
+         · a FOTO, com base no tamanho NATURAL (objectFit:fill, origem 0 0),
+           leva a contra-escala (cover/sx, cover/sy) + o offset de centragem —
+           que é exatamente a conta do object-cover num box w(t)×h(t), então o
+           enquadramento por frame é IDÊNTICO ao de antes, pixel a pixel;
+         · o raio vira clip-path inset(round rx/ry) com os raios divididos por
+           eixo pela escala — círculo visual perfeito sob escala anisotrópica,
+           aplicado no compositor.
+
+         Nenhuma dessas três escritas dispara layout; o pin rola no compositor.
+         O estado estático pré-JS continua sendo o CSS original (inset-0 +
+         object-cover): o gsap.set abaixo só assume quando este bloco roda, e o
+         mm.revert() devolve tudo. */
+      // origem 0 0 nos DOIS: toda a conta do FLIP assume escala a partir do
+      // topo-esquerdo (o padrão do GSAP é 50% 50%, que desloca o box).
+      gsap.set(media, { transformOrigin: "0 0" });
+      gsap.set(foto, {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: () => target.iw,
+        height: () => target.ih,
+        // o preflight do Tailwind põe `img { max-width: 100% }`, que capa a
+        // largura ACIMA do style inline — sem este none a base de 563px
+        // virava 390 e a foto cobria só ~70% do hero (pego na paridade).
+        maxWidth: "none",
+        objectFit: "fill",
+        transformOrigin: "0 0",
+        willChange: "transform",
+      });
+      // Se o natural size chegar depois (foto ainda decodificando no mount),
+      // re-mede e reaplica base + frame — senão a base fica no chute de 563.
+      const onFotoLoad = () => {
+        measure();
+        gsap.set(foto, { width: target.iw, height: target.ih });
+        aplicar();
+      };
+      foto.addEventListener("load", onFotoLoad);
+
+      const flip = { p: 0 };
+      const aplicar = () => {
+        const { x, y, w, h, W0, H0, iw, ih } = target;
+        const p = flip.p;
+        const wV = W0 + (w - W0) * p; // box visual no tempo p (interp linear,
+        const hV = H0 + (h - H0) * p; // o mesmo ease:none do tween antigo)
+        const sx = wV / W0;
+        const sy = hV / H0;
+        gsap.set(media, { x: x * p, y: y * p, scaleX: sx, scaleY: sy });
+        const cover = Math.max(wV / iw, hV / ih);
+        const ox = (wV - iw * cover) / 2;
+        const oy = (hV - ih * cover) / 2;
+        gsap.set(foto, {
+          x: ox / sx,
+          y: oy / sy,
+          scaleX: cover / sx,
+          scaleY: cover / sy,
+        });
+        // raio: 0→48 em p 0–0.222, platô 48, 48→24 em p 0.722–1 — a mesma
+        // curva dos dois tweens de borderRadius que moravam aqui. Escrito como
+        // border-radius com barra (rx/ry compensados por eixo da escala):
+        // clip-path inset(round rx/ry) seria o ideal teórico, mas o Chrome
+        // REJEITA a barra dentro do inset (medido: o computed ficava
+        // "inset(0px)" e os cantos saíam retos). border-radius elíptico é
+        // suportado em todo lugar, e como o conteúdo (a foto) é camada
+        // composta própria, o raio vira máscara de composição — não re-raster.
+        const r =
+          p < 0.222 ? (48 * p) / 0.222 : p < 0.722 ? 48 : 48 - 24 * ((p - 0.722) / 0.278);
+        media.style.borderRadius = `${(r / sx).toFixed(2)}px / ${(r / sy).toFixed(2)}px`;
+      };
+      aplicar();
+      tl.to(flip, { p: 1, duration: 0.9, onUpdate: aplicar }, 0.1);
       tl.to(mediaOverlayRef.current, { opacity: 0, duration: 0.3 }, 0.1);
       // Células e título aparecem conforme a revelação avança
       tl.from(
@@ -138,6 +234,10 @@ export default function HeroGrid() {
 
       return () => {
         ScrollTrigger.removeEventListener("refreshInit", onRefreshInit);
+        foto.removeEventListener("load", onFotoLoad);
+        // o border-radius é escrito cru (string por frame); o revert do
+        // matchMedia não sabe dele — limpar à mão.
+        media.style.borderRadius = "";
       };
     });
 

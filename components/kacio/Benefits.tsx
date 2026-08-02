@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { m, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { SectionBadge } from "./ui";
@@ -32,6 +32,25 @@ const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export default function Benefits() {
   const reduced = useReducedMotion();
+  const rootRef = useRef<HTMLElement>(null);
+
+  /* Mesmo pré-decode do HeroGrid (ver o comentário lá): o bg desta seção é a
+     primeira pintura grande depois do pin do topo e decodificava no meio do
+     gesto. Aquecer na banda ociosa da intro custa zero pra quem já passou. */
+  useEffect(() => {
+    const aquecer = () => {
+      for (const img of rootRef.current?.querySelectorAll<HTMLImageElement>("img[loading=lazy]") ?? []) {
+        img.loading = "eager";
+        img.decode().catch(() => {});
+      }
+    };
+    if (document.documentElement.dataset.introDone === "1") {
+      aquecer();
+      return;
+    }
+    window.addEventListener("gaia:intro-done", aquecer, { once: true });
+    return () => window.removeEventListener("gaia:intro-done", aquecer);
+  }, []);
 
   // Mockup 3D estilo Apple: inclinado pra trás ao entrar, assenta plano no centro da tela
   const mockupRef = useRef<HTMLDivElement>(null);
@@ -45,7 +64,7 @@ export default function Benefits() {
   const mockupOpacity = useTransform(scrollYProgress, [0, 1], [0.5, 1]);
 
   return (
-    <section id="beneficios" className="relative overflow-hidden bg-k-cream">
+    <section ref={rootRef} id="beneficios" className="relative overflow-hidden bg-k-cream">
       {/* Background full-bleed: crossfade + Ken Burns reverso na entrada */}
       <m.div
         className="absolute inset-0"

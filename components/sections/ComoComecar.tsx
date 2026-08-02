@@ -70,6 +70,37 @@ export default function ComoComecar() {
   const [active, setActive] = useState(0); // banner centralizado (-1 = deslizando)
   const [highlight, setHighlight] = useState(0); // estado das abas
 
+  /* O content-visibility:auto dos [data-panel] adia o PRIMEIRO render dos
+     três painéis pra quando eles entram na distância de render — que é no
+     meio do gesto de scroll. Aqui esse raster é pago na banda ociosa DEPOIS
+     da intro, por idle: vira `visible` fora da tela, renderiza com a thread
+     vaga, e o scroll chega com tudo pronto. O ganho de a11y/find-in-page do
+     `auto` não se perde — `visible` expõe ainda mais.
+     HONESTIDADE DE MEDIÇÃO: o frame de ~1,6–1,9s da banda 1800→2100 no rig
+     swiftshader NÃO caiu com isto (persistiu idêntico) — aquilo é o custo de
+     perspective do mockup do Benefits em rasterizador de SOFTWARE, que a GPU
+     de um iPhone real faz barato (no vídeo do aparelho da Pronit essa zona é
+     das mais lisas). Este warm-up fica pelo mecanismo (render burst de CV
+     fora do caminho do gesto), não por aquele número. */
+  useEffect(() => {
+    let idleId: number | undefined;
+    const aquecer = () => {
+      idleId = window.requestIdleCallback?.(() => {
+        for (const el of root.current?.querySelectorAll<HTMLElement>("[data-panel]") ?? [])
+          el.style.contentVisibility = "visible";
+      }, { timeout: 3000 });
+      if (idleId === undefined)
+        for (const el of root.current?.querySelectorAll<HTMLElement>("[data-panel]") ?? [])
+          el.style.contentVisibility = "visible";
+    };
+    if (document.documentElement.dataset.introDone === "1") aquecer();
+    else window.addEventListener("gaia:intro-done", aquecer, { once: true });
+    return () => {
+      window.removeEventListener("gaia:intro-done", aquecer);
+      if (idleId !== undefined) window.cancelIdleCallback?.(idleId);
+    };
+  }, []);
+
   useEffect(() => {
     // Pinned em TODA largura (pedido da Pronit: mesmo efeito do desktop no mobile).
     // Só cai pra stacked em prefers-reduced-motion — quem pediu menos movimento
