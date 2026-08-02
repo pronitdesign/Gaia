@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
-import { motion, useReducedMotion } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 import useEmblaCarousel from "embla-carousel-react";
 import AutoScroll from "embla-carousel-auto-scroll";
 import { GradientButton, OutlineButton, SectionBadge } from "./ui";
@@ -109,7 +109,7 @@ export default function Testimonials() {
       />
 
       <div className="relative flex w-full flex-col gap-10 py-20 lg:gap-16 lg:py-28">
-        <motion.div
+        <m.div
           className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-4 px-6 lg:flex-row lg:items-end lg:gap-10 lg:px-12"
           initial={reduced ? false : { opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -131,7 +131,7 @@ export default function Testimonials() {
               <OutlineButton dark>Saiba Mais</OutlineButton>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
         <div>
           <div ref={emblaRef} className="w-full cursor-grab overflow-hidden active:cursor-grabbing">
@@ -143,7 +143,7 @@ export default function Testimonials() {
                   key={`${t.name}-${i}`}
                   className="min-w-0 shrink-0 basis-[85%] pl-4 sm:basis-[465px]"
                 >
-                  <motion.div
+                  <m.div
                     className="group rounded-[40px] bg-white p-1"
                     onMouseEnter={() => toggleTicker(false)}
                     onMouseLeave={() => toggleTicker(true)}
@@ -197,7 +197,7 @@ export default function Testimonials() {
                       {t.quote}
                     </p>
                     </div>
-                  </motion.div>
+                  </m.div>
                 </div>
               ))}
             </div>

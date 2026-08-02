@@ -348,7 +348,7 @@ export default function Manifesto() {
                 dela (SKY_STOPS 0.72+) e roxo-600 sumiu no fundo (~1:1). Claro
                 em vez de mais escuro: escuro competia com o ink de "A Gaia
                 cuida" e a palavra-payoff é a que deve acender. */}
-            <tspan fontStyle="italic" fill="url(#resto-grad)">
+            <tspan className="font-title-italic" fill="url(#resto-grad)">
               do resto.
             </tspan>
           </textPath>

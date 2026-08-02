@@ -1,6 +1,10 @@
 import localFont from "next/font/local";
 
 // Títulos → Sentient (serifada). CONTEXT.md §5
+// SÓ a face normal vive aqui — e portanto só ela é preloaded. O itálico morava
+// nesta mesma chamada e vinha junto no preload: 52KB (o maior arquivo de fonte
+// do site) em prioridade High na janela do LCP, pra servir meia dúzia de spans
+// que só existem abaixo da dobra. Ver `sentientItalic` abaixo.
 export const sentient = localFont({
   src: [
     {
@@ -8,14 +12,28 @@ export const sentient = localFont({
       weight: "200 700",
       style: "normal",
     },
+  ],
+  variable: "--font-title",
+  display: "swap",
+});
+
+// Itálico do Sentient — chamada PRÓPRIA por causa do preload:false (o next/font
+// não tem preload por arquivo, só por chamada). Preço da separação: vira outra
+// família com hash próprio, então `font-style: italic` sob --font-title passa a
+// ser SLANT SINTÉTICO — todo itálico de título tem que usar a utility
+// `.font-title-italic` (globals.css), que aponta pra ESTA família. Auditoria
+// Felix 2.2; a fonte chega on-demand quando o primeiro itálico entra em cena.
+export const sentientItalic = localFont({
+  src: [
     {
       path: "../public/fonts/Sentient-VariableItalic.woff2",
       weight: "200 700",
       style: "italic",
     },
   ],
-  variable: "--font-title",
+  variable: "--font-title-italic",
   display: "swap",
+  preload: false,
 });
 
 // Corpo → Clash Display. CONTEXT.md §5

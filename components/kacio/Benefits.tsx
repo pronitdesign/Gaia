@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import Image from "next/image";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { m, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { SectionBadge } from "./ui";
 
 const features = [
@@ -47,7 +47,7 @@ export default function Benefits() {
   return (
     <section id="beneficios" className="relative overflow-hidden bg-k-cream">
       {/* Background full-bleed: crossfade + Ken Burns reverso na entrada */}
-      <motion.div
+      <m.div
         className="absolute inset-0"
         initial={reduced ? false : { opacity: 0, scale: 1.08 }}
         whileInView={{ opacity: 1, scale: 1 }}
@@ -70,16 +70,16 @@ export default function Benefits() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             loading="lazy"
-            src="/figma/benefits-bg-mobile.webp"
+            src="/_next/image?url=%2Ffigma%2Fbenefits-bg-mobile.webp&w=828&q=75"
             alt=""
             className="size-full object-cover"
           />
         </picture>
         <div className="absolute inset-0 bg-gradient-to-b from-k-cream to-transparent to-[27%]" />
-      </motion.div>
+      </m.div>
 
       <div className="relative mx-auto flex w-full max-w-[1200px] flex-col items-center gap-14 px-6 py-20 lg:px-12 lg:py-28">
-        <motion.div
+        <m.div
           className="flex max-w-[720px] flex-col items-center gap-4"
           initial={reduced ? false : { opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -95,11 +95,11 @@ export default function Benefits() {
             acompanhamento nutricional. A Gaia organiza sua rotina para que você dedique ao
             paciente.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Mockup 3D: rotaciona em perspectiva conforme o scroll (scrub) */}
         <div className="w-full [perspective:1600px]">
-          <motion.div
+          <m.div
             ref={mockupRef}
             className="relative aspect-[3456/2062] w-full overflow-hidden rounded-[32px] border-8 border-white/40 will-change-transform"
             style={
@@ -126,13 +126,13 @@ export default function Benefits() {
                 className="absolute inset-0 size-full object-cover"
               />
             </picture>
-          </motion.div>
+          </m.div>
         </div>
 
         {/* Faixa de features */}
         <div className="grid w-full grid-cols-2 gap-x-4 gap-y-8 lg:flex lg:items-center">
           {features.map((f, i) => (
-            <motion.div
+            <m.div
               key={f.title}
               className="flex flex-1 flex-col items-start gap-2 lg:flex-row lg:items-center"
               initial={reduced ? false : { opacity: 0, y: 20 }}
@@ -147,7 +147,7 @@ export default function Benefits() {
                 </p>
                 <p className="text-[16px] leading-[1.5] text-white/70">{f.desc}</p>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

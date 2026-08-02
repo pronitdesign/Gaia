@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 
 import { Logo } from "@/components/ui/Logo";
 
@@ -170,7 +170,7 @@ export default function LoadingScreen() {
   const veil = reduce ? 0 : Math.max(0, 0.55 * (1 - count / 60)); // breu 0.55 → 0 (até 60%)
 
   return (
-    <motion.div
+    <m.div
       className="fixed inset-0 z-[100] overflow-hidden bg-k-ink"
       initial={{ y: "0%" }}
       animate={revealing ? { y: reduce ? "0%" : "-100%" } : { y: "0%" }}
@@ -193,7 +193,7 @@ export default function LoadingScreen() {
           cortina descobriria a borda e deixaria uma faixa de k-ink no rodapé.
           E NÃO esmaece: se o conteúdo apaga enquanto a cortina opaca sobe, a aba de
           trás dela vira uma faixa escura — a flor tem que sair inteira junto. */}
-      <motion.div
+      <m.div
         className="absolute inset-0"
         animate={
           revealing
@@ -274,7 +274,17 @@ export default function LoadingScreen() {
           playsInline
           preload="auto"
         >
+          {/* AV1 na frente, h264 ATUAL como fallback (auditoria Felix 2.4, com
+              uma divergência: o fallback h264 downscaled ficou de fora — ele
+              definiria a qualidade em iPhone pré-A17 e isso é validação de
+              design, não de engenharia. Assim ninguém regride: quem decodifica
+              AV1 (A17+/M3+/Android recente) baixa 154–173KB; o resto segue nos
+              arquivos de hoje). SSIM AV1 vs fonte: 0,995/0,994. 10-bit de
+              propósito — a flor é degradê puro e 8-bit banda; por isso o
+              codecs= declara .10 (desktop 1440×810 é level 4.0 → 08M). */}
+          <source src="/loading-av1.mp4" media="(min-width: 1024px)" type="video/mp4; codecs=av01.0.08M.10" />
           <source src="/loading.mp4" media="(min-width: 1024px)" type="video/mp4" />
+          <source src="/loading-mobile-av1.mp4" type="video/mp4; codecs=av01.0.05M.10" />
           <source src="/loading-mobile.mp4" type="video/mp4" />
         </video>
 
@@ -293,7 +303,7 @@ export default function LoadingScreen() {
         {/* Desfoque do fim — leve, só pra abrir campo pro cartão de marca (o vídeo já
             vem limpo, não há marca queimada pra esconder). Raio FIXO no backdrop-filter
             e só a opacidade animando: raio variando por frame é o que custa caro. */}
-        <motion.div
+        <m.div
           className="pointer-events-none absolute inset-0 backdrop-blur-[8px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: branded ? 1 : 0 }}
@@ -301,7 +311,7 @@ export default function LoadingScreen() {
         />
         {/* Lavagem por cima do desfoque: assenta a cor sob o wordmark. O /50 é medido —
             é o que leva o creme a ≥3:1 contra o p95 do fundo, com o desfoque em 8px. */}
-        <motion.div
+        <m.div
           className="pointer-events-none absolute inset-0 bg-k-ink/50"
           initial={{ opacity: 0 }}
           animate={{ opacity: branded ? 1 : 0 }}
@@ -311,7 +321,7 @@ export default function LoadingScreen() {
         {/* Cartão de marca — logo e frase em DOM: nítidas e sem corte em qualquer tela */}
         <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-col items-center px-6 text-center text-k-cream">
           <div className="overflow-hidden pb-[0.12em]">
-            <motion.div
+            <m.div
               initial={reduce ? { opacity: 0 } : { y: "115%" }}
               animate={
                 reduce
@@ -321,11 +331,11 @@ export default function LoadingScreen() {
               transition={{ duration: reduce ? 0.4 : 0.75, ease: REVEAL_EASE, delay: reduce ? 0 : 0.25 }}
             >
               <Logo className="w-auto" style={{ height: "clamp(2.5rem, 6vw, 5rem)" }} title="Gaia" />
-            </motion.div>
+            </m.div>
           </div>
 
           <div className="mt-[clamp(0.75rem,1.8vw,1.5rem)] overflow-hidden pb-[0.22em]">
-            <motion.p
+            <m.p
               className="font-grotesk font-light leading-tight text-k-cream/85"
               style={{ fontSize: "clamp(0.95rem, 2vw, 1.6rem)", letterSpacing: "0.01em" }}
               initial={reduce ? { opacity: 0 } : { y: "130%" }}
@@ -337,7 +347,7 @@ export default function LoadingScreen() {
               transition={{ duration: reduce ? 0.4 : 0.75, ease: REVEAL_EASE, delay: reduce ? 0 : 0.42 }}
             >
               O Futuro da nutrição te espera.
-            </motion.p>
+            </m.p>
           </div>
         </div>
 
@@ -345,7 +355,7 @@ export default function LoadingScreen() {
             O pb/-mb cancelam no layout e só abrem folga de clipping pra serifa. */}
         <div className="absolute bottom-[clamp(1.25rem,4vw,3.5rem)] right-[clamp(1.5rem,4.5vw,4rem)] -mb-2 overflow-hidden pb-2">
           {/* Entrada: sobe de baixo por trás do corte — sem fade, o clip é o efeito */}
-          <motion.div
+          <m.div
             className="flex items-end text-k-cream"
             initial={reduce ? { y: 0, opacity: 0 } : { y: "115%" }}
             animate={reduce ? { y: 0, opacity: 1 } : { y: "0%" }}
@@ -363,7 +373,7 @@ export default function LoadingScreen() {
             >
               %
             </span>
-          </motion.div>
+          </m.div>
         </div>
 
         {/* Régua de progresso — trilho vertical na borda direita, enchendo de baixo pra cima.
@@ -379,7 +389,7 @@ export default function LoadingScreen() {
             }}
           />
         </div>
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   );
 }

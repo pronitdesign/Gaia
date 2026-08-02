@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { sentient, clashDisplay, clashGrotesk } from "@/lib/fonts";
+import { sentient, sentientItalic, clashDisplay, clashGrotesk } from "@/lib/fonts";
 import SmoothScroll from "@/components/SmoothScroll";
+import MotionProvider from "@/components/MotionProvider";
 import { SCRIPT_TIER_INICIAL } from "@/lib/gpu";
 import "./globals.css";
 
@@ -18,7 +19,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${sentient.variable} ${clashDisplay.variable} ${clashGrotesk.variable}`}
+      className={`${sentient.variable} ${sentientItalic.variable} ${clashDisplay.variable} ${clashGrotesk.variable}`}
     >
       <head>
         {/* ORÇAMENTO DE GPU — antes de tudo, inclusive do preload abaixo.
@@ -45,7 +46,7 @@ export default function RootLayout({
       </head>
       <body className="bg-neutro-50 text-neutro-800 font-body antialiased">
         <SmoothScroll />
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

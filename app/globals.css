@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Itálico de título — família PRÓPRIA (--font-title-italic, ver lib/fonts.ts):
+   o arquivo itálico saiu do preload e virou outra família hasheada, então
+   `font-style: italic` sozinho sob --font-title renderiza slant sintético.
+   Todo itálico de display usa ESTA classe. Fora de @layer de propósito: ela
+   precisa vencer `.font-title`/`.font-display` (que também setam família) e
+   regra sem layer ganha das com layer. */
+.font-title-italic {
+  font-family: var(--font-title-italic), serif;
+  font-style: italic;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;

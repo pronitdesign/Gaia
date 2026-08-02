@@ -3043,7 +3043,7 @@ export default function Features() {
             className="text-balance font-title text-h2 font-medium text-neutro-0 md:text-h1"
             style={{ perspective: "1000px", backfaceVisibility: "hidden" }}
           >
-            Tudo que a consulta precisa, <span className="italic text-white/60">num lugar só.</span>
+            Tudo que a consulta precisa, <span className="font-title-italic text-white/60">num lugar só.</span>
           </h2>
         </header>
 

@@ -32,6 +32,19 @@ const nextConfig = {
       },
     ];
     return [
+      // Assets soltos na RAIZ de /public (auditoria Felix 2.5): sem esta regra
+      // eles saem com max-age=0 e toda revisita paga 10–15 RTTs de revalidação
+      // — e o optimizer ESPELHA o Cache-Control do upstream, então rotear a
+      // imagem sem consertar isto aqui não consertava o cache dela. Padrão de
+      // segmento único (alternância explícita por prefixo/arquivo): nunca
+      // alcança /_next/* nem as subpastas, que têm regra própria. 30d+SWR e
+      // não immutable — immutable exigiria renomear a cada troca de conteúdo,
+      // e estes arquivos já foram trocados in-place mais de uma vez.
+      {
+        source:
+          "/:file(loading\\.mp4|loading-mobile\\.mp4|loading-av1\\.mp4|loading-mobile-av1\\.mp4|loading-poster\\.webp|passo.*\\.webp|pricing-campo-bg.*\\.webp|roberta.*\\.webp|pessoa-.*\\.webp|plano-.*\\.webp|orquidea-roberta\\.webp|quem-construiu-olhos\\.webp)",
+        headers: cache,
+      },
       { source: "/figma/:path*", headers: cache },
       { source: "/video/:path*", headers: cache },
       { source: "/olho-seq/:path*", headers: cache },

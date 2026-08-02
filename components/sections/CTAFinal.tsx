@@ -1642,7 +1642,7 @@ export default function CTAFinal() {
                 perto da medida em vez de sobrar vão morto antes dela. */}
               <h2 className="mt-6 [@media(max-aspect-ratio:4/3)]:mt-4 pl-1 font-title text-[clamp(2rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
                 Sua próxima consulta pode ser{" "}
-                <span className="font-normal italic text-roxo-300">
+                <span className="font-normal font-title-italic text-roxo-300">
                   diferente.
                 </span>
               </h2>
@@ -1971,7 +1971,7 @@ export default function CTAFinal() {
                 </div>
                 <h2 className="mt-6 [@media(max-aspect-ratio:4/3)]:mt-4 pl-1 font-title text-[clamp(2rem,4.2vw,4rem)] font-medium leading-[0.98] tracking-[-0.035em] text-white">
                   Sua próxima consulta pode ser{" "}
-                  <span className="font-normal italic text-roxo-300">
+                  <span className="font-normal font-title-italic text-roxo-300">
                     diferente.
                   </span>
                 </h2>

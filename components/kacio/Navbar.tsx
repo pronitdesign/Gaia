@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
 const links = [
   { label: "Benefícios", href: "#beneficios" },
@@ -65,7 +65,7 @@ export default function Navbar() {
 
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             className="fixed inset-0 z-50 bg-k-ink/60 p-3 backdrop-blur-sm lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -73,7 +73,7 @@ export default function Navbar() {
             transition={{ duration: 0.25 }}
             onClick={() => setOpen(false)}
           >
-            <motion.div
+            <m.div
               className="flex flex-col gap-4 rounded-[32px] bg-k-ink/80 p-4 backdrop-blur-2xl"
               initial={{ opacity: 0, y: -16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -127,8 +127,8 @@ export default function Navbar() {
                   </span>
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         )}
       </AnimatePresence>
     </header>

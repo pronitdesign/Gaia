@@ -270,17 +270,19 @@ function PhotoBg({ src, focus = "object-center" }: { src: string; focus?: string
       <img
         loading="lazy"
         data-parallax
-        src={src}
-        // As fotos são 2752×1536 e servem retina. No desktop o box é w-[150%] do
-        // painel, então num viewport de 1350 o DPR 1 precisa de ~2025px e o 2752
-        // é sobra pura — 528KB na passo3 pra pintar 2025. A 2048 fecha em 122KB.
-        // Convenção de nome (`-2048` antes da extensão) em vez de prop nova: os
-        // três painéis usam o mesmo componente e a mesma regra, e assim não há
-        // como um deles ficar pra trás por esquecimento na chamada.
-        // O candidato de 1200 é o do CELULAR: lá o box é 100vw (~412px), que em
-        // DPR 2.625 pede ~1081px — sem ele o menor candidato era o 2048 e o
-        // telefone baixava 233KB nas três fotos. Com o 1200 elas somam 96KB.
-        srcSet={`${src.replace(/\.webp$/, "-1200.webp")} 1200w, ${src.replace(/\.webp$/, "-2048.webp")} 2048w, ${src} 2752w`}
+        // Candidatos pelo optimizer do Next (AVIF q75) a partir do ARQUIVO
+        // ORIGINAL — substitui a convenção `-1200`/`-2048` de arquivo em disco:
+        // o passo3 cheio (540KB, sub-comprimido) fecha em ~48KB na w=1920
+        // medidos em produção, e os três painéis herdam a mesma regra por
+        // construção, como antes. Grade w=1280/1920/2560 porque são as larguras
+        // da allowlist do next.config que cercam os alvos reais (celular DPR
+        // 2.625 pede ~1081; desktop 150vw a DPR 1 pede ~2025; retina fica no
+        // teto de 2560). q75 conferido no texto dos mocks (cuidado (c) da
+        // auditoria: screenshot com texto reprova abaixo de q70).
+        src={`/_next/image?url=${encodeURIComponent(src)}&w=1280&q=75`}
+        srcSet={[1280, 1920, 2560]
+          .map((w) => `/_next/image?url=${encodeURIComponent(src)}&w=${w}&q=75 ${w}w`)
+          .join(", ")}
         sizes="(min-width: 768px) 150vw, 100vw"
         alt=""
         // decoding="async": tira o decode do WebP do caminho síncrono de render —

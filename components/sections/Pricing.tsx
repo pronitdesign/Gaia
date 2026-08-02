@@ -337,7 +337,7 @@ export default function Pricing() {
               viewport: o segundo vira cache hit e o download duplo some.
               Se mexer no breakpoint aqui, mexa no de lá no mesmo commit. */}
           <picture className="contents">
-            <source media="(min-width: 1024px)" srcSet="/pricing-campo-bg.webp" />
+            <source media="(min-width: 1024px)" srcSet="/_next/image?url=%2Fpricing-campo-bg.webp&w=1920&q=75" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               data-campo
@@ -345,7 +345,7 @@ export default function Pricing() {
               alt=""
               loading="lazy"
               decoding="async"
-              src="/pricing-campo-bg-1400.webp"
+              src="/_next/image?url=%2Fpricing-campo-bg-1400.webp&w=1080&q=75"
               className="aspect-[775/624] w-full rounded-b-card object-cover object-center [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_16%)]"
             />
           </picture>
@@ -547,11 +547,11 @@ export default function Pricing() {
               então a fonte necessária não cresce com a largura: 1400 cobre 2×
               até o maior iPhone. */}
           <picture className="contents">
-            <source media="(min-width: 1024px)" srcSet="/pricing-campo-bg.webp" />
+            <source media="(min-width: 1024px)" srcSet="/_next/image?url=%2Fpricing-campo-bg.webp&w=1920&q=75" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               loading="lazy"
-              src="/pricing-campo-bg-1400.webp"
+              src="/_next/image?url=%2Fpricing-campo-bg-1400.webp&w=1080&q=75"
               alt=""
               aria-hidden
               decoding="async"

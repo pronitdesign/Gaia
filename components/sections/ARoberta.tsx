@@ -286,11 +286,15 @@ const FLOWER_STRENGTH = 1;
 // vira neon no multiply). Cor crua = cor do Figma.
 const FLOWER_FILTER = "none";
 
-// Foto da Roberta — soltar o arquivo em /public e trocar aqui.
+// Foto da Roberta — soltar o arquivo em /public e trocar o `url=` aqui.
 // Se falhar, o placeholder (gradiente Bruma + monograma) aparece por baixo.
-const PORTRAIT = "/roberta.webp";
-// Mesma foto a 1920 de largura, para <lg. Ver o <picture> em Portrait().
-const PORTRAIT_SM = "/roberta-1920.webp";
+// Servida pelo optimizer do Next (AVIF q75): o WebP cru eram 159KB desktop +
+// 55KB mobile disputando banda com a sequência do olho. w=1920 no desktop
+// (full-bleed com margem de craft — a auditoria sugeria 1080, recusado por
+// qualidade) e w=1080 no <lg (390×3 = 1170 de DPR real).
+const PORTRAIT = "/_next/image?url=%2Froberta.webp&w=1920&q=75";
+// Mesma foto, candidato de <lg. Ver o <picture> em Portrait().
+const PORTRAIT_SM = "/_next/image?url=%2Froberta-1920.webp&w=1080&q=75";
 
 // A foto é landscape (2560×1429) e a Roberta está no meio-esquerda; o card do p=0 é
 // retrato (260×320), então o object-cover corta ~55% da largura fora. Sem reposicionar,
@@ -325,7 +329,9 @@ const FLOWER = "/orquidea-roberta.webp";
 // ── Camadas NOVAS (sobre tudo o que já existia) ──────────────────────────────
 // Recorte da Roberta (RGBA transparente) — vai NA FRENTE do ticker, então o nome
 // gigante passa por trás da cabeça dela. Layering puro: o alpha faz a oclusão.
-const CUTOUT = "/roberta-recorte.webp";
+// Optimizer preserva o alpha do AVIF; borda do recorte conferida no pixel
+// (cuidado (c) da auditoria). URL única pros dois usos = um download só.
+const CUTOUT = "/_next/image?url=%2Froberta-recorte.webp&w=1920&q=75";
 // Ticker: o nome repetido numa faixa. A trilha tem duas faixas idênticas → xPercent
 // -50 desloca exatamente uma faixa e o loop é sem emenda.
 const TICKER_NAME = "Roberta Carbonari";
@@ -530,7 +536,7 @@ function TickerGroup() {
     <div className="flex shrink-0 items-center" aria-hidden>
       {Array.from({ length: TICKER_REPEAT }).map((_, i) => (
         <span key={i} className="flex items-center">
-          <span className="whitespace-nowrap px-[0.12em] font-title text-[clamp(3.5rem,11vw,10rem)] font-medium italic leading-none text-white/[0.22]">
+          <span className="whitespace-nowrap px-[0.12em] font-title-italic text-[clamp(3.5rem,11vw,10rem)] font-medium leading-none text-white/[0.22]">
             {TICKER_NAME}
           </span>
           <span className="px-[0.18em] text-[clamp(2rem,5vw,5rem)] leading-none text-roxo-300/40">

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { SectionBadge } from "./ui";
 
 const faqs = [
@@ -109,7 +109,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
       {/* Resposta = mensagem do bot */}
       <AnimatePresence>
         {(typing || open) && (
-          <motion.div
+          <m.div
             className="flex items-end justify-end gap-2"
             initial={reduced ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -127,14 +127,14 @@ function FaqItem({ q, a }: { q: string; a: string }) {
                 ))}
               </div>
             ) : (
-              <motion.div
+              <m.div
                 className="max-w-[705px] rounded-2xl border border-white/10 bg-white/10 px-6 py-4 backdrop-blur-lg lg:backdrop-blur-2xl"
                 initial={reduced ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4 }}
               >
                 <p className="text-[16px] leading-[1.5] text-white">{a}</p>
-              </motion.div>
+              </m.div>
             )}
             <Image
               src="/figma/faq-bot-avatar.webp"
@@ -143,7 +143,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
               height={56}
               className="size-14 shrink-0 rounded-2xl object-cover"
             />
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>
@@ -157,9 +157,12 @@ export default function Faq() {
     <section id="faq" className="relative overflow-hidden bg-k-ink">
       <div className="absolute inset-0">
         <picture>
-          <source media="(min-width: 1024px)" srcSet="/figma/faq-bg.webp" />
+          {/* Pelo optimizer (AVIF q75): o faq-bg desktop era o maior arquivo da
+              página — 611KB de WebP pra virar fundo atrás de vidro; a w=1920
+              fecha em ~80KB medidos. O mobile cai de 164KB pra ~20KB na w=828. */}
+          <source media="(min-width: 1024px)" srcSet="/_next/image?url=%2Ffigma%2Ffaq-bg.webp&w=1920&q=75" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img loading="lazy" src="/figma/faq-bg-mobile.webp" alt="" className="size-full object-cover" />
+          <img loading="lazy" src="/_next/image?url=%2Ffigma%2Ffaq-bg-mobile.webp&w=828&q=75" alt="" className="size-full object-cover" />
         </picture>
       </div>
 
@@ -177,7 +180,7 @@ export default function Faq() {
       />
 
       <div className="relative mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-6 py-20 lg:gap-16 lg:px-[88px] lg:py-28">
-        <motion.div
+        <m.div
           className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end lg:gap-10"
           initial={reduced ? false : { opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -203,11 +206,11 @@ export default function Faq() {
               </span>
             </button>
           </div>
-        </motion.div>
+        </m.div>
 
         <div className="flex flex-col gap-4">
           {faqs.map((faq, i) => (
-            <motion.div
+            <m.div
               key={faq.q}
               initial={reduced ? false : { opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -215,7 +218,7 @@ export default function Faq() {
               transition={{ duration: 0.5, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
             >
               <FaqItem q={faq.q} a={faq.a} />
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
