@@ -9,9 +9,13 @@ import { ligarMonitorDeFrame } from "@/lib/gpu";
 
 gsap.registerPlugin(ScrollTrigger);
 
+/* O LENIS SÓ EXISTE ONDE HÁ RODA. */
+const TEM_RODA = "(hover: hover) and (pointer: fine)";
+
 /**
  * Smooth scroll (Lenis) sincronizado com o ScrollTrigger do GSAP.
  * Respeita prefers-reduced-motion — desliga o smooth e deixa o scroll nativo.
+ * E não nasce em aparelho de toque — ver TEM_RODA, abaixo.
  */
 export default function SmoothScroll() {
   useEffect(() => {
@@ -29,6 +33,38 @@ export default function SmoothScroll() {
     ).matches;
 
     if (prefersReduced) return;
+
+    /* ── O LENIS NÃO ENTRA EM APARELHO DE TOQUE ────────────────────────────
+     *
+     * Ele só suaviza a RODA. `syncTouch` é `false` (o padrão, e é o que a gente
+     * quer: sincronizar o toque sequestra o arrasto e briga com a inércia do
+     * sistema). Verificado na fonte do lenis 1.3.25, `onVirtualScroll`:
+     *
+     *     if (!(this.options.syncTouch && isTouch || this.options.smoothWheel && isWheel)) return
+     *
+     * Ou seja, no celular todo touchmove entra no handler e SAI SEM FAZER NADA.
+     * Benefício zero. E o preço não é o handler vazio — é como ele foi
+     * registrado: o lenis usa `listenerOptions = { passive: false }` para TODOS
+     * os binds, inclusive `touchstart`/`touchmove` no window.
+     *
+     * Um listener de touchmove NÃO-PASSIVO no window proíbe o navegador de
+     * rolar no compositor: como o handler PODE chamar preventDefault(), cada
+     * movimento do dedo tem que esperar a main thread rodar JS antes de o
+     * scroll acontecer. Numa página que já ocupa a main thread com scrub de
+     * ScrollTrigger, o dedo passa a andar no ritmo do pior frame — que é
+     * exatamente o "rola aos trancos" que aparece em QUALQUER aparelho, e que
+     * nenhuma das rodadas anteriores de corte de pintura alcançou, porque elas
+     * mexiam no custo do frame e o problema estava no caminho da ENTRADA.
+     *
+     * A aresta é `(hover: hover) and (pointer: fine)` e não `max-width`: quem
+     * decide não é o tamanho da tela, é ter roda pra suavizar. Notebook com
+     * tela de toque cai no lado do desktop de propósito — lá existe roda, e a
+     * máquina é de classe desktop.
+     *
+     * Nada muda visualmente no celular: o toque nunca foi suavizado. O que
+     * muda é que o ScrollTrigger passa a ouvir o scroll nativo direto (é o
+     * caminho padrão dele quando não há proxy), sem o intermediário. */
+    if (!window.matchMedia(TEM_RODA).matches) return;
 
     const lenis = new Lenis({
       duration: 1.1,

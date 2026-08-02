@@ -218,7 +218,35 @@ function EdgeLight({ at, tone = "dark", className = "" }: { at: string; tone?: "
 }
 
 /* ── Vidro (receita do Como Começa) ─────────────────────────────────────── */
-const GLASS_BLUR = "backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+/* O RAIO DO BACKDROP ESCALA COM A TELA — 16px abaixo de lg, 40px a partir dela.
+ *
+ * Não é "versão pobre pro celular": é a MESMA aparência. Raio de desfoque é
+ * ângulo, não pixel. O painel que no desktop tem 518px de largura vista a um
+ * braço de distância aqui tem ~350px vista a 30cm — 16px neste painel cobrem
+ * a mesma fração da peça que 40px cobrem lá. Aumentar o raio junto com a
+ * redução do painel é que seria mudança de aparência.
+ *
+ * E o preço é o item mais caro da faixa mais cara da página. Medido com
+ * rasterizador de software (Chromium --use-gl=swiftshader, iPhone 390×844
+ * dpr 3, CPU 4×, travessia 6400→8200 duas vezes intercaladas) — o software é
+ * o único arranjo em que taxa de preenchimento de CELULAR aparece como número;
+ * na GPU do Mac o backdrop-filter é de graça, e é por isso que ele passou
+ * despercebido em toda medição anterior:
+ *
+ *     como está ............... 74 quadros · p50 25ms
+ *     sem backdrop-filter .... 104 quadros · p50 13ms   ← o teto do ganho
+ *     raio 16 ................ 101 quadros · p50 10ms   ← quase todo ele, com o vidro de pé
+ *     raio 16 + sem o grão ... 117 quadros · p50 9,5ms
+ *
+ * Ou seja: quase dobrava o tempo de quadro da faixa. Sete painéis de vidro
+ * empilhados sobre foto, cada um remontando a gaussiana do que está atrás a
+ * cada repaint — e o card repinta o tempo todo (useAutoCycle, .gaia-parallax,
+ * o scroll passando por cima). Não dá pra promover a camada como se fez com
+ * os `filter: blur()` estáticos (ver .gaia-blur-static em globals.css): o
+ * backdrop é, por definição, função do que está ATRÁS — promover não cacheia
+ * nada, o fundo continua mudando. O que dá é cobrar menos por reconstrução. */
+const GLASS_BLUR =
+  "backdrop-blur-lg lg:backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
 /* Preto/58→/40 e não /80→/66: em 80% de tinta preta o blur não tinha o que
    refratar — o painel lia como recorte vazado, não como vidro sobre a cena.
    O aro e o realce de topo sobem junto (0.22 / 0.10) pra a peça continuar
@@ -3514,9 +3542,20 @@ export default function Features() {
           mora e onde o banding aparece.
           `soft-light` e opacity 0,045: os mesmos valores das outras duas seções.
           Acima disso o grão vira sujeira visível em vez de superfície. */}
+      {/* `hidden lg:block`: abaixo de lg o grão sai. É a maior camada de
+          MISTURA da página — inset-0 numa section de 3906px de altura dá 13,7
+          milhões de pixels em dpr 3, e mix-blend-mode obriga o compositor a
+          reler o fundo inteiro a cada repaint. A 4,5% de opacidade, num painel
+          de 6 polegadas, ele não chega a existir: o que ele conserta é banding
+          de gradiente em tela grande. Medido no rasterizador de software
+          (mesmo arranjo da nota do GLASS_BLUR): tirar só ele leva a faixa de 74
+          pra 106 quadros, p50 de 25ms pra 9,5ms — o segundo maior item, atrás
+          só do raio do backdrop. As outras duas seções (Manifesto, Pricing)
+          põem o grão só no FUNDO; aqui ele é z-20 sobre os cards, então cobre
+          a section inteira e custa a section inteira. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-20 opacity-[0.045] mix-blend-soft-light"
+        className="pointer-events-none absolute inset-0 z-20 hidden opacity-[0.045] mix-blend-soft-light lg:block"
         style={{ backgroundImage: NOISE, backgroundSize: "140px" }}
       />
     </section>
