@@ -105,8 +105,12 @@ export default function LoadingScreen() {
     }
 
     // Rede de segurança: se o vídeo nunca engatar, revela mesmo assim.
+    // `currentTime < 0.5` cobre o buraco que readyState/paused não pegam: o
+    // vídeo que DIZ estar tocando mas cujo relógio não anda (decode engasgado
+    // — visto com AV1 por software em Android fraco). Sem isso, cortina
+    // eterna: o tick nunca cruza o gatilho e o paused é false.
     const fallback = setTimeout(() => {
-      if (video.readyState < 2 || video.paused) startReveal();
+      if (video.readyState < 2 || video.paused || video.currentTime < 0.5) startReveal();
     }, FALLBACK_TIMEOUT_MS);
 
     // O % é coreografia: currentTime/duration → 0..100, casado com a flor.
@@ -297,9 +301,17 @@ export default function LoadingScreen() {
               arquivos de hoje). SSIM AV1 vs fonte: 0,995/0,994. 10-bit de
               propósito — a flor é degradê puro e 8-bit banda; por isso o
               codecs= declara .10 (desktop 1440×810 é level 4.0 → 08M). */}
+          {/* AV1 SÓ NO DESKTOP (2026-08-02, caso do celular do Felix): o Chrome
+              de Android anuncia AV1 mesmo sem hardware — decode por SOFTWARE —
+              e escolhia o loading-mobile-av1; num aparelho fraco o decoder não
+              sustenta e a intro fica presa sem andar. canPlayType não separa
+              hardware de software, então a aresta segura é a viewport: celular
+              volta pro h264 provado (275KB, toca em qualquer coisa) e o AV1 de
+              −64% fica onde CPU sobra pra dav1d. O arquivo loading-mobile-av1
+              permanece em /public — se um dia der pra decidir por
+              mediaCapabilities (powerEfficient), é religar uma linha. */}
           <source src="/loading-av1.mp4" media="(min-width: 1024px)" type="video/mp4; codecs=av01.0.08M.10" />
           <source src="/loading.mp4" media="(min-width: 1024px)" type="video/mp4" />
-          <source src="/loading-mobile-av1.mp4" type="video/mp4; codecs=av01.0.05M.10" />
           <source src="/loading-mobile.mp4" type="video/mp4" />
         </video>
 

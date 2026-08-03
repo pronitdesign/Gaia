@@ -85,13 +85,21 @@ export default function ComoComecar() {
   useEffect(() => {
     let idleId: number | undefined;
     const aquecer = () => {
-      idleId = window.requestIdleCallback?.(() => {
+      const render = () => {
         for (const el of root.current?.querySelectorAll<HTMLElement>("[data-panel]") ?? [])
           el.style.contentVisibility = "visible";
-      }, { timeout: 3000 });
-      if (idleId === undefined)
-        for (const el of root.current?.querySelectorAll<HTMLElement>("[data-panel]") ?? [])
-          el.style.contentVisibility = "visible";
+        // As fotos dos passos (PhotoBg, lazy) decodificavam no meio do gesto:
+        // no vídeo do aparelho da Pronit (02/08 23h), dois congelamentos de
+        // ~600ms em t=13–14s, exatamente na chegada do "três passos" — o
+        // pré-decode do HeroGrid/Benefits não alcançava esta seção. Mesmo
+        // padrão: eager + decode() na banda ociosa.
+        for (const img of root.current?.querySelectorAll<HTMLImageElement>("img[loading=lazy]") ?? []) {
+          img.loading = "eager";
+          img.decode().catch(() => {});
+        }
+      };
+      idleId = window.requestIdleCallback?.(render, { timeout: 3000 });
+      if (idleId === undefined) render();
     };
     if (document.documentElement.dataset.introDone === "1") aquecer();
     else window.addEventListener("gaia:intro-done", aquecer, { once: true });
