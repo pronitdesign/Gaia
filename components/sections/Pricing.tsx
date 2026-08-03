@@ -111,11 +111,12 @@ const TAB_PATH_XL =
 
 /* vidro fumê — versão MOBILE: card alto e estreito, single column. Tint
    uniforme e denso (sem gradiente) pro texto branco não lavar.
-   10px e não 16: com 0.80 de tinta o backdrop mal aparece, e no rasterizador
-   de celular a banda do Pricing pagava o raio cheio — mesma dieta de raio do
-   GLASS do Features (raio é ângulo; a tela de 6" está a 30cm). */
-const GLASS_MOBILE =
-  "bg-[rgba(0,10,26,0.80)] backdrop-blur-[10px] backdrop-saturate-[1.6]";
+   FROST ESTÁTICO (perf/frost-mobile): o backdrop saiu de vez — com 0.80 de
+   tinta só 20% do fundo atravessava, e a ablação provou que a banda pagava a
+   cópia do backdrop inteira mesmo com raio pequeno. A tinta sobe 0.80→0.84
+   pra compensar a nitidez que o borrão comia; o material aparente é o mesmo
+   fumê. Desktop não usa esta receita. */
+const GLASS_MOBILE = "bg-[rgba(0,10,26,0.84)]";
 
 export default function Pricing() {
   const root = useRef<HTMLElement>(null);

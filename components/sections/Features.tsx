@@ -245,8 +245,17 @@ function EdgeLight({ at, tone = "dark", className = "" }: { at: string; tone?: "
  * os `filter: blur()` estáticos (ver .gaia-blur-static em globals.css): o
  * backdrop é, por definição, função do que está ATRÁS — promover não cacheia
  * nada, o fundo continua mudando. O que dá é cobrar menos por reconstrução. */
+/* ABAIXO DE lg O VIDRO É FROST ESTÁTICO — sem backdrop-filter nenhum
+   (perf/frost-mobile, 2026-08-03). A ablação no rig de celular mostrou que o
+   custo dominante do backdrop é a CÓPIA/isolamento do fundo (independe do
+   raio: 16px→10px não moveu o p50 da banda), e o vídeo do aparelho da Pronit
+   marca os engasgos do bento em 167–800ms. O que o blur refratava aqui é
+   cena ESCURA de baixa variância (fundo + luzes paradas do .gaia-blur-static)
+   atravessando tinta de 40–82%: o borrão de um gradiente suave é ~o próprio
+   gradiente, então o frost (só a tinta) fica a um passo do pixel original —
+   diferença medida no lado a lado do PR. Desktop segue com o vidro vivo. */
 const GLASS_BLUR =
-  "backdrop-blur-lg lg:backdrop-blur-2xl backdrop-saturate-150 transform-gpu";
+  "lg:backdrop-blur-2xl lg:backdrop-saturate-150 transform-gpu";
 /* Preto/58→/40 e não /80→/66: em 80% de tinta preta o blur não tinha o que
    refratar — o painel lia como recorte vazado, não como vidro sobre a cena.
    O aro e o realce de topo sobem junto (0.22 / 0.10) pra a peça continuar
