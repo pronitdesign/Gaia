@@ -1,23 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import Image from "next/image";
 import { AnimatePresence, m } from "framer-motion";
+import { getLenis } from "@/lib/lenis";
 
 const links = [
   { label: "Benefícios", href: "#beneficios" },
-  { label: "Como Funciona", href: "#como-funciona" },
+  { label: "Como Funciona", href: "#como-comecar" },
   { label: "Depoimentos", href: "#depoimentos" },
   { label: "FAQ", href: "#faq" },
-  { label: "Planos", href: "#planos" },
+  { label: "Planos", href: "#pricing" },
 ];
+
+// Altura da barra fixa no mobile: compensa o scroll pra o título da seção não
+// nascer escondido embaixo do header.
+const HEADER_OFFSET = 72;
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
 
+  // Header do mobile: some ao descer, reaparece ao subir. Ganha fundo escuro
+  // depois do topo pra o logo/texto brancos não sumirem em seção clara.
+  const [hidden, setHidden] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const lastY = useRef(0);
+
+  useEffect(() => {
+    lastY.current = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        setScrolled(y > 8);
+        const goingDown = y > lastY.current;
+        // histerese de 6px pra não piscar em micro-tremores do dedo
+        if (Math.abs(y - lastY.current) > 6) {
+          setHidden(y > 80 && goingDown);
+          lastY.current = y;
+        }
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Rola suave em qualquer clique de link: Lenis no desktop (que desliga o
+  // scroll-behavior nativo), scroll nativo suave com offset do header no mobile.
+  const onNav = useCallback((e: MouseEvent<HTMLAnchorElement>) => {
+    const href = e.currentTarget.getAttribute("href");
+    if (!href?.startsWith("#")) return;
+    e.preventDefault();
+    setOpen(false);
+    const el = href.length > 1 ? document.getElementById(href.slice(1)) : null;
+    const lenis = getLenis();
+    if (lenis) {
+      lenis.scrollTo(el ?? 0, { duration: 1.1 });
+    } else {
+      const top = el
+        ? el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET
+        : 0;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+    if (href.length > 1) history.replaceState(null, "", href);
+  }, []);
+
+  const barHidden = hidden && !open;
+
   return (
-    <header className="absolute inset-x-0 top-0 z-40 mx-auto flex w-full max-w-[1200px] items-center justify-between px-6 py-6 lg:px-12">
-      <a href="#" aria-label="Gaia">
+    <header
+      className={`fixed inset-x-0 top-0 z-40 mx-auto flex w-full max-w-[1200px] items-center justify-between px-6 py-6 transition-[transform,background-color,backdrop-filter] duration-300 lg:absolute lg:px-12 lg:!translate-y-0 lg:!bg-transparent lg:!backdrop-blur-none ${
+        barHidden ? "-translate-y-full" : "translate-y-0"
+      } ${scrolled ? "bg-k-ink/80 backdrop-blur-xl" : "bg-transparent"}`}
+    >
+      <a href="#" aria-label="Gaia" onClick={onNav}>
         <Image src="/figma/logo-gaia.svg" alt="Gaia" width={108} height={28} priority />
       </a>
 
@@ -26,6 +85,7 @@ export default function Navbar() {
           <a
             key={link.label}
             href={link.href}
+            onClick={onNav}
             className="p-2.5 font-nav text-[14px] leading-[1.2] tracking-[-0.14px] text-white transition-opacity hover:opacity-70"
           >
             {link.label}
@@ -101,7 +161,7 @@ export default function Navbar() {
                   <a
                     key={link.label}
                     href={link.href}
-                    onClick={() => setOpen(false)}
+                    onClick={onNav}
                     className="rounded-2xl px-4 py-3.5 font-nav text-[18px] leading-[1.2] text-white transition-colors active:bg-white/10"
                   >
                     {link.label}
