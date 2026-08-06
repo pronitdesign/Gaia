@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import Navbar from "./Navbar";
 import { GradientButton, OutlineButton, SectionBadge } from "./ui";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -297,10 +296,16 @@ export default function HeroGrid() {
           />
         </div>
 
-        <div className="pointer-events-auto">
-          <Navbar />
-        </div>
-
+        {/* A Navbar NÃO mora mais aqui — ver app/page.tsx.
+            Desde 9c1fcbb o header é `fixed` no mobile (some ao descer, volta ao
+            subir). Mas este <div ref={rootRef}> é o elemento PINADO pelo
+            ScrollTrigger, e o GSAP escreve `transform` nele — mesmo a matriz
+            identidade cria containing block, e `position: fixed` passa a
+            resolver contra ESTA caixa em vez da viewport. MEDIDO no rig de
+            celular: o header saía com a página (top=-736 em y=1500, top=-11236
+            em y=12000) e nunca voltava. A feature não funcionava, e o
+            backdrop-blur-xl seguia declarado num elemento fora de quadro.
+            Subir a Navbar pra fora do pin é o que devolve o `fixed` real. */}
         <div
           ref={heroContentRef}
           className="pointer-events-auto absolute inset-x-0 bottom-16 z-20 mx-auto flex w-full max-w-[1200px] flex-col items-center justify-between gap-6 px-6 text-center lg:flex-row lg:items-end lg:gap-10 lg:px-12 lg:text-left"

@@ -14,6 +14,7 @@ import CTAFinal from "@/components/sections/CTAFinal";
 // pra baixo da Pricing (bloco de fechamento antes do CTA), a pedido da Pronit.
 import CenaOpcional from "@/components/iphone3d/CenaOpcional";
 import LoadingScreen from "@/components/kacio/LoadingScreen";
+import Navbar from "@/components/kacio/Navbar";
 import HeroGrid from "@/components/kacio/HeroGrid";
 import Benefits from "@/components/kacio/Benefits";
 import Testimonials from "@/components/kacio/Testimonials";
@@ -46,6 +47,17 @@ export default function Home() {
           fixed inset-0 z-[100] independe de ordem no DOM. Preço aceito: na
           ordem de leitura/tab o progressbar vem depois do hero. */}
       <div className="font-grotesk">
+        {/* A Navbar mora AQUI e não dentro da HeroGrid (de onde saiu em
+            2026-08-05). Desde 9c1fcbb ela é `fixed` no mobile, e a HeroGrid é
+            pinada pelo ScrollTrigger: o GSAP escreve `transform` no elemento
+            pinado, e qualquer transform — inclusive a matriz identidade — cria
+            containing block, fazendo `position: fixed` resolver contra aquela
+            caixa em vez da viewport. MEDIDO antes da mudança: o header saía de
+            quadro junto com a página (top=-736 em y=1500; top=-11236 em
+            y=12000) e nunca voltava ao subir.
+            Fica DENTRO do wrapper `font-grotesk` (é a fonte de corpo do bloco
+            do Kácio) mas FORA do pin — este div não recebe transform. */}
+        <Navbar />
         <HeroGrid />
         <LoadingScreen />
         <Benefits />
