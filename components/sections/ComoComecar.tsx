@@ -411,6 +411,16 @@ export default function ComoComecar() {
       <div
         key={key}
         data-panel
+        /* Nasce PAUSADO, do SSR. O `data-live` só passou a existir quando o
+           scrub do pin roda `applyReveal` — ou seja, nunca antes de a pessoa
+           chegar aqui. Até lá `[data-panel][data-live="0"]` (globals.css) não
+           casava com nada e as micro-animações infinitas dos TRÊS painéis
+           (waveform de 27 barras, sheen, shimmer, halo, caret, scan, ping)
+           rodavam desde o fim da intro, com o usuário parado no topo — medido:
+           0 → 11/5/5 animações no instante do warm-up. Com o atributo no HTML
+           inicial elas não chegam a começar; o `applyReveal` segue mandando a
+           partir do primeiro frame do pin. */
+        data-live="0"
         className={
           mode === "pinned"
             ? "relative h-full w-screen shrink-0 overflow-hidden bg-neutro-0"
